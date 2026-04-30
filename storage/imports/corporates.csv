@@ -1,0 +1,150 @@
+empresa,sucursal,horario_entrega,fatura_morada,zona_entrega,localidade,numero_caixas,peso_total,banana,maca,pera,laranja,kiwi,fruta_epoca,dias_entrega,notas
+WIT SOFTWARE,,,,,,0,0,0,0,0,0,0,0,,Data inicio Excel: 2024.0
+Correos Express SEDE,Porto,Ind,"R. de Santo Ovídio 21, 4425-379 Folgosa",Norte,Porto,1,196.0,30,15,10,10,5,28,Segunda|Quarta,"Data inicio Excel: 45859.0
+Numero de entregas: 2"
+Correos Express 2,Vila Real,Ind,"R. Dr. Manuel de Arriaga 1, 5000-105 Vila Real",Norte,Vila Real,1,20.0,6,2,4,2,2,4,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 3,Viseu,Ind,"Vilar de Besteiros, 3465-192 Viseu",Centro,Viseu,1,10.0,4,1,2,1,2,2,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 4,Aveiro,Ind,"Rua Augusto Marques Branco 4, 3810-783 Aveiro",Centro,Aveiro,1,22.0,6,2,2,2,2,8,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 5,Leiria,Ind,"R. do Pinhalzinho 705, Quintas do Sirol, 2420-348 Leiria",Centro,Leiria,1,28.0,6,4,4,2,2,8,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 6,Alcochete,Ind,"R. do Montinhoso armazém 2 Zona 2, 2955-245 Pinhal Novo",LX,Alcochete,1,26.0,6,4,2,2,2,8,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 7,Evora,Ind,"Mercado Abastecedor da Região de Évora Armazém G6, G21, 7005-873 Évora",Sul,Evora,1,8.0,2,1,2,1,1,2,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 8,Lisboa,Ind,"Rua Marinhas do Tejo 164D, 2625-090 Póvoa de Santa Iria",LX,Lisboa,1,124.0,20,10,10,5,5,12,Segunda|Quarta,"Data inicio Excel: 45859.0
+Numero de entregas: 2"
+Correos Express 9,Faro,Ind,"MARF - Edifício 3.8 Guelhim-Estoi, 8005-489 Faro",Sul,Faro,1,14.0,0,0,0,0,0,0,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 10,Braga,Ind,"Rua do Pq. Industrial 15, 4705-395 Braga",Norte,Braga,1,30.0,0,0,0,0,0,0,Segunda,"Data inicio Excel: 45859.0
+Numero de entregas: 1"
+Correos Express 11,Covilhã,ind,"Parque Industrial do Tortosendo, R. H 72 B, 6200-823 Tortosendo",Norte,Covilhã,1,6.0,0,0,0,0,0,0,,
+Pinto e Cruz Sede,Porto,Até ás 9h,"R. Eng. Ferreira Dias 469, 4100-247 Porto",Norte,Porto,4,550.0,15,10,10,5,5,10,Segunda|Quarta|Sexta,"Data inicio Excel: 2024.0
+Numero de entregas: 3"
+Pinto e Cruz Aveiro,Aveiro,Ind,"Tv. das Cascorras L20, 3800-429 Aveiro",Centro,Aveiro,1,30.0,10,5,5,3,2,5,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Braga,Braga,Ind,"Rua da Irmã Lúcia Nº 46 –Lote A7 , Frossos, 4700-152 Braga",Norte,Braga,0,40.0,0,0,0,0,0,0,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Benavente,Benavente,Ind,"Beco João Marquês da Cruz Nº11, Ferreiros, 4705-143 Braga",LX,Benavente,1,100.0,30,15,15,10,10,20,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Benavente (Motores),Benavente,Ind,Lote Industrial 14. Vale Tripeiro. 2130-354 Benavente,LX,Benavente,1,150.0,40,30,30,10,10,30,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Leiria,Leiria,Ind,"R. da Casa do Guarda, 2410-408 Leiria",Centro,Leiria,1,30.0,10,5,5,3,2,5,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Loulé,Loulé,Ind,"Parque Infante, Fração H Sitio, 8100-302 Loulé",Sul,Loulé,1,20.0,4,4,4,3,1,4,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Seixal,Seixal,Ind,"Z. I, R. António Macedo 25, 2840-175",LX,Seixal,1,25.0,5,5,5,3,2,5,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz V.N.Gaia,Porto,Ind,Parque Empresarial de Laborim (Antiga Fábrica UTIC),Norte,Porto,1,15.0,3,3,3,2,1,3,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Lisboa,Lisboa,Ind,"R. Augusto Pina 3 3A, 1500-065 Lisboa",LX,Lisboa,1,30.0,10,5,5,3,2,5,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Sintra,Sintra,Ind,"Centro Empresarial Do Cacém, Estr. de Paço de Arcos 167 Armazém M, 2735-307 Agualva-Cacém",LX,Sintra,1,15.0,3,3,3,2,1,3,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Funchal,Madeira,Ind,"Caminho da Ribeira Grande, 9020-040 Funchal",Madeira,Madeira,0,45.0,0,0,0,0,0,0,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Bragança,Bragança,Ind,"Av. Sá Carneiro, 8 – 1º esq 5300-252 Bragança",Norte,Bragança,0,20.0,0,0,0,0,0,0,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Pinto e Cruz Parchal (Portimão),Portimão,Ind,"Rua Foz do Arade, 17 8400-611 Lagoa",Sul,Portimão,0,56.0,0,0,0,0,0,0,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Nortaluga Benavente,Torres Vedras,Ind,"R. Fernando Vicente Pavilhão 2, 2560-677 Torres Vedras",LX,Torres Vedras,1,30.0,10,5,5,3,2,5,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Nortaluga Maia,Porto,Ind,"R. do Solão 55, 4475-240 Maia",Norte,Porto,1,20.0,4,4,4,3,1,4,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Viselbi Casimiros loja,Viseu,Ind,"R. Casimiros 33 35, 3510-061 Viseu",Centro,Viseu,1,30.0,10,5,5,3,2,5,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Viselbi Sede,Viseu,Ind,"E.N. 231, Nº 12, 3500-885 Viseu",Centro,Viseu,1,90.0,30,15,15,10,5,15,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+Frincor,Sintra,Ind,"R. Casal da Ligeira 20 Armazem 14, Ral, 2710-446 Terrugem",LX,Sintra,1,80.0,30,20,20,5,5,10,Segunda,"Data inicio Excel: 2024.0
+Numero de entregas: 1"
+G. Hofle,Maia,Ind,"R. Agostinho da Silva Rocha 846, 4475-451 Maia",Norte,Maia,1,100.0,15,10,10,3,2,10,Segunda|Quarta,"Data inicio Excel: 2025.0
+Numero de entregas: 2"
+TekBox – Water Engineering,Seixal,Ind,"Praceta José Sebastião e Silva 9, Aldeia de, 2840-072 Paio Pires",LX,Seixal,1,200.0,30,15,15,10,10,20,Segunda|Quarta,"Data inicio Excel: 2026.0
+Numero de entregas: 2.0"
+SBM - Offshore Head E,Porto,até ás 7:30,"Lionesa Business Hub, Rua da Lionesa 446, Edifício E, 4465-671 Leça do Balio",Norte,Porto,2,963.0,15,10,10,5,5,5,Segunda|Terca|Quarta|Quinta|Sexta,"Data inicio Excel: 45839.0
+Numero de entregas: 5"
+SBM - Offshore G0,Porto,até ás 7:31,"Lionesa Business Hub, Rua da Lionesa 446, Edifício G0, 4465-671 Leça do Balio",Norte,Porto,2,708.0,15,10,10,5,5,5,Segunda|Terca|Quarta|Quinta|Sexta,"Data inicio Excel: 45839.0
+Numero de entregas: 5"
+Softinsa - Viseu,Viseu,ind,"Zona Ind. Coimbrões, 16, 3500-618 Viseu",Centro,Viseu,1,90.0,30,15,15,10,5,15,Segunda,"Secos/granolas: 40.0
+Preco por unidade: 1.6
+Numero de entregas: 1"
+Softinsa - Vila Real,Vila Real,ind,Regia-Douro Park Parque de Ciência e Tecnologia 5000-033 Vila Real,Norte,Vila Real,1,20.0,4,4,4,2,2,4,Segunda,Numero de entregas: 1
+Softinsa - Fundão,Fundão,ind,"R. da Cale 54, 6230-378 Fundão",Norte,Fundão,1,20.0,4,4,4,2,2,4,Segunda,"Secos/granolas: 30.0
+Preco por unidade: 1.6
+Numero de entregas: 1"
+Softinsa - Tomar,Tomar,ind,"Av. Dr. Aurélio Ribeiro 1, 2300-305 Tomar",Centro,Tomar,1,90.0,30,15,15,10,5,15,Segunda,"Secos/granolas: 40.0
+Preco por unidade: 1.6
+Numero de entregas: 1"
+Softinsa - Lisboa,Lisboa,ind,"Edifício Office Oriente, Rua do, R. Mar da China 3 B6, 1990-138 Lisboa",LX,Lisboa,1,90.0,30,15,15,10,5,15,Segunda,"Secos/granolas: 20.0
+Preco por unidade: 1.6
+Numero de entregas: 1"
+Softinsa - Portalegre,Portalegre,ind,"Campus Politécnico, BioBIP - Bioenergy and Business Incubator of Portalegre, 7300-555 Portalegre",Centro,Portalegre,1,30.0,6,6,6,4,2,6,Segunda,"Secos/granolas: 20.0
+Preco por unidade: 1.6
+Numero de entregas: 1"
+MDS - Porto,Porto,ind,"Av. da Boavista 1277 81, 4100-130 Porto",Norte,Porto,4,250.0,0,145,40,15,15,35,Segunda,Numero de entregas: 1
+MDS - Espinho,Espinho,ind,"R. 15 539, 4500-273 Espinho",Norte,Espinho,1,20.0,2,5,5,2,1,5,Segunda,Numero de entregas: 1
+MDS - Aveiro,Aveiro,ind,"R. Cristovão Pinho Queimado 58, 3800-012 Aveiro",Centro,Aveiro,1,10.0,1,3,2,1,1,2,Segunda,Numero de entregas: 1
+MDS - Coimbra,Coimbra,ind,"R. Padre Estevão Cabral 120, 3000-316 Coimbra",Centro,Coimbra,1,25.0,3,7,7,2,1,5,Segunda,Numero de entregas: 1
+MDS - Ansião,Ansião,ind,"Av. Cel. Vitorino Henriques Godinho 219, 3240-154 Ansião",Centro,Ansião,1,20.0,2,5,5,2,1,5,Segunda,Numero de entregas: 1
+MDS - Ourém,Ourém,ind,"R. dos Álamos 32 r/c, 2490-543 Ourém",Centro,Ourém,1,35.0,10,10,5,3,2,5,Segunda,Numero de entregas: 1
+MDS - Fátima,Fátima,ind,"Estrada da Batalha Rotunda Norte Bl 8/10, 2495 405 Fátima",Centro,Fátima,1,20.0,2,5,5,2,1,5,Segunda,Numero de entregas: 1
+MDS - Leiria,Leiria,ind,"R. Paulo VI 5, 2410-149 Leiria",Centro,Leiria,1,8.0,1,2,2,1,1,1,Segunda,Numero de entregas: 1
+MDS - Porto de Mós,Porto de Mós,ind,"ua Serra Frazão , Lote G, R/C Dtº 2480-337 Porto de Mós",Centro,Porto de Mós,1,10.0,1,3,2,1,1,2,Segunda,Numero de entregas: 1
+MDS - Maceira,Maceira,ind,"Rua Leiria, BL 3, R/C, Loja 3, 2405-018 Maceira",Centro,Maceira,1,15.0,1,4,4,1,1,4,Segunda,Numero de entregas: 1
+MDS - Marinha Grande,Marinha Grande,ind,"R. de São Pedro 139 C, 2430-164 Marinha Grande",Centro,Marinha Grande,1,12.0,1,3,3,1,1,3,Segunda,Numero de entregas: 1
+MDS - Lisboa,Lisboa,ind,"Pç do Marquês de Pombal nº 3A 4º andar, 1250-161 Lisboa",LX,Lisboa,1,150.0,0,80,30,10,10,20,Segunda,Numero de entregas: 1
+MDS - Alverca,Alverca,ind,"Urbanização Malvarosa Parque Lote-40 Loja Direita, 2615-043 Alverca",LX,Alverca,1,12.0,0,6,2,1,1,2,Segunda,Numero de entregas: 1
+MDS - Cantanhede,Cantanhede,ind,"R. Dom Afonso Henriques 6 A, Loja R/c Esq. 3060-133 Cantanhede",Centro,Cantanhede,1,9.0,1,2,2,1,1,2,Segunda,Numero de entregas: 1
+VIC Management,Lisboa,até ás 9h,"Edif. Mythos, Av. Dom João II 42 3.04, 1990-095 Lisboa",LX,Lisboa,1,100.0,20,5,5,2,3,5,Segunda|Quarta,"Data inicio Excel: 45839.0
+Uvas: 0
+Numero de entregas: 2"
+PBBR - ADVOGADOS,Lisboa,depois das 9:30,"Av. da Liberdade 110 6º, 1250-146 Lisboa",LX,Lisboa,1,100.0,20,5,5,2,3,5,Segunda|Quarta,"Uvas: 0
+Numero de entregas: 2"
+GIANTSTEP,Lisboa,ind,"Alameda Fernão Lopes, 16A-9º, 1495-190  Algés, Portugal,",LX,Lisboa,1,40.0,15,7,8,2,3,5,Segunda,Numero de entregas: 1
+DFK,Lisboa,ind,"Edifício Zenith, R. Dr. António Loureiro Borges 9 9a, 10º piso, 1495-131 Algés",LX,Lisboa,1,45.0,15,10,10,2,3,5,Segunda,Numero de entregas: 1
+LINK CONSULTING,Lisboa,ind,"Av. Duque de Ávila 23, 1000-138 Lisboa",LX,Lisboa,1,147.0,6,4,3,2,2,4,Segunda,Numero de entregas: 1
+BBDO,Lisboa,ind,"Av. Eng. Duarte Pacheco 26 10º, 1070-110 Lisboa",LX,Lisboa,4,150.0,15,10,10,5,5,5,Terca,Numero de entregas: 1
+GOING UP,Benavente,ind,"Zona Industrial Quinta Verde, Rua Fazendas Novas Lote7, 2130-338 Benavente",Centro,Benavente,1,75.0,15,5,5,3,2,8,Segunda|Quarta,Numero de entregas: 2
+STAT TRACK,Lisboa,ind,"RUA JOAQUIM ANTÓNIO DE AGUIAR, 66 4ºESQ., 1070-153 LISBOA",LX,Lisboa,1,30.0,10,5,5,2,3,5,Segunda,Numero de entregas: 1
+West Tech - Marquês de Pombal,Lisboa,até ás 9h,"R. Filipe Folque 2, 1050-210 Lisboa",LX,Lisboa,1,140.0,40,8,8,3,3,8,Segunda|Quarta,Numero de entregas: 2
+West Tech - Avenidas Novas,Lisboa,até ás 9h,"Av. António Augusto de Aguiar 21, 1050-012 Lisboa",LX,Lisboa,1,90.0,20,7,8,3,2,5,Segunda|Quarta,Numero de entregas: 2
+West Tech - TORRES DE LISBOA,Lisboa,até ás 9h,"R. Gen. Firmino Miguel 3 9º A, 1600-081 Lisboa",LX,Lisboa,1,40.0,5,4,3,2,1,5,Terca|Quinta,Numero de entregas: 2
+ADNOVUM,Lisboa,ind,"Campo Grande 378, 1st floor, 1700-097 Lisboa",LX,Lisboa,1,20.0,5,2,3,3,2,5,Quarta,Numero de entregas: 1
+ARISH CAPITAL,Lisboa,ind,"AV. DA LIBERDADE Nº 227 9ANDAR, 1250-142 LISBOA",LX,Lisboa,1,20.0,5,2,3,3,2,5,Segunda,"Secos/granolas: 5.0
+Numero de entregas: 1"
+HEXA-GROUP - PORTO,Porto,ind,"Bom Sucesso Trade Center, Praça do Bom Sucesso n.º 61 4.º andar, 402, 4150-146 Porto",Norte,Porto,1,20.0,5,2,3,3,2,5,Terca,Numero de entregas: 1
+HEXA-GROUP - LISBOA,Lisboa,ind,"Av. Dom João II 46, 1990-095 Lisboa",LX,Lisboa,1,40.0,20,8,0,2,0,10,Terca,Numero de entregas: 1
+ENDRESS,Pinhal Novo,ind,Rua da Prata Lote 133 - Urbanização Vale do Alecrim - Palmela.,LX,Pinhal Novo,1,60.0,20,10,5,5,5,10,Segunda,Numero de entregas: 1
+CLOUD COMPUTING,Lisboa,ind,"Av. D. João II 42 Edifício Mythos, Escritório 103, 1990-095 Lisboa",LX,Lisboa,1,45.0,15,10,10,2,3,5,Segunda,Numero de entregas: 1
+URIAGE,Lisboa,ind,"Alameda dos Oceanos 59, 1990-027 Lisboa",LX,Lisboa,1,30.0,15,2,2,2,5,5,Segunda,Numero de entregas: 1
+NOVARTIS,Oeiras,ind,"Av. Prof. Dr. Cavaco Silva 10E, 2740-255 Porto Salvo",LX,Oeiras,1,150.0,30,15,11,5,5,10,Segunda|Quarta,Numero de entregas: 2
+PAGER DUTTY,Lisboa,até ás 8h,"Rua Castilho, Nº 50 1250-071 Lisboa",LX,Lisboa,1,0,0,0,0,0,0,0,Segunda|Quarta,Numero de entregas: 2
+Concentrix PORTO,Porto,ind,"Av. de Sidónio Pais 93, 4250-488 Porto",Norte,Porto,1,700.0,15,10,10,3,2,10,Segunda,Numero de entregas: 1
+Concentrix LISBOA,Lisboa,ind,"Av. do Mediterrâneo 1, 1990-203 Lisboa",LX,Lisboa,1,250.0,15,10,10,3,2,10,Segunda,Numero de entregas: 1
+FERROVIAL,Linda-a-Velha,até ás 9h,"Edificio Central Park, R. Alexandre Herculano 1 4ºA, 2795-240 Linda-a-Velha",LX,Linda-a-Velha,1,160.0,20,10,10,5,10,20,Segunda|Quarta,"Data inicio Excel: 46055.0
+Uvas: 0
+Numero de entregas: 2"
+MAN - Trucks,Moscavide,ind,"Rua Adão Manuel Ramos Barata, 3, 1885-100 Moscavide, Lisboa",LX,Moscavide,1,50.0,20,5,5,3,2,10,Segunda,"Data inicio Excel: 46055.0
+Uvas: 0
+Numero de entregas: 1"
+Veolia Aveiro,Aveiro,ind,"Rua do Monte Novo, Zona Industrial da, 3800-055",Centro,Aveiro,1,320.0,30,40,40,20,5,25,Segunda|Quarta,Numero de entregas: 2
+Veolia Sanguedo,Sangeudo,ind,"R. das Fragas 344, 4505-602 Sanguedo",Norte,Sangeudo,1,250.0,25,25,25,10,10,30,Segunda|Quarta,Numero de entregas: 2
+Veolia Maia,Maia,ind,"Lugar de Crestins, Apartado 3102, 4471-907 Moreira da Maia",Norte,Maia,1,200.0,20,20,20,10,5,25,Segunda|Quarta,Numero de entregas: 2
+Veolia Lactogal,Porto,ind,"Rua do Campo Alegre 830, 4150-171 Porto",Norte,Porto,2,120.0,25,30,30,10,5,20,Segunda,Numero de entregas: 1
+Veolia Lionesa,Lionesa,ind,"R. Lionesa, Edifício C, Loja I, 446 4465-671 Leça do Balio",Norte,Lionesa,3,120.0,5,10,10,3,2,10,Segunda|Quarta,Numero de entregas: 2
+Veolia SuperBock,Lionesa,ind,"Via Norte Aptd. 1044, 4466-955 Leça do Balio",Norte,Lionesa,1,80.0,5,10,10,3,2,10,Segunda|Quarta,Numero de entregas: 2
+Veolia Paço de Arcos,Oeiras,ind,"Estrada de Paço de Arcos 42, 2770-129 Paço de Arcos",Lisboa,Oeiras,2,350.0,40,40,40,20,20,40,Segunda|Quarta,Numero de entregas: 2
+Veolia Loures,Loures,ind,"Zona Industrial da, R. das Industrias 11, 2660-175 Lisboa",Lisboa,Loures,3,680.0,60,70,70,30,30,60,Segunda|Quarta,Numero de entregas: 2
+Veolia Freixianda,Frixianda,ind,"R. do Valongo, 2435-998 Freixianda",Centro,Frixianda,1,240.0,25,30,30,10,5,20,Segunda|Quarta,Numero de entregas: 2
+HL Manutenção,Hospital de Loures,ind,"Av. Carlos Teixeira 3, 2674-514 Loures",Centro,Hospital de Loures,1,150.0,10,10,10,5,5,10,Segunda|Quarta|Sexta,Numero de entregas: 3
+Veolia Coruche,Curuche,ind,"Est. Nac. 114, Km 104 * Agolada *, 2100-011 Coruche",Centro,Curuche,1,100.0,25,20,20,10,5,20,Segunda,Numero de entregas: 1
+Veolia Algoz,,,"Zona Industrial de Algoz - Pavilhão 3, 8365-907 Algoz",,,0,0,0,0,0,0,0,0,,
+Kwanko,Lisboa,até ás 8h,"Av. da Liberdade 225, 1250-142 Lisboa",LX,Lisboa,1,100.0,20,5,5,5,5,5,Segunda|Quarta,"Data inicio Excel: 46055.0
+Uvas: 0
+Numero de entregas: 2"
+CoFO,Lionesa,,"R. Lionesa, 4465-671 Leça do Balio",,Lionesa,1,200.0,20,10,10,5,5,10,,
+CALEFFI MAIA,Maia,9 e 11h,"Rua Poça das Rãs, 42 4475-265 Maia",Lisboa,Maia,1,40.0,15,5,5,3,2,10,,Data inicio Excel: 46132.0
+CALEFFI Talaide Park,Cascasis,9 e 11h,"Talaíde Park, Edif. A1 e A2  Estrada Octávio Pato 2785-723 São Domingos de Rana",Lisoa,Cascasis,1,12.0,5,2,2,1,1,2,,Data inicio Excel: 46132.0
+Stag Management,Lisboa,,"R. Serpa Pinto 14A 1º andar, 1200-445 Lisboa",Lisboa,Lisboa,1,63.0,20,10,10,5,5,12,,Data inicio Excel: 46139.0

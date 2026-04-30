@@ -1,0 +1,88 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    * {
+        scrollbar-color: #2f4a3e #07110d;
+    }
+
+    ::selection {
+        background: #22c55e;
+        color: #07110d;
+    }
+
+    a,
+    button,
+    input,
+    select,
+    textarea {
+        transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+    }
+
+    input,
+    select,
+    textarea {
+        outline: none;
+        color-scheme: dark;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+        border-color: #22c55e;
+        box-shadow: 0 0 0 3px rgb(34 197 94 / 0.14);
+    }
+}
+
+@layer components {
+    .rounded.border.border-white\/10.bg-\[\#151E2D\],
+    .rounded.border.border-white\/10.bg-\[\#111B17\] {
+        background: linear-gradient(180deg, rgb(21 30 45 / 0.92), rgb(12 20 27 / 0.92));
+        border-color: rgb(255 255 255 / 0.11);
+        box-shadow: 0 16px 40px rgb(0 0 0 / 0.18);
+    }
+
+    form.rounded.border.border-white\/10.bg-\[\#151E2D\],
+    div.rounded.border.border-white\/10.bg-\[\#151E2D\] {
+        backdrop-filter: blur(10px);
+    }
+
+    table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    thead {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    th {
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    table tbody tr {
+        transition: background-color 150ms ease;
+    }
+
+    table tbody tr:hover {
+        background-color: rgb(255 255 255 / 0.025);
+    }
+
+    input[type='date']::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        opacity: 0.65;
+    }
+}
