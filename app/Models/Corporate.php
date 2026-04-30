@@ -70,7 +70,11 @@ class Corporate extends Model
         $temFrutasDoDia = is_array($this->frutas_por_dia ?? null) && array_key_exists($dia, $this->frutas_por_dia);
 
         return collect(self::FRUTAS)
-            ->mapWithKeys(fn (string $fruta) => [$fruta => (int) ($temFrutasDoDia ? ($frutasDoDia[$fruta] ?? 0) : ($frutasBase[$fruta] ?? 0))])
+            ->mapWithKeys(function (string $fruta) use ($frutasBase, $frutasDoDia, $temFrutasDoDia): array {
+                $value = $temFrutasDoDia ? ($frutasDoDia[$fruta] ?? 0) : ($frutasBase[$fruta] ?? 0);
+
+                return [$fruta => $fruta === 'uvas' ? round((float) $value, 2) : (int) $value];
+            })
             ->all();
     }
 

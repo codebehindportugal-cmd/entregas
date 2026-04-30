@@ -31,7 +31,7 @@ class CorporateTest extends TestCase
             'pera' => 2,
             'laranja' => 1,
             'kiwi' => 0,
-            'uvas' => 6,
+            'uvas' => 6.0,
             'fruta_epoca' => 5,
         ], $corporate->frutasParaDia('Segunda'));
     }
@@ -67,7 +67,7 @@ class CorporateTest extends TestCase
             'pera' => 0,
             'laranja' => 6,
             'kiwi' => 2,
-            'uvas' => 4,
+            'uvas' => 4.0,
             'fruta_epoca' => 1,
         ], $corporate->frutasParaDia('Quarta'));
     }
