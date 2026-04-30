@@ -1,3 +1,25 @@
+## Export/import de empresas
+
+Para passar as empresas para producao, exporta primeiro um JSON no ambiente de origem:
+
+```bash
+php artisan corporates:export storage/app/exports/corporates.json
+```
+
+No ambiente de producao, coloca esse ficheiro no mesmo caminho e valida sem gravar:
+
+```bash
+php artisan corporates:import storage/app/exports/corporates.json --dry-run
+```
+
+Se a lista estiver certa, executa a importacao real:
+
+```bash
+php artisan corporates:import storage/app/exports/corporates.json
+```
+
+O import faz `updateOrCreate` por `empresa` + `sucursal`, por isso atualiza empresas existentes e cria as novas sem apagar registos que existam apenas em producao.
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
