@@ -19,17 +19,29 @@
     </form>
     <div class="grid gap-4">
         @forelse($registos as $registo)
-            <a href="{{ route('minhas-entregas.show', $registo) }}" class="rounded border border-white/10 bg-[#151E2D] p-4">
+            <div class="rounded border border-white/10 bg-[#151E2D] p-4">
                 <div class="flex items-center justify-between gap-4">
                     <div>
-                        <p class="font-semibold text-white">{{ $registo->corporate->empresa }}</p>
+                        <a href="{{ route('minhas-entregas.show', $registo) }}" class="font-semibold text-white hover:text-[#22C55E]">{{ $registo->corporate->empresa }}</a>
+                        @if($registo->corporate->sucursal)
+                            <p class="text-sm text-slate-300">{{ $registo->corporate->sucursal }}</p>
+                        @endif
                         <p class="text-sm text-slate-300">{{ $registo->corporate->responsavel_nome ?: 'Responsavel por definir' }}</p>
                         <p class="text-sm text-slate-400">{{ $registo->corporate->responsavel_telefone ?: 'Sem telefone' }}</p>
-                        <p class="mt-2 text-sm text-slate-400">{{ $registo->corporate->fatura_morada ?: 'Morada por definir' }}</p>
+                        <p class="mt-2 text-sm text-slate-400">{{ $registo->corporate->moradaParaEntrega() ?: 'Morada por definir' }}</p>
                     </div>
                     <span class="rounded px-3 py-1 text-xs font-semibold {{ $registo->status === 'entregue' ? 'bg-emerald-500/20 text-emerald-200' : ($registo->status === 'falhou' ? 'bg-red-500/20 text-red-200' : 'bg-[#F59E0B]/20 text-amber-200') }}">{{ $registo->status }}</span>
                 </div>
-            </a>
+                <div class="mt-4 grid gap-2 sm:grid-cols-3">
+                    <a href="{{ route('minhas-entregas.show', $registo) }}" class="rounded bg-[#22C55E] px-4 py-2 text-center text-sm font-semibold text-[#0A0F1A]">Abrir entrega</a>
+                    @if($registo->corporate->googleMapsUrl())
+                        <a href="{{ $registo->corporate->googleMapsUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6] px-4 py-2 text-center text-sm font-semibold text-white">Google Maps</a>
+                    @endif
+                    @if($registo->corporate->wazeUrl())
+                        <a href="{{ $registo->corporate->wazeUrl() }}" target="_blank" rel="noopener" class="rounded bg-white/10 px-4 py-2 text-center text-sm font-semibold text-slate-200">Waze</a>
+                    @endif
+                </div>
+            </div>
         @empty
             <p class="rounded border border-white/10 bg-[#151E2D] p-4 text-slate-400">Nao tem entregas atribuidas para hoje.</p>
         @endforelse

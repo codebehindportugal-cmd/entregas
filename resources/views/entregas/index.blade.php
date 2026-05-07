@@ -45,7 +45,7 @@
                         <input name="corporate_ids[]" type="checkbox" value="{{ $corporate->id }}" class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
                         <span>
                             <span class="block font-semibold text-white">{{ $corporate->empresa }}</span>
-                            <span class="block text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->fatura_morada }}</span>
+                            <span class="block text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->moradaParaEntrega() }}</span>
                             @if($atribuida)
                                 <span class="mt-2 inline-block rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Atual: {{ $atribuida->user->name }}</span>
                             @else

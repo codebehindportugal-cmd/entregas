@@ -15,7 +15,7 @@ class WooCommerceService
     public function sync(): array
     {
         $orders = collect($this->fetchOrders())
-            ->merge($this->fetchCompletedSubscriptionOrders())
+            ->reject(fn (array $order) => (string) Arr::get($order, 'status') === 'completed')
             ->unique(fn (array $order) => (int) $order['id'])
             ->values()
             ->all();
@@ -80,35 +80,6 @@ class WooCommerceService
         return $response->json();
     }
 
-    public function fetchCompletedSubscriptionOrders(): array
-    {
-        $url = rtrim((string) config('woocommerce.url'), '/');
-        $orders = collect();
-
-        foreach (['_hdm_frequencia_entrega', '_hdm_datas_entrega', '_hdm_fim_subscricao'] as $metaKey) {
-            $response = $this->client()
-                ->get("{$url}/wp-json/wc/v3/orders", [
-                    'status' => 'completed',
-                    'per_page' => config('woocommerce.per_page'),
-                    'orderby' => 'date',
-                    'order' => 'desc',
-                    'meta_key' => $metaKey,
-                    'meta_compare' => 'EXISTS',
-                ]);
-
-            if ($response->failed()) {
-                throw new RuntimeException('Erro WooCommerce completed subscriptions: '.$response->status().' - '.$response->body());
-            }
-
-            $orders = $orders->merge($response->json());
-        }
-
-        return $orders
-            ->unique(fn (array $order) => (int) $order['id'])
-            ->values()
-            ->all();
-    }
-
     public function fetchSubscriptions(): array
     {
         $url = rtrim((string) config('woocommerce.url'), '/');
@@ -145,6 +116,7 @@ class WooCommerceService
         return collect(explode(',', (string) config('woocommerce.statuses')))
             ->map(fn (string $status) => trim($status))
             ->filter()
+            ->reject(fn (string $status) => $status === 'completed' || $status === 'wc-completed')
             ->merge(['subscricao'])
             ->unique()
             ->implode(',');

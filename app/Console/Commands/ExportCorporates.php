@@ -25,6 +25,7 @@ class ExportCorporates extends Command
             ->map(fn (Corporate $corporate) => [
                 'empresa' => $corporate->empresa,
                 'sucursal' => $corporate->sucursal,
+                'morada_entrega' => $corporate->morada_entrega,
                 'dias_entrega' => $corporate->dias_entrega ?? [],
                 'periodicidade_entrega' => $corporate->periodicidade_entrega ?? 'semanal',
                 'quinzenal_referencia' => $corporate->quinzenal_referencia?->toDateString(),

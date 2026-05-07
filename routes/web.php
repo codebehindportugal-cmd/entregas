@@ -24,6 +24,8 @@ Route::middleware('auth')->group(function (): void {
 
     Route::middleware('role:admin')->group(function (): void {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
+        Route::get('/corporates/exportar/json', [CorporateController::class, 'export'])->name('corporates.export');
+        Route::post('/corporates/importar/json', [CorporateController::class, 'import'])->name('corporates.import');
         Route::resource('/corporates', CorporateController::class);
         Route::post('/corporates/{corporate}/historico', [CorporateController::class, 'storeHistorico'])->name('corporates.historico.store');
         Route::delete('/corporates/{corporate}/historico/{historico}', [CorporateController::class, 'destroyHistorico'])->name('corporates.historico.destroy');
@@ -35,6 +37,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/compras', ComprasController::class)->name('compras.index');
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');
         Route::post('/encomendas/sync', [EncomendaController::class, 'sync'])->name('encomendas.sync');
+        Route::delete('/encomendas/limpar-todas', [EncomendaController::class, 'destroyAll'])->name('encomendas.destroy-all');
         Route::get('/encomendas/{encomenda}', [EncomendaController::class, 'show'])->name('encomendas.show');
         Route::put('/encomendas/{encomenda}/perfil', [EncomendaController::class, 'updateProfile'])->name('encomendas.profile.update');
         Route::post('/encomendas/{encomenda}/duplicar', [EncomendaController::class, 'duplicate'])->name('encomendas.duplicate');

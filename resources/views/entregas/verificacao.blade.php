@@ -62,7 +62,7 @@
                     <tr class="border-t border-white/10">
                         <td class="p-3">
                             <p class="font-semibold text-white">{{ $registo->corporate->empresa }}</p>
-                            <p class="text-xs text-slate-400">{{ $registo->corporate->fatura_morada ?: $registo->corporate->sucursal }}</p>
+                            <p class="text-xs text-slate-400">{{ $registo->corporate->moradaParaEntrega() ?: $registo->corporate->sucursal }}</p>
                         </td>
                         <td class="p-3 text-slate-300">
                             <span class="mr-2 inline-block h-3 w-3 rounded-full" style="background: {{ $registo->user->cor }}"></span>

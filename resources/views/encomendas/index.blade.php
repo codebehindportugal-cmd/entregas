@@ -1,9 +1,16 @@
 <x-layouts.app title="Encomendas B2C">
     <x-page-title title="Encomendas" subtitle="Cache local das encomendas WooCommerce">
-        <form method="post" action="{{ route('encomendas.sync') }}">
-            @csrf
-            <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Sincronizar agora</button>
-        </form>
+        <div class="flex flex-wrap gap-2">
+            <form method="post" action="{{ route('encomendas.sync') }}">
+                @csrf
+                <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Sincronizar agora</button>
+            </form>
+            <form method="post" action="{{ route('encomendas.destroy-all') }}" onsubmit="return confirm('Tem a certeza que quer remover TODAS as encomendas da cache local? Depois pode sincronizar novamente a partir do WooCommerce.');">
+                @csrf
+                @method('delete')
+                <button class="rounded bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-200 hover:bg-red-500/25">Eliminar todas</button>
+            </form>
+        </div>
     </x-page-title>
 
     <div class="mb-5 flex flex-wrap gap-2">

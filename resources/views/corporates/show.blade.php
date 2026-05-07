@@ -6,6 +6,13 @@
     <div class="rounded border border-white/10 bg-[#151E2D] p-5 text-sm text-slate-300">
         <p>Responsavel: {{ $corporate->responsavel_nome ?: 'Sem dados' }}</p>
         <p>Telefone: {{ $corporate->responsavel_telefone ?: 'Sem dados' }}</p>
+        <p>Morada entrega: {{ $corporate->moradaParaEntrega() ?: 'Sem dados' }}</p>
+        @if($corporate->moradaParaEntrega())
+            <div class="mt-3 flex flex-wrap gap-2">
+                <a href="{{ $corporate->googleMapsUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6] px-3 py-2 text-xs font-semibold text-white">Google Maps</a>
+                <a href="{{ $corporate->wazeUrl() }}" target="_blank" rel="noopener" class="rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200">Waze</a>
+            </div>
+        @endif
         <p>Dias: {{ implode(', ', $corporate->dias_entrega ?? []) }}</p>
         <p>Total de pecas por semana: {{ $corporate->totalPecasPorSemana() }}</p>
         <div class="mt-3">

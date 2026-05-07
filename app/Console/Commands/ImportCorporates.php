@@ -93,6 +93,7 @@ class ImportCorporates extends Command
         $validator = Validator::make($row, [
             'empresa' => ['required', 'string', 'max:255'],
             'sucursal' => ['nullable', 'string', 'max:255'],
+            'morada_entrega' => ['nullable', 'string', 'max:500'],
             'dias_entrega' => ['array'],
             'dias_entrega.*' => ['in:Segunda,Terca,Quarta,Quinta,Sexta'],
             'periodicidade_entrega' => ['nullable', 'in:semanal,quinzenal'],
@@ -117,6 +118,7 @@ class ImportCorporates extends Command
         return [
             'empresa' => $row['empresa'],
             'sucursal' => $row['sucursal'],
+            'morada_entrega' => $this->nullableString($row['morada_entrega'] ?? null),
             'dias_entrega' => $row['dias_entrega'],
             'periodicidade_entrega' => $periodicidade,
             'quinzenal_referencia' => $periodicidade === 'quinzenal' ? ($row['quinzenal_referencia'] ?? null) : null,

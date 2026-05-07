@@ -6,12 +6,14 @@ use App\Models\WooOrder;
 use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Throwable;
 
 class EncomendaController extends Controller
 {
     private const EM_PROCESSAMENTO_STATUSES = ['processing', 'on-hold', 'pending'];
+    private const STATUSES_EXCLUIDOS = ['completed', 'wc-completed'];
 
     public function index(Request $request): View
     {
@@ -29,6 +31,7 @@ class EncomendaController extends Controller
             'sourceType' => $sourceType,
             'orders' => WooOrder::query()
                 ->with('preparacaoItems')
+                ->whereNotIn('status', self::STATUSES_EXCLUIDOS)
                 ->where(function ($query): void {
                     $query->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
                         ->orWhere('status', 'subscricao')
@@ -153,6 +156,17 @@ class EncomendaController extends Controller
         $encomenda->delete();
 
         return back()->with('status', 'Encomenda removida da lista local.');
+    }
+
+    public function destroyAll(): RedirectResponse
+    {
+        $count = WooOrder::count();
+
+        DB::transaction(function (): void {
+            WooOrder::query()->delete();
+        });
+
+        return redirect()->route('encomendas.index')->with('status', "{$count} encomendas removidas da cache local. Pode sincronizar novamente.");
     }
 
     private function nextLocalWooId(WooOrder $encomenda): int

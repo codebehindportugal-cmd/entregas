@@ -18,6 +18,7 @@ class Corporate extends Model
     protected $fillable = [
         'empresa',
         'sucursal',
+        'morada_entrega',
         'dias_entrega',
         'periodicidade_entrega',
         'quinzenal_referencia',
@@ -56,6 +57,29 @@ class Corporate extends Model
     public function registosEntrega(): HasMany
     {
         return $this->hasMany(RegistoEntrega::class);
+    }
+
+    public function moradaParaEntrega(): ?string
+    {
+        return $this->morada_entrega ?: $this->fatura_morada;
+    }
+
+    public function googleMapsUrl(): ?string
+    {
+        if (! $this->moradaParaEntrega()) {
+            return null;
+        }
+
+        return 'https://www.google.com/maps/dir/?api=1&destination='.rawurlencode($this->moradaParaEntrega());
+    }
+
+    public function wazeUrl(): ?string
+    {
+        if (! $this->moradaParaEntrega()) {
+            return null;
+        }
+
+        return 'https://waze.com/ul?q='.rawurlencode($this->moradaParaEntrega()).'&navigate=yes';
     }
 
     public function historicos(): HasMany

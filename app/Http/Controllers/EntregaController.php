@@ -37,6 +37,7 @@ class EntregaController extends Controller
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('empresa', 'like', "%{$q}%")
                     ->orWhere('sucursal', 'like', "%{$q}%")
+                    ->orWhere('morada_entrega', 'like', "%{$q}%")
                     ->orWhere('fatura_morada', 'like', "%{$q}%");
             }))
             ->orderBy('empresa')
@@ -55,6 +56,7 @@ class EntregaController extends Controller
                     ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                         $query->where('empresa', 'like', "%{$q}%")
                             ->orWhere('sucursal', 'like', "%{$q}%")
+                            ->orWhere('morada_entrega', 'like', "%{$q}%")
                             ->orWhere('fatura_morada', 'like', "%{$q}%");
                     }))
                 )
@@ -111,6 +113,7 @@ class EntregaController extends Controller
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('corporates.empresa', 'like', "%{$q}%")
                     ->orWhere('corporates.sucursal', 'like', "%{$q}%")
+                    ->orWhere('corporates.morada_entrega', 'like', "%{$q}%")
                     ->orWhere('corporates.fatura_morada', 'like', "%{$q}%");
             }))
             ->join('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
@@ -127,6 +130,7 @@ class EntregaController extends Controller
                 ->where(function ($query) use ($q): void {
                     $query->where('corporates.empresa', 'like', "%{$q}%")
                         ->orWhere('corporates.sucursal', 'like', "%{$q}%")
+                        ->orWhere('corporates.morada_entrega', 'like', "%{$q}%")
                         ->orWhere('corporates.fatura_morada', 'like', "%{$q}%");
                 })
             )
@@ -167,6 +171,7 @@ class EntregaController extends Controller
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('empresa', 'like', "%{$q}%")
                     ->orWhere('sucursal', 'like', "%{$q}%")
+                    ->orWhere('morada_entrega', 'like', "%{$q}%")
                     ->orWhere('fatura_morada', 'like', "%{$q}%");
             }))
             ->orderBy('empresa')
@@ -328,7 +333,12 @@ class EntregaController extends Controller
         $atribuicoes = AtribuicaoEntrega::with('corporate')
             ->where('user_id', auth()->id())
             ->when($dia, fn ($query) => $query->where('dia_semana', $dia))
-            ->whereHas('corporate', fn ($query) => $query->when(filled($q), fn ($query) => $query->where('empresa', 'like', "%{$q}%")))
+            ->whereHas('corporate', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                $query->where('empresa', 'like', "%{$q}%")
+                    ->orWhere('sucursal', 'like', "%{$q}%")
+                    ->orWhere('morada_entrega', 'like', "%{$q}%")
+                    ->orWhere('fatura_morada', 'like', "%{$q}%");
+            })))
             ->get();
         $atribuicoes = $atribuicoes
             ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->corporate->temEntregaNaData(now()))

@@ -16,6 +16,7 @@ class StoreCorporateRequest extends FormRequest
         return [
             'empresa' => ['required', 'string', 'max:255'],
             'sucursal' => ['nullable', 'string', 'max:255'],
+            'morada_entrega' => ['nullable', 'string', 'max:500'],
             'dias_entrega' => ['required', 'array', 'min:1'],
             'dias_entrega.*' => ['in:Segunda,Terca,Quarta,Quinta,Sexta'],
             'periodicidade_entrega' => ['required', 'in:semanal,quinzenal'],

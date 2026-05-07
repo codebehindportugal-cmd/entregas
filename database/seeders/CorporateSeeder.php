@@ -43,6 +43,7 @@ class CorporateSeeder extends Seeder
                 ['empresa' => $data['empresa']],
                 [
                     'sucursal' => Arr::get($data, 'sucursal') ?: null,
+                    'morada_entrega' => Arr::get($data, 'fatura_morada') ?: null,
                     'dias_entrega' => $this->diasEntrega($data['dias_entrega'] ?? ''),
                     'periodicidade_entrega' => 'semanal',
                     'quinzenal_referencia' => null,

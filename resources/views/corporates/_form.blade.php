@@ -12,6 +12,9 @@
     <label class="text-sm text-slate-300">Sucursal
         <input name="sucursal" value="{{ old('sucursal', $corporate->sucursal) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
+    <label class="text-sm text-slate-300 lg:col-span-2">Morada da sucursal / entrega
+        <input name="morada_entrega" value="{{ old('morada_entrega', $corporate->moradaParaEntrega()) }}" placeholder="Morada usada pelo colaborador para navegar ate a entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+    </label>
     <label class="text-sm text-slate-300">Periodicidade
         <select name="periodicidade_entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
             <option value="semanal" @selected(old('periodicidade_entrega', $corporate->periodicidade_entrega ?? 'semanal') === 'semanal')>Semanal</option>

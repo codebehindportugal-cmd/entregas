@@ -15,8 +15,12 @@
         </div>
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
             <p class="text-sm text-slate-400">Morada</p>
-            @if($registoEntrega->corporate->fatura_morada)
-                <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($registoEntrega->corporate->fatura_morada) }}" target="_blank" rel="noopener" class="mt-1 block font-semibold text-[#3B82F6]">{{ $registoEntrega->corporate->fatura_morada }}</a>
+            @if($registoEntrega->corporate->moradaParaEntrega())
+                <p class="mt-1 font-semibold text-white">{{ $registoEntrega->corporate->moradaParaEntrega() }}</p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    <a href="{{ $registoEntrega->corporate->googleMapsUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6] px-3 py-2 text-center text-sm font-semibold text-white">Google Maps</a>
+                    <a href="{{ $registoEntrega->corporate->wazeUrl() }}" target="_blank" rel="noopener" class="rounded bg-white/10 px-3 py-2 text-center text-sm font-semibold text-slate-200">Waze</a>
+                </div>
             @else
                 <p class="mt-1 font-semibold text-white">Por definir</p>
             @endif

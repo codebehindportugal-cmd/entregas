@@ -96,7 +96,7 @@
                     <tr class="border-t border-white/10">
                         <td class="p-3">
                             <p class="font-semibold text-white">{{ $corporate->empresa }}</p>
-                            <p class="text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->fatura_morada }}</p>
+                            <p class="text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->moradaParaEntrega() }}</p>
                         </td>
                         <td class="p-3 font-semibold text-emerald-200">{{ $corporate->numero_caixas }}</td>
                         @foreach(array_keys($labels) as $key)
