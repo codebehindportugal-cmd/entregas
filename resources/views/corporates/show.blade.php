@@ -15,6 +15,10 @@
         @endif
         <p>Dias: {{ implode(', ', $corporate->dias_entrega ?? []) }}</p>
         <p>Total de pecas por semana: {{ $corporate->totalPecasPorSemana() }}</p>
+        <p>Preco venda por peca: {{ $corporate->preco_venda_peca !== null ? number_format((float) $corporate->preco_venda_peca, 4, ',', ' ').' EUR' : 'Sem dados' }}</p>
+        @if($corporate->valorVendaPorSemana() !== null)
+            <p>Valor venda por semana: {{ number_format($corporate->valorVendaPorSemana(), 2, ',', ' ') }} EUR</p>
+        @endif
         <div class="mt-3">
             <p class="font-semibold text-white">Pecas por dia de entrega</p>
             @forelse($corporate->pecasPorDiaEntrega() as $diaEntrega => $pecasDia)

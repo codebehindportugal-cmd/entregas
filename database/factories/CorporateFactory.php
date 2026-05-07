@@ -31,6 +31,7 @@ class CorporateFactory extends Factory
             'fatura_email' => fake()->companyEmail(),
             'fatura_morada' => fake()->address(),
             'numero_caixas' => fake()->numberBetween(1, 8),
+            'preco_venda_peca' => fake()->randomFloat(4, 0.2, 1.5),
             'peso_total' => fake()->randomFloat(2, 3, 45),
             'frutas' => [
                 'banana' => fake()->numberBetween(0, 20),

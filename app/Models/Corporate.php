@@ -32,6 +32,7 @@ class Corporate extends Model
         'fatura_email',
         'fatura_morada',
         'numero_caixas',
+        'preco_venda_peca',
         'cabaz_tipo',
         'cabaz_quantidade',
         'peso_total',
@@ -50,6 +51,7 @@ class Corporate extends Model
             'frutas_por_dia' => 'array',
             'ativo' => 'boolean',
             'peso_total' => 'decimal:2',
+            'preco_venda_peca' => 'decimal:4',
             'cabaz_quantidade' => 'integer',
         ];
     }
@@ -122,6 +124,24 @@ class Corporate extends Model
     public function totalPecasPorSemana(): int
     {
         return (int) round((float) $this->peso_total);
+    }
+
+    public function valorVendaParaDia(string $dia): ?float
+    {
+        if ($this->preco_venda_peca === null) {
+            return null;
+        }
+
+        return round($this->totalPecasParaDia($dia) * (float) $this->preco_venda_peca, 2);
+    }
+
+    public function valorVendaPorSemana(): ?float
+    {
+        if ($this->preco_venda_peca === null) {
+            return null;
+        }
+
+        return round($this->totalPecasPorSemana() * (float) $this->preco_venda_peca, 2);
     }
 
     public function temEntregaNaData(\DateTimeInterface $data): bool

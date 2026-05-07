@@ -96,6 +96,7 @@ class CorporateController extends Controller
                 'fatura_email' => $corporate->fatura_email,
                 'fatura_morada' => $corporate->fatura_morada,
                 'numero_caixas' => (int) $corporate->numero_caixas,
+                'preco_venda_peca' => $corporate->preco_venda_peca !== null ? (float) $corporate->preco_venda_peca : null,
                 'cabaz_tipo' => $corporate->cabaz_tipo,
                 'cabaz_quantidade' => $corporate->cabaz_quantidade,
                 'peso_total' => (float) $corporate->peso_total,
@@ -252,6 +253,7 @@ class CorporateController extends Controller
             'frutas_por_dia' => $frutasPorDia,
             'peso_total' => $pesoTotal,
             'ativo' => (bool) ($data['ativo'] ?? false),
+            'preco_venda_peca' => filled($data['preco_venda_peca'] ?? null) ? (float) $data['preco_venda_peca'] : null,
             'quinzenal_referencia' => $data['periodicidade_entrega'] === 'quinzenal' ? ($data['quinzenal_referencia'] ?? null) : null,
         ];
     }
@@ -285,6 +287,7 @@ class CorporateController extends Controller
             'quinzenal_referencia' => ['nullable', 'date'],
             'cabaz_tipo' => ['nullable', 'in:pequeno,medio,grande'],
             'cabaz_quantidade' => ['nullable', 'integer', 'min:1'],
+            'preco_venda_peca' => ['nullable', 'numeric', 'min:0'],
             'fatura_email' => ['nullable', 'email', 'max:255'],
         ]);
 
@@ -317,6 +320,7 @@ class CorporateController extends Controller
             'fatura_email' => $this->nullableString($row['fatura_email'] ?? null),
             'fatura_morada' => $this->nullableString($row['fatura_morada'] ?? null),
             'numero_caixas' => max(0, (int) ($row['numero_caixas'] ?? 0)),
+            'preco_venda_peca' => $this->nullableDecimal($row['preco_venda_peca'] ?? null),
             'cabaz_tipo' => in_array($row['cabaz_tipo'] ?? null, ['pequeno', 'medio', 'grande'], true) ? $row['cabaz_tipo'] : null,
             'cabaz_quantidade' => filled($row['cabaz_tipo'] ?? null) ? max(1, (int) ($row['cabaz_quantidade'] ?? 1)) : null,
             'peso_total' => max(0, (float) ($row['peso_total'] ?? 0)),
@@ -341,6 +345,15 @@ class CorporateController extends Controller
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function nullableDecimal(mixed $value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return max(0, (float) $value);
     }
 
     private function boolValue(mixed $value): bool

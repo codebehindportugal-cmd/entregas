@@ -82,6 +82,26 @@ class CorporateTest extends TestCase
         ], $corporate->frutasParaDia('Quarta'));
     }
 
+    public function test_valor_venda_uses_single_price_for_all_fruit_pieces(): void
+    {
+        $corporate = new Corporate([
+            'preco_venda_peca' => 0.45,
+            'dias_entrega' => ['Segunda'],
+            'peso_total' => 12,
+            'frutas_por_dia' => [
+                'Segunda' => [
+                    'banana' => 5,
+                    'maca' => 4,
+                    'pera' => 3,
+                    'uvas' => 2,
+                ],
+            ],
+        ]);
+
+        $this->assertSame(5.40, $corporate->valorVendaParaDia('Segunda'));
+        $this->assertSame(5.40, $corporate->valorVendaPorSemana());
+    }
+
     public function test_subscricao_counts_past_synced_dates_as_done_for_historical_context(): void
     {
         Carbon::setTestNow('2026-04-30 10:00:00');

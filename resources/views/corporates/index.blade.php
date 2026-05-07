@@ -62,6 +62,7 @@
                 <th class="p-3">Dias</th>
                 <th class="p-3">Pecas por dia</th>
                 <th class="p-3"><a href="{{ $sortUrl('pecas') }}">Pecas/semana{{ $sortMark('pecas') }}</a></th>
+                <th class="p-3">Venda/peca</th>
                 <th class="p-3"><a href="{{ $sortUrl('periodicidade') }}">Periodicidade{{ $sortMark('periodicidade') }}</a></th>
                 <th class="p-3"><a href="{{ $sortUrl('caixas') }}">Caixas{{ $sortMark('caixas') }}</a></th>
                 <th class="p-3"></th>
@@ -80,6 +81,14 @@
                             @endforeach
                         </td>
                         <td class="p-3 font-semibold text-white">{{ $corporate->totalPecasPorSemana() }}</td>
+                        <td class="p-3 text-slate-300">
+                            @if($corporate->preco_venda_peca !== null)
+                                <p class="font-semibold text-white">{{ number_format((float) $corporate->preco_venda_peca, 4, ',', ' ') }} EUR</p>
+                                <p class="text-xs text-slate-500">{{ number_format($corporate->valorVendaPorSemana() ?? 0, 2, ',', ' ') }} EUR/semana</p>
+                            @else
+                                -
+                            @endif
+                        </td>
                         <td class="p-3">{{ $corporate->periodicidade_entrega === 'quinzenal' ? '15 em 15 dias' : 'Semanal' }}</td>
                         <td class="p-3">{{ $corporate->numero_caixas }}</td>
                         <td class="p-3 text-right">
@@ -95,7 +104,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="p-4 text-slate-400">Sem empresas para os filtros escolhidos.</td></tr>
+                    <tr><td colspan="8" class="p-4 text-slate-400">Sem empresas para os filtros escolhidos.</td></tr>
                 @endforelse
             </tbody>
         </table>

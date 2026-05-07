@@ -37,6 +37,7 @@ class ExportCorporates extends Command
                 'fatura_email' => $corporate->fatura_email,
                 'fatura_morada' => $corporate->fatura_morada,
                 'numero_caixas' => (int) $corporate->numero_caixas,
+                'preco_venda_peca' => $corporate->preco_venda_peca !== null ? (float) $corporate->preco_venda_peca : null,
                 'peso_total' => (float) $corporate->peso_total,
                 'frutas' => $corporate->frutas ?? [],
                 'frutas_por_dia' => $corporate->frutas_por_dia ?? [],

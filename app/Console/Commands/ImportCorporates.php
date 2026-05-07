@@ -100,6 +100,7 @@ class ImportCorporates extends Command
             'dias_entrega.*' => ['in:Segunda,Terca,Quarta,Quinta,Sexta'],
             'periodicidade_entrega' => ['nullable', 'in:semanal,quinzenal'],
             'quinzenal_referencia' => ['nullable', 'date'],
+            'preco_venda_peca' => ['nullable', 'numeric', 'min:0'],
             'fatura_email' => ['nullable', 'email', 'max:255'],
         ]);
 
@@ -132,6 +133,7 @@ class ImportCorporates extends Command
             'fatura_email' => $this->nullableString($row['fatura_email'] ?? null),
             'fatura_morada' => $this->nullableString($row['fatura_morada'] ?? null),
             'numero_caixas' => max(0, (int) ($row['numero_caixas'] ?? 0)),
+            'preco_venda_peca' => $this->nullableDecimal($row['preco_venda_peca'] ?? null),
             'peso_total' => max(0, (float) ($row['peso_total'] ?? 0)),
             'frutas' => $frutas,
             'frutas_por_dia' => $frutasPorDia,
@@ -154,6 +156,15 @@ class ImportCorporates extends Command
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    private function nullableDecimal(mixed $value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return max(0, (float) $value);
     }
 
     private function boolValue(mixed $value): bool

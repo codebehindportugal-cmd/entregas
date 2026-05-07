@@ -49,6 +49,10 @@
     <label class="text-sm text-slate-300">Numero caixas
         <input name="numero_caixas" type="number" min="0" value="{{ old('numero_caixas', $corporate->numero_caixas ?? 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
+    <label class="text-sm text-slate-300">Preco venda por peca
+        <input name="preco_venda_peca" type="number" min="0" step="0.0001" value="{{ old('preco_venda_peca', $corporate->preco_venda_peca) }}" placeholder="Ex: 0.4500" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        <span class="mt-1 block text-xs text-slate-500">Usado para todas as pecas de fruta desta empresa.</span>
+    </label>
 </div>
 <div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>
     <label class="flex items-start gap-3 text-sm text-slate-300">
