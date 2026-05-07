@@ -2,6 +2,14 @@
     <x-page-title title="Compras" subtitle="Necessidades em kg por dia" />
 
     <form method="get" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
+        <div class="mb-4 flex flex-wrap gap-2">
+            @foreach(['dia' => 'Dia', 'semana' => 'Semana', 'mes' => 'Mes', 'personalizado' => 'Personalizado'] as $value => $label)
+                <label class="cursor-pointer rounded px-3 py-2 text-sm font-medium {{ $periodo === $value ? 'bg-[#3B82F6] text-white' : 'bg-white/10 text-slate-300' }}">
+                    <input type="radio" name="periodo" value="{{ $value }}" class="sr-only" @checked($periodo === $value) onchange="this.form.submit()">
+                    {{ $label }}
+                </label>
+            @endforeach
+        </div>
         <div class="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
             <label class="text-sm text-slate-300">Inicio
                 <input name="inicio" type="date" value="{{ $inicio }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">

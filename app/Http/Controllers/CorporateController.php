@@ -28,12 +28,25 @@ class CorporateController extends Controller
         $dia = $request->string('dia')->toString();
         $ativo = $request->string('ativo')->toString();
         $periodicidade = $request->string('periodicidade_entrega')->toString();
+        $sort = $request->string('sort')->toString();
+        $direction = $request->string('direction')->toString() === 'desc' ? 'desc' : 'asc';
+        $sortColumns = [
+            'empresa' => 'empresa',
+            'sucursal' => 'sucursal',
+            'pecas' => 'peso_total',
+            'caixas' => 'numero_caixas',
+            'periodicidade' => 'periodicidade_entrega',
+            'estado' => 'ativo',
+        ];
+        $sortColumn = $sortColumns[$sort] ?? 'empresa';
 
         return view('corporates.index', [
             'q' => $q,
             'dia' => $dia,
             'ativo' => $ativo,
             'periodicidade' => $periodicidade,
+            'sort' => $sort ?: 'empresa',
+            'direction' => $direction,
             'dias' => self::DIAS,
             'corporates' => Corporate::query()
                 ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
@@ -48,6 +61,7 @@ class CorporateController extends Controller
                 ->when(in_array($periodicidade, ['semanal', 'quinzenal'], true), fn ($query) => $query->where('periodicidade_entrega', $periodicidade))
                 ->when($ativo === '1', fn ($query) => $query->where('ativo', true))
                 ->when($ativo === '0', fn ($query) => $query->where('ativo', false))
+                ->orderBy($sortColumn, $direction)
                 ->orderBy('empresa')
                 ->paginate(15)
                 ->withQueryString(),

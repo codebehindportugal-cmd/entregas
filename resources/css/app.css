@@ -12,12 +12,12 @@
 
 @layer base {
     * {
-        scrollbar-color: #2f4a3e #07110d;
+        scrollbar-color: #b7c8bd #eef4ee;
     }
 
     ::selection {
-        background: #22c55e;
-        color: #07110d;
+        background: #bbf7d0;
+        color: #14532d;
     }
 
     a,
@@ -32,30 +32,18 @@
     select,
     textarea {
         outline: none;
-        color-scheme: dark;
+        color-scheme: light;
     }
 
     input:focus,
     select:focus,
     textarea:focus {
-        border-color: #22c55e;
-        box-shadow: 0 0 0 3px rgb(34 197 94 / 0.14);
+        border-color: #16a34a;
+        box-shadow: 0 0 0 3px rgb(22 163 74 / 0.14);
     }
 }
 
 @layer components {
-    .rounded.border.border-white\/10.bg-\[\#151E2D\],
-    .rounded.border.border-white\/10.bg-\[\#111B17\] {
-        background: linear-gradient(180deg, rgb(21 30 45 / 0.92), rgb(12 20 27 / 0.92));
-        border-color: rgb(255 255 255 / 0.11);
-        box-shadow: 0 16px 40px rgb(0 0 0 / 0.18);
-    }
-
-    form.rounded.border.border-white\/10.bg-\[\#151E2D\],
-    div.rounded.border.border-white\/10.bg-\[\#151E2D\] {
-        backdrop-filter: blur(10px);
-    }
-
     table {
         border-collapse: separate;
         border-spacing: 0;
@@ -78,11 +66,202 @@
     }
 
     table tbody tr:hover {
-        background-color: rgb(255 255 255 / 0.025);
+        background-color: rgb(22 163 74 / 0.035);
     }
 
     input[type='date']::-webkit-calendar-picker-indicator {
-        filter: invert(1);
-        opacity: 0.65;
+        opacity: 0.7;
     }
+}
+
+body {
+    color: #1e293b;
+}
+
+.bg-\[\#151E2D\],
+.bg-\[\#111B17\],
+.bg-\[\#0A0F1A\],
+.bg-\[\#07110D\],
+.bg-white\/5,
+.bg-white\/\[0\.03\] {
+    background-color: #ffffff !important;
+}
+
+.rounded.border.border-white\/10.bg-\[\#151E2D\],
+.rounded.border.border-white\/10.bg-\[\#111B17\],
+.rounded.border.border-white\/10.bg-\[\#0A0F1A\],
+.overflow-hidden.rounded.border.border-white\/10.bg-\[\#151E2D\],
+form.rounded.border.border-white\/10.bg-\[\#151E2D\],
+div.rounded.border.border-white\/10.bg-\[\#151E2D\] {
+    background: #ffffff !important;
+    border-color: #dbe7dd !important;
+    box-shadow: 0 14px 32px rgb(15 23 42 / 0.07) !important;
+}
+
+.border-white\/10,
+.border-white\/\[0\.10\] {
+    border-color: #dbe7dd !important;
+}
+
+.border-emerald-400\/30,
+.border-emerald-400\/20 {
+    border-color: #bbf7d0 !important;
+}
+
+.border-blue-400\/20,
+.border-\[\#3B82F6\]\/30 {
+    border-color: #bfdbfe !important;
+}
+
+.border-\[\#F59E0B\]\/30 {
+    border-color: #fde68a !important;
+}
+
+.text-white {
+    color: #0f172a !important;
+}
+
+.text-slate-100,
+.text-slate-200,
+.text-slate-300 {
+    color: #475569 !important;
+}
+
+.text-slate-400,
+.text-slate-500 {
+    color: #64748b !important;
+}
+
+.text-emerald-100\/70,
+.text-emerald-200,
+.text-emerald-200\/80 {
+    color: #047857 !important;
+}
+
+.text-blue-200 {
+    color: #2563eb !important;
+}
+
+.text-amber-200 {
+    color: #b45309 !important;
+}
+
+.text-red-200,
+.text-red-300 {
+    color: #b91c1c !important;
+}
+
+input,
+select,
+textarea {
+    background-color: #ffffff !important;
+    border-color: #cbd5d1 !important;
+    color: #0f172a !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+input[type='file']::file-selector-button {
+    background: #eef4ee;
+    color: #334155;
+    border: 0;
+}
+
+thead,
+.bg-white\/5 {
+    background-color: #f1f5f0 !important;
+}
+
+thead th {
+    color: #64748b !important;
+}
+
+tbody tr,
+.border-t.border-white\/10 {
+    border-color: #e2e8e5 !important;
+}
+
+.bg-white\/10,
+.hover\:bg-white\/10:hover,
+.hover\:bg-white\/15:hover {
+    background-color: #eef4ee !important;
+}
+
+.bg-emerald-500\/10,
+.hover\:bg-emerald-500\/15:hover {
+    background-color: #ecfdf3 !important;
+}
+
+.bg-blue-500\/10,
+.hover\:bg-blue-500\/15:hover,
+.bg-\[\#3B82F6\]\/10 {
+    background-color: #eff6ff !important;
+}
+
+.bg-\[\#F59E0B\]\/10,
+.hover\:bg-\[\#F59E0B\]\/15:hover {
+    background-color: #fffbeb !important;
+}
+
+.bg-red-500\/10,
+.bg-red-500\/15 {
+    background-color: #fef2f2 !important;
+}
+
+.bg-\[\#22C55E\] {
+    background-color: #16a34a !important;
+}
+
+.hover\:bg-emerald-300:hover {
+    background-color: #22c55e !important;
+}
+
+.text-\[\#07110D\],
+.text-\[\#0A0F1A\] {
+    color: #ffffff !important;
+}
+
+.bg-\[\#3B82F6\] {
+    background-color: #2563eb !important;
+}
+
+.bg-\[\#F59E0B\] {
+    background-color: #f59e0b !important;
+}
+
+.bg-\[\#22C55E\].text-white,
+.bg-\[\#22C55E\] .text-white,
+.bg-\[\#16A34A\],
+.bg-\[\#16A34A\].text-white,
+.bg-\[\#3B82F6\],
+.bg-\[\#3B82F6\].text-white,
+.bg-blue-500,
+.bg-emerald-500,
+.bg-red-500 {
+    color: #ffffff !important;
+}
+
+button.bg-\[\#22C55E\],
+a.bg-\[\#22C55E\],
+button.bg-\[\#3B82F6\],
+a.bg-\[\#3B82F6\] {
+    color: #ffffff !important;
+}
+
+.shadow-black\/20,
+.shadow-black\/30,
+.shadow-emerald-950\/20,
+.shadow-emerald-950\/30 {
+    --tw-shadow-color: rgb(15 23 42 / 0.08) !important;
+}
+
+.disabled\:bg-slate-600:disabled {
+    background-color: #cbd5e1 !important;
+}
+
+.disabled\:text-slate-300:disabled {
+    color: #64748b !important;
 }

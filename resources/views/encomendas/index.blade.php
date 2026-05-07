@@ -1,4 +1,12 @@
 <x-layouts.app title="Encomendas B2C">
+    @php
+        $sortUrl = fn (string $column) => route('encomendas.index', array_merge(request()->query(), [
+            'sort' => $column,
+            'direction' => $sort === $column && $direction === 'asc' ? 'desc' : 'asc',
+        ]));
+        $sortMark = fn (string $column) => $sort === $column ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
+        $periodUrl = fn (string $value) => route('encomendas.index', array_merge(request()->query(), ['periodo' => $value, 'page' => null]));
+    @endphp
     <x-page-title title="Encomendas" subtitle="Cache local das encomendas WooCommerce">
         <div class="flex flex-wrap gap-2">
             <form method="post" action="{{ route('encomendas.sync') }}">
@@ -19,10 +27,24 @@
         @endforeach
     </div>
 
-    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+    <form method="get" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
         <input type="hidden" name="tipo" value="{{ $tipo }}">
+        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="direction" value="{{ $direction }}">
+        <div class="mb-4 flex flex-wrap gap-2">
+            @foreach(['' => 'Sempre', 'dia' => 'Dia', 'semana' => 'Semana', 'mes' => 'Mes', 'personalizado' => 'Personalizado'] as $value => $label)
+                <a href="{{ $periodUrl($value) }}" class="rounded px-3 py-2 text-sm font-medium {{ $periodo === $value ? 'bg-[#3B82F6] text-white' : 'bg-white/10 text-slate-300' }}">{{ $label }}</a>
+            @endforeach
+        </div>
+        <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]">
         <label class="text-sm text-slate-300">Pesquisar
             <input name="q" value="{{ $q }}" placeholder="Cliente, telefone, email ou ID..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        </label>
+        <label class="text-sm text-slate-300">Inicio
+            <input name="inicio" type="date" value="{{ $inicio }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        </label>
+        <label class="text-sm text-slate-300">Fim
+            <input name="fim" type="date" value="{{ $fim }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
         <label class="text-sm text-slate-300">Estado
             <select name="status" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
@@ -48,19 +70,20 @@
             <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Filtrar</button>
             <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
         </div>
+        </div>
     </form>
 
     <div class="overflow-hidden rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
             <thead class="bg-white/5 text-slate-400">
                 <tr>
-                    <th class="p-3">Encomenda</th>
-                    <th class="p-3">Cliente</th>
+                    <th class="p-3"><a href="{{ $sortUrl('id') }}">Encomenda{{ $sortMark('id') }}</a></th>
+                    <th class="p-3"><a href="{{ $sortUrl('cliente') }}">Cliente{{ $sortMark('cliente') }}</a></th>
                     <th class="p-3">Produtos</th>
                     <th class="p-3">Dia</th>
                     <th class="p-3">Entregas</th>
                     <th class="p-3">Preferencias</th>
-                    <th class="p-3">Total</th>
+                    <th class="p-3"><a href="{{ $sortUrl('total') }}">Total{{ $sortMark('total') }}</a></th>
                     <th class="p-3"></th>
                 </tr>
             </thead>

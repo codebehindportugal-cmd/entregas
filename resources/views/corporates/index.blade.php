@@ -1,4 +1,11 @@
 <x-layouts.app title="Empresas">
+    @php
+        $sortUrl = fn (string $column) => route('corporates.index', array_merge(request()->query(), [
+            'sort' => $column,
+            'direction' => $sort === $column && $direction === 'asc' ? 'desc' : 'asc',
+        ]));
+        $sortMark = fn (string $column) => $sort === $column ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
+    @endphp
     <x-page-title title="Empresas" subtitle="Gestao de clientes corporate">
         <div class="flex flex-wrap items-center gap-2">
             <a href="{{ route('corporates.export') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">Exportar</a>
@@ -13,7 +20,10 @@
     @error('ficheiro')
         <div class="mb-6 rounded border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ $message }}</div>
     @enderror
-    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+    <form method="get" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
+        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="direction" value="{{ $direction }}">
+        <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
         <label class="text-sm text-slate-300">Pesquisar
             <input name="q" value="{{ $q }}" placeholder="Empresa, morada, telefone..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
@@ -43,10 +53,19 @@
             <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Filtrar</button>
             <a href="{{ route('corporates.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
         </div>
+        </div>
     </form>
     <div class="overflow-hidden rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
-            <thead class="bg-white/5 text-slate-400"><tr><th class="p-3">Empresa</th><th class="p-3">Dias</th><th class="p-3">Pecas por dia</th><th class="p-3">Pecas/semana</th><th class="p-3">Periodicidade</th><th class="p-3">Caixas</th><th class="p-3"></th></tr></thead>
+            <thead class="bg-white/5 text-slate-400"><tr>
+                <th class="p-3"><a href="{{ $sortUrl('empresa') }}">Empresa{{ $sortMark('empresa') }}</a></th>
+                <th class="p-3">Dias</th>
+                <th class="p-3">Pecas por dia</th>
+                <th class="p-3"><a href="{{ $sortUrl('pecas') }}">Pecas/semana{{ $sortMark('pecas') }}</a></th>
+                <th class="p-3"><a href="{{ $sortUrl('periodicidade') }}">Periodicidade{{ $sortMark('periodicidade') }}</a></th>
+                <th class="p-3"><a href="{{ $sortUrl('caixas') }}">Caixas{{ $sortMark('caixas') }}</a></th>
+                <th class="p-3"></th>
+            </tr></thead>
             <tbody>
                 @forelse($corporates as $corporate)
                     <tr class="border-t border-white/10">

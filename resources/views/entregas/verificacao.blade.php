@@ -1,7 +1,24 @@
 <x-layouts.app title="Verificacao de entregas">
-    <x-page-title title="Verificacao" subtitle="Estado das entregas de {{ $dia ?? 'fim de semana' }} - {{ \Illuminate\Support\Carbon::parse($data)->format('d/m/Y') }}" />
+    @php
+        $sortUrl = fn (string $column) => route('entregas.verificacao', array_merge(request()->query(), [
+            'sort' => $column,
+            'direction' => $sort === $column && $direction === 'asc' ? 'desc' : 'asc',
+        ]));
+        $sortMark = fn (string $column) => $sort === $column ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
+        $periodUrl = fn (string $value) => route('entregas.verificacao', array_merge(request()->query(), ['periodo' => $value]));
+    @endphp
+    <x-page-title title="Verificacao" subtitle="{{ \Illuminate\Support\Carbon::parse($inicioPeriodo)->format('d/m/Y') }} a {{ \Illuminate\Support\Carbon::parse($fimPeriodo)->format('d/m/Y') }}" />
 
-    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 lg:grid-cols-[1fr_1fr_1fr_2fr_auto]">
+    <form method="get" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
+        <input type="hidden" name="sort" value="{{ $sort }}">
+        <input type="hidden" name="direction" value="{{ $direction }}">
+        <div class="mb-4 flex flex-wrap gap-2">
+            @foreach(['dia' => 'Dia', 'semana' => 'Semana', 'mes' => 'Mes'] as $value => $label)
+                <a href="{{ $periodUrl($value) }}" class="rounded px-3 py-2 text-sm font-medium {{ $periodo === $value ? 'bg-[#3B82F6] text-white' : 'bg-white/10 text-slate-300' }}">{{ $label }}</a>
+            @endforeach
+        </div>
+        <div class="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_2fr_auto]">
+        <input type="hidden" name="periodo" value="{{ $periodo }}">
         <label class="text-sm text-slate-300">Data
             <input name="data" type="date" value="{{ $data }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
@@ -26,20 +43,21 @@
         </label>
         <div class="flex items-end gap-2">
             <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Filtrar</button>
-            <a href="{{ route('entregas.verificacao', ['data' => $data]) }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
+            <a href="{{ route('entregas.verificacao') }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
+        </div>
         </div>
     </form>
 
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
-        <a href="{{ route('entregas.verificacao', ['data' => $data, 'status' => 'pendente', 'user_id' => $userId, 'q' => $q]) }}" class="rounded border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-4">
+        <a href="{{ route('entregas.verificacao', ['data' => $data, 'periodo' => $periodo, 'status' => 'pendente', 'user_id' => $userId, 'q' => $q]) }}" class="rounded border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-4">
             <p class="text-sm text-amber-200">Pendentes</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ (int) ($resumo->pendentes ?? 0) }}</p>
         </a>
-        <a href="{{ route('entregas.verificacao', ['data' => $data, 'status' => 'entregue', 'user_id' => $userId, 'q' => $q]) }}" class="rounded border border-emerald-400/30 bg-emerald-500/10 p-4">
+        <a href="{{ route('entregas.verificacao', ['data' => $data, 'periodo' => $periodo, 'status' => 'entregue', 'user_id' => $userId, 'q' => $q]) }}" class="rounded border border-emerald-400/30 bg-emerald-500/10 p-4">
             <p class="text-sm text-emerald-200">Entregues</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ (int) ($resumo->entregues ?? 0) }}</p>
         </a>
-        <a href="{{ route('entregas.verificacao', ['data' => $data, 'status' => 'falhou', 'user_id' => $userId, 'q' => $q]) }}" class="rounded border border-red-400/30 bg-red-500/10 p-4">
+        <a href="{{ route('entregas.verificacao', ['data' => $data, 'periodo' => $periodo, 'status' => 'falhou', 'user_id' => $userId, 'q' => $q]) }}" class="rounded border border-red-400/30 bg-red-500/10 p-4">
             <p class="text-sm text-red-200">Nao entregues</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ (int) ($resumo->falhadas ?? 0) }}</p>
         </a>
@@ -49,10 +67,13 @@
         <table class="w-full text-left text-sm">
             <thead class="bg-white/5 text-slate-400">
                 <tr>
-                    <th class="p-3">Empresa</th>
-                    <th class="p-3">Colaborador</th>
-                    <th class="p-3">Estado</th>
-                    <th class="p-3">Hora</th>
+                    @if($periodo !== 'dia')
+                        <th class="p-3"><a href="{{ $sortUrl('data') }}">Data{{ $sortMark('data') }}</a></th>
+                    @endif
+                    <th class="p-3"><a href="{{ $sortUrl('empresa') }}">Empresa{{ $sortMark('empresa') }}</a></th>
+                    <th class="p-3"><a href="{{ $sortUrl('colaborador') }}">Colaborador{{ $sortMark('colaborador') }}</a></th>
+                    <th class="p-3"><a href="{{ $sortUrl('estado') }}">Estado{{ $sortMark('estado') }}</a></th>
+                    <th class="p-3"><a href="{{ $sortUrl('hora') }}">Hora{{ $sortMark('hora') }}</a></th>
                     <th class="p-3">Fotos</th>
                     <th class="p-3"></th>
                 </tr>
@@ -60,6 +81,9 @@
             <tbody>
                 @forelse($registos as $registo)
                     <tr class="border-t border-white/10">
+                        @if($periodo !== 'dia')
+                            <td class="p-3 text-slate-300">{{ $registo->data_entrega->format('d/m/Y') }}</td>
+                        @endif
                         <td class="p-3">
                             <p class="font-semibold text-white">{{ $registo->corporate->empresa }}</p>
                             <p class="text-xs text-slate-400">{{ $registo->corporate->moradaParaEntrega() ?: $registo->corporate->sucursal }}</p>
@@ -81,7 +105,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="p-4 text-slate-400">Sem entregas para os filtros escolhidos.</td>
+                        <td colspan="{{ $periodo !== 'dia' ? 7 : 6 }}" class="p-4 text-slate-400">Sem entregas para os filtros escolhidos.</td>
                     </tr>
                 @endforelse
             </tbody>

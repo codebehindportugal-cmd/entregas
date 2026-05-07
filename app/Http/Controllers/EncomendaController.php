@@ -6,6 +6,7 @@ use App\Models\WooOrder;
 use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Throwable;
@@ -22,6 +23,27 @@ class EncomendaController extends Controller
         $diaEntrega = $request->string('dia_entrega')->toString();
         $tipo = $request->string('tipo')->toString();
         $sourceType = $request->string('source_type')->toString();
+        $periodo = $request->string('periodo')->toString();
+        $inicio = filled($request->input('inicio'))
+            ? Carbon::parse($request->input('inicio'))->startOfDay()
+            : null;
+        $fim = filled($request->input('fim'))
+            ? Carbon::parse($request->input('fim'))->endOfDay()
+            : null;
+        [$inicio, $fim] = $this->periodRange($periodo, $inicio, $fim);
+        $sort = $request->string('sort')->toString();
+        $direction = $request->string('direction')->toString() === 'asc' ? 'asc' : 'desc';
+        $sortColumns = [
+            'id' => 'woo_id',
+            'cliente' => 'billing_name',
+            'total' => 'total',
+            'estado' => 'status',
+            'tipo' => 'source_type',
+            'sincronizado' => 'synced_at',
+            'encomendado' => 'ordered_at',
+            'entrega' => 'scheduled_delivery_at',
+        ];
+        $sortColumn = $sortColumns[$sort] ?? 'synced_at';
 
         return view('encomendas.index', [
             'q' => $q,
@@ -29,6 +51,11 @@ class EncomendaController extends Controller
             'diaEntrega' => $diaEntrega,
             'tipo' => $tipo,
             'sourceType' => $sourceType,
+            'periodo' => $periodo ?: '',
+            'inicio' => $inicio?->toDateString(),
+            'fim' => $fim?->toDateString(),
+            'sort' => $sort ?: 'sincronizado',
+            'direction' => $direction,
             'orders' => WooOrder::query()
                 ->with('preparacaoItems')
                 ->whereNotIn('status', self::STATUSES_EXCLUIDOS)
@@ -43,6 +70,8 @@ class EncomendaController extends Controller
                         ->orWhere('billing_phone', 'like', "%{$q}%")
                         ->orWhere('billing_email', 'like', "%{$q}%");
                 }))
+                ->when($inicio, fn ($query) => $query->whereDate('ordered_at', '>=', $inicio))
+                ->when($fim, fn ($query) => $query->whereDate('ordered_at', '<=', $fim))
                 ->when($status === 'em_processamento', fn ($query) => $query
                     ->where('source_type', 'order')
                     ->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
@@ -55,7 +84,8 @@ class EncomendaController extends Controller
                     $query->whereNotNull('preferences_text')
                         ->orWhereJsonLength('excluded_products', '>', 0);
                 }))
-                ->latest('synced_at')
+                ->orderBy($sortColumn, $direction)
+                ->orderByDesc('synced_at')
                 ->paginate(20)
                 ->withQueryString(),
             'statuses' => collect(['em_processamento']),
@@ -178,5 +208,28 @@ class EncomendaController extends Controller
         }
 
         return $wooId;
+    }
+
+    private function periodRange(string $periodo, ?Carbon $inicio, ?Carbon $fim): array
+    {
+        if ($periodo === 'dia') {
+            $date = $inicio ?: now()->startOfDay();
+
+            return [$date->copy()->startOfDay(), $date->copy()->endOfDay()];
+        }
+
+        if ($periodo === 'semana') {
+            $date = $inicio ?: now();
+
+            return [$date->copy()->startOfWeek(), $date->copy()->endOfWeek()];
+        }
+
+        if ($periodo === 'mes') {
+            $date = $inicio ?: now();
+
+            return [$date->copy()->startOfMonth(), $date->copy()->endOfMonth()];
+        }
+
+        return [$inicio, $fim];
     }
 }

@@ -11,13 +11,25 @@ class ComprasController extends Controller
 {
     public function __invoke(Request $request, ComprasService $compras): View
     {
+        $periodo = $request->string('periodo')->toString() ?: 'semana';
         $inicio = filled($request->input('inicio'))
             ? Carbon::parse($request->input('inicio'))
             : now();
 
-        $fim = filled($request->input('fim'))
-            ? Carbon::parse($request->input('fim'))
-            : $inicio->copy()->addDays(6);
+        if ($periodo === 'dia') {
+            $inicio = $inicio->copy()->startOfDay();
+            $fim = $inicio->copy();
+        } elseif ($periodo === 'mes') {
+            $inicio = $inicio->copy()->startOfMonth();
+            $fim = $inicio->copy()->endOfMonth();
+        } elseif ($periodo === 'personalizado') {
+            $fim = filled($request->input('fim'))
+                ? Carbon::parse($request->input('fim'))
+                : $inicio->copy()->addDays(6);
+        } else {
+            $inicio = $inicio->copy()->startOfWeek();
+            $fim = $inicio->copy()->endOfWeek();
+        }
 
         if ($fim->lt($inicio)) {
             $fim = $inicio->copy();
@@ -30,6 +42,7 @@ class ComprasController extends Controller
         $calculo = $compras->calcular($inicio, $fim, $request->input('pesos', []));
 
         return view('compras.index', [
+            'periodo' => $periodo,
             'inicio' => $inicio->toDateString(),
             'fim' => $fim->toDateString(),
             'labels' => ComprasService::FRUTAS,

@@ -74,10 +74,31 @@ class EntregaController extends Controller
             : now();
 
         $data = $dataSelecionada->toDateString();
+        $periodo = $request->string('periodo')->toString() ?: 'dia';
+        $inicioPeriodo = match ($periodo) {
+            'semana' => $dataSelecionada->copy()->startOfWeek(),
+            'mes' => $dataSelecionada->copy()->startOfMonth(),
+            default => $dataSelecionada->copy()->startOfDay(),
+        };
+        $fimPeriodo = match ($periodo) {
+            'semana' => $dataSelecionada->copy()->endOfWeek(),
+            'mes' => $dataSelecionada->copy()->endOfMonth(),
+            default => $dataSelecionada->copy()->endOfDay(),
+        };
         $dia = self::DIAS[$dataSelecionada->dayOfWeek] ?? null;
         $status = $request->string('status')->toString();
         $userId = $request->integer('user_id');
         $q = $request->string('q')->toString();
+        $sort = $request->string('sort')->toString();
+        $direction = $request->string('direction')->toString() === 'desc' ? 'desc' : 'asc';
+        $sortColumns = [
+            'data' => 'registo_entregas.data_entrega',
+            'empresa' => 'corporates.empresa',
+            'colaborador' => 'users.name',
+            'estado' => 'registo_entregas.status',
+            'hora' => 'registo_entregas.hora_entrega',
+        ];
+        $sortColumn = $sortColumns[$sort] ?? 'corporates.empresa';
 
         if ($dia !== null) {
             $corporateIdsComEntrega = Corporate::where('ativo', true)
@@ -106,8 +127,8 @@ class EntregaController extends Controller
         $corporateIdsComEntrega ??= collect();
 
         $registos = RegistoEntrega::with(['corporate', 'user'])
-            ->whereDate('data_entrega', $data)
-            ->when($dia !== null, fn ($query) => $query->whereIn('corporate_id', $corporateIdsComEntrega))
+            ->whereBetween('data_entrega', [$inicioPeriodo->toDateString(), $fimPeriodo->toDateString()])
+            ->when($periodo === 'dia' && $dia !== null, fn ($query) => $query->whereIn('corporate_id', $corporateIdsComEntrega))
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($query) => $query->where('status', $status))
             ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
@@ -117,13 +138,14 @@ class EntregaController extends Controller
                     ->orWhere('corporates.fatura_morada', 'like', "%{$q}%");
             }))
             ->join('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
-            ->orderBy('registo_entregas.status')
+            ->join('users', 'registo_entregas.user_id', '=', 'users.id')
+            ->orderBy($sortColumn, $direction)
             ->orderBy('corporates.empresa')
             ->select('registo_entregas.*')
             ->get();
 
-        $resumo = RegistoEntrega::whereDate('data_entrega', $data)
-            ->when($dia !== null, fn ($query) => $query->whereIn('corporate_id', $corporateIdsComEntrega))
+        $resumo = RegistoEntrega::whereBetween('data_entrega', [$inicioPeriodo->toDateString(), $fimPeriodo->toDateString()])
+            ->when($periodo === 'dia' && $dia !== null, fn ($query) => $query->whereIn('corporate_id', $corporateIdsComEntrega))
             ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
             ->when(filled($q), fn ($query) => $query
                 ->join('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
@@ -141,10 +163,15 @@ class EntregaController extends Controller
 
         return view('entregas.verificacao', [
             'data' => $data,
+            'periodo' => $periodo,
+            'inicioPeriodo' => $inicioPeriodo->toDateString(),
+            'fimPeriodo' => $fimPeriodo->toDateString(),
             'dia' => $dia,
             'status' => $status,
             'userId' => $userId,
             'q' => $q,
+            'sort' => $sort ?: 'empresa',
+            'direction' => $direction,
             'registos' => $registos,
             'resumo' => $resumo,
             'colaboradores' => User::where('ativo', true)->orderBy('name')->get(),
