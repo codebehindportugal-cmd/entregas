@@ -76,7 +76,7 @@ class EncomendaController extends Controller
                     ->where('source_type', 'order')
                     ->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
                 )
-                ->when(in_array($diaEntrega, ['quarta', 'sabado'], true), fn ($query) => $query->where('dia_entrega', $diaEntrega))
+                ->when(in_array($diaEntrega, ['segunda', 'quarta', 'sabado'], true), fn ($query) => $query->where('dia_entrega', $diaEntrega))
                 ->when($sourceType === 'order', fn ($query) => $query->whereIn('status', self::EM_PROCESSAMENTO_STATUSES))
                 ->when($sourceType === 'subscription', fn ($query) => $query->where('source_type', 'subscription'))
                 ->when($tipo === 'adiadas', fn ($query) => $query->whereNotNull('postponed_until'))
@@ -113,6 +113,16 @@ class EncomendaController extends Controller
     public function updateProfile(Request $request, WooOrder $encomenda): RedirectResponse
     {
         $data = $request->validate([
+            'billing_name' => ['nullable', 'string', 'max:255'],
+            'billing_phone' => ['nullable', 'string', 'max:255'],
+            'billing_email' => ['nullable', 'email', 'max:255'],
+            'source_type' => ['required', 'in:order,subscription'],
+            'dia_entrega' => ['nullable', 'in:segunda,quarta,sabado'],
+            'ciclo_entrega' => ['required', 'in:semanal,quinzenal'],
+            'scheduled_delivery_at' => ['nullable', 'date'],
+            'first_delivery_at' => ['nullable', 'date'],
+            'next_payment_at' => ['nullable', 'date'],
+            'subscription_ends_at' => ['nullable', 'date'],
             'profile_preferences' => ['nullable', 'string'],
             'customer_notes' => ['nullable', 'string'],
         ]);
@@ -128,9 +138,13 @@ class EncomendaController extends Controller
             'postponed_until' => ['required', 'date'],
         ]);
 
-        $encomenda->update([
-            'postponed_until' => $data['postponed_until'],
-        ]);
+        if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {
+            $encomenda->adiarProximaEntregaPara($data['postponed_until']);
+        } else {
+            $encomenda->update([
+                'postponed_until' => $data['postponed_until'],
+            ]);
+        }
 
         return back()->with('status', 'Encomenda adiada ate '.$encomenda->fresh()->postponed_until->format('d/m/Y').'.');
     }
@@ -144,41 +158,23 @@ class EncomendaController extends Controller
         return back()->with('status', 'Adiamento removido.');
     }
 
-    public function duplicate(WooOrder $encomenda): RedirectResponse
+    public function duplicate(WooOrder $encomenda, WooCommerceService $service): RedirectResponse
     {
-        $novaEncomenda = $encomenda->replicate([
-            'woo_id',
-            'ordered_at',
-            'postponed_until',
-            'next_payment_at',
-            'first_delivery_at',
-            'delivery_dates',
-            'cancelled_delivery_dates',
-            'subscription_ends_at',
-            'scheduled_delivery_at',
-            'raw_payload',
-            'synced_at',
-        ]);
+        try {
+            $result = $service->createPendingOrderFrom($encomenda);
+        } catch (Throwable $exception) {
+            return back()->withErrors(['publish' => $exception->getMessage()]);
+        }
 
-        $novaEncomenda->forceFill([
-            'woo_id' => $this->nextLocalWooId($encomenda),
-            'ordered_at' => now(),
-            'postponed_until' => null,
-            'next_payment_at' => null,
-            'first_delivery_at' => null,
-            'delivery_dates' => [],
-            'cancelled_delivery_dates' => [],
-            'subscription_ends_at' => null,
-            'scheduled_delivery_at' => null,
-            'preferences_text' => $encomenda->preferences_text,
-            'raw_payload' => [
-                'duplicated_from' => $encomenda->woo_id,
-                'duplicated_at' => now()->toIso8601String(),
-            ],
-            'synced_at' => now(),
-        ])->save();
+        $novaEncomenda = $result['order'];
+        $paymentUrl = $result['payment_url'];
+        $message = "Encomenda publicada no WooCommerce em pagamento pendente: #{$novaEncomenda->woo_id}.";
 
-        return back()->with('status', "Encomenda duplicada para renovacao: #{$novaEncomenda->woo_id}.");
+        if ($paymentUrl) {
+            $message .= " Link de pagamento: {$paymentUrl}";
+        }
+
+        return back()->with('status', $message);
     }
 
     public function destroy(WooOrder $encomenda): RedirectResponse
@@ -197,17 +193,6 @@ class EncomendaController extends Controller
         });
 
         return redirect()->route('encomendas.index')->with('status', "{$count} encomendas removidas da cache local. Pode sincronizar novamente.");
-    }
-
-    private function nextLocalWooId(WooOrder $encomenda): int
-    {
-        $wooId = 900000000000 + $encomenda->id;
-
-        while (WooOrder::where('woo_id', $wooId)->exists()) {
-            $wooId++;
-        }
-
-        return $wooId;
     }
 
     private function periodRange(string $periodo, ?Carbon $inicio, ?Carbon $fim): array

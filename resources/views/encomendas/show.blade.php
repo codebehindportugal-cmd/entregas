@@ -66,7 +66,52 @@
             <form method="post" action="{{ route('encomendas.profile.update', $encomenda) }}" class="rounded border border-white/10 bg-[#151E2D] p-5">
                 @csrf
                 @method('put')
-                <h2 class="text-lg font-semibold text-white">Perfil interno</h2>
+                <h2 class="text-lg font-semibold text-white">Editar perfil</h2>
+
+                <div class="mt-4 grid gap-4 md:grid-cols-2">
+                    <label class="block text-sm text-slate-300">Nome
+                        <input name="billing_name" value="{{ old('billing_name', $encomenda->billing_name) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Telefone
+                        <input name="billing_phone" value="{{ old('billing_phone', $encomenda->billing_phone) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300 md:col-span-2">Email
+                        <input name="billing_email" type="email" value="{{ old('billing_email', $encomenda->billing_email) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Tipo
+                        <select name="source_type" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            <option value="order" @selected(old('source_type', $encomenda->source_type) === 'order')>Encomenda</option>
+                            <option value="subscription" @selected(old('source_type', $encomenda->source_type) === 'subscription')>Subscricao</option>
+                        </select>
+                    </label>
+                    <label class="block text-sm text-slate-300">Dia de entrega
+                        <select name="dia_entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            <option value="">Sem dia definido</option>
+                            <option value="segunda" @selected(old('dia_entrega', $encomenda->dia_entrega) === 'segunda')>Segunda</option>
+                            <option value="quarta" @selected(old('dia_entrega', $encomenda->dia_entrega) === 'quarta')>Quarta</option>
+                            <option value="sabado" @selected(old('dia_entrega', $encomenda->dia_entrega) === 'sabado')>Sabado</option>
+                        </select>
+                    </label>
+                    <label class="block text-sm text-slate-300">Ciclo
+                        <select name="ciclo_entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            <option value="semanal" @selected(old('ciclo_entrega', $encomenda->ciclo_entrega) === 'semanal')>Semanal</option>
+                            <option value="quinzenal" @selected(old('ciclo_entrega', $encomenda->ciclo_entrega) === 'quinzenal')>15 em 15 dias</option>
+                        </select>
+                    </label>
+                    <label class="block text-sm text-slate-300">Entrega agendada
+                        <input name="scheduled_delivery_at" type="date" value="{{ old('scheduled_delivery_at', optional($encomenda->scheduled_delivery_at)->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Primeira entrega
+                        <input name="first_delivery_at" type="date" value="{{ old('first_delivery_at', optional($encomenda->first_delivery_at)->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Proximo pagamento
+                        <input name="next_payment_at" type="date" value="{{ old('next_payment_at', optional($encomenda->next_payment_at)->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Fim da subscricao
+                        <input name="subscription_ends_at" type="date" value="{{ old('subscription_ends_at', optional($encomenda->subscription_ends_at)->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                </div>
+
                 <label class="mt-4 block text-sm text-slate-300">Preferencias tratadas
                     <textarea name="profile_preferences" rows="6" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('profile_preferences', $encomenda->profile_preferences) }}</textarea>
                 </label>

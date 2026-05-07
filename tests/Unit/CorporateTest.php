@@ -191,6 +191,29 @@ class CorporateTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_subscricao_generates_monday_dates_from_first_delivery(): void
+    {
+        Carbon::setTestNow('2026-04-15 10:00:00');
+
+        $order = new WooOrder([
+            'first_delivery_at' => '2026-04-06',
+            'next_payment_at' => '2026-05-04',
+            'delivery_dates' => [],
+            'dia_entrega' => 'segunda',
+            'ciclo_entrega' => 'semanal',
+        ]);
+        $order->setRelation('preparacaoItems', collect());
+
+        $entregas = $order->entregasSubscricao();
+
+        $this->assertSame(4, $entregas['total']);
+        $this->assertSame(2, $entregas['feitas']);
+        $this->assertSame(2, $entregas['por_realizar']);
+        $this->assertSame('2026-04-20', $entregas['proxima']);
+
+        Carbon::setTestNow();
+    }
+
     public function test_subscricao_ignores_cancelled_delivery_dates(): void
     {
         Carbon::setTestNow('2026-05-20 10:00:00');
@@ -211,5 +234,114 @@ class CorporateTest extends TestCase
         $this->assertSame('2026-05-21', $entregas['proxima']);
 
         Carbon::setTestNow();
+    }
+
+    public function test_subscricao_postpone_replaces_next_open_delivery_date(): void
+    {
+        Carbon::setTestNow('2026-04-09 10:00:00');
+
+        $order = new WooOrder([
+            'delivery_dates' => ['2026-04-08', '2026-04-15', '2026-04-22', '2026-04-29'],
+            'next_payment_at' => '2026-05-06',
+            'subscription_ends_at' => '2026-04-29',
+            'dia_entrega' => 'quarta',
+            'ciclo_entrega' => 'semanal',
+        ]);
+        $order->setRelation('preparacaoItems', collect([
+            new PreparacaoItem([
+                'data_preparacao' => '2026-04-08',
+                'feito' => true,
+            ]),
+        ]));
+
+        $order->adiarProximaEntregaPara('2026-04-16');
+        $order->setRelation('preparacaoItems', collect([
+            new PreparacaoItem([
+                'data_preparacao' => '2026-04-08',
+                'feito' => true,
+            ]),
+        ]));
+
+        $entregas = $order->entregasSubscricao();
+
+        $this->assertSame(['2026-04-08', '2026-04-16', '2026-04-22', '2026-04-29'], $order->delivery_dates);
+        $this->assertSame('2026-05-06', $order->next_payment_at->toDateString());
+        $this->assertSame('2026-04-29', $order->subscription_ends_at->toDateString());
+        $this->assertSame(1, $entregas['feitas']);
+        $this->assertSame(3, $entregas['por_realizar']);
+        $this->assertSame('2026-04-16', $entregas['proxima']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_subscricao_postpone_to_existing_delivery_date_keeps_four_deliveries_in_cycle(): void
+    {
+        Carbon::setTestNow('2026-05-07 10:00:00');
+
+        $order = new WooOrder([
+            'delivery_dates' => ['2026-04-10', '2026-04-17', '2026-04-24', '2026-05-01'],
+            'first_delivery_at' => '2026-04-10',
+            'next_payment_at' => '2026-05-08',
+            'subscription_ends_at' => '2026-05-01',
+            'dia_entrega' => 'sexta',
+            'ciclo_entrega' => 'semanal',
+        ]);
+        $order->setRelation('preparacaoItems', collect());
+
+        $order->adiarProximaEntregaPara('2026-04-24');
+        $order->setRelation('preparacaoItems', collect());
+
+        $entregas = $order->entregasSubscricao();
+
+        $this->assertSame(['2026-04-10', '2026-04-24', '2026-04-24', '2026-05-01'], $order->delivery_dates);
+        $this->assertSame('2026-05-01', $order->subscription_ends_at->toDateString());
+        $this->assertSame(4, $entregas['total']);
+        $this->assertSame(4, $entregas['feitas']);
+        $this->assertSame(0, $entregas['por_realizar']);
+        $this->assertNull($entregas['proxima']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_subscricao_historical_postpone_repairs_previously_shifted_future_dates(): void
+    {
+        Carbon::setTestNow('2026-05-07 10:00:00');
+
+        $order = new WooOrder([
+            'delivery_dates' => ['2026-04-10', '2026-04-24', '2026-05-08', '2026-05-15'],
+            'first_delivery_at' => '2026-04-10',
+            'next_payment_at' => '2026-05-22',
+            'subscription_ends_at' => '2026-05-15',
+            'dia_entrega' => 'sexta',
+            'ciclo_entrega' => 'semanal',
+        ]);
+        $order->setRelation('preparacaoItems', collect());
+
+        $order->adiarProximaEntregaPara('2026-04-24');
+        $order->setRelation('preparacaoItems', collect());
+
+        $entregas = $order->entregasSubscricao();
+
+        $this->assertSame(['2026-04-10', '2026-04-24', '2026-04-24', '2026-05-01'], $order->delivery_dates);
+        $this->assertSame('2026-05-01', $order->subscription_ends_at->toDateString());
+        $this->assertSame(4, $entregas['total']);
+        $this->assertSame(4, $entregas['feitas']);
+        $this->assertSame(0, $entregas['por_realizar']);
+        $this->assertNull($entregas['proxima']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_subscricao_uses_delivery_dates_for_cycle_end_and_next_order_when_payment_is_missing(): void
+    {
+        $order = new WooOrder([
+            'delivery_dates' => ['2026-04-11', '2026-04-18', '2026-04-25', '2026-05-02'],
+            'subscription_ends_at' => '2026-04-30',
+            'dia_entrega' => 'sabado',
+            'ciclo_entrega' => 'semanal',
+        ]);
+
+        $this->assertSame('2026-05-02', $order->fimCicloSubscricao()?->toDateString());
+        $this->assertSame('2026-05-09', $order->proximaEncomendaSubscricao()?->toDateString());
     }
 }

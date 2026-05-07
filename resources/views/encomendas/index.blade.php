@@ -55,6 +55,7 @@
         <label class="text-sm text-slate-300">Dia entrega
             <select name="dia_entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                 <option value="">Todos</option>
+                <option value="segunda" @selected($diaEntrega === 'segunda')>Segunda</option>
                 <option value="quarta" @selected($diaEntrega === 'quarta')>Quarta</option>
                 <option value="sabado" @selected($diaEntrega === 'sabado')>Sabado</option>
             </select>
@@ -100,13 +101,17 @@
                             @if($order->postponed_until)
                                 <p class="mt-1 rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200">Adiada ate {{ $order->postponed_until->format('d/m/Y') }}</p>
                             @endif
-                            @if($order->next_payment_at)
-                                <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Prox. pagamento {{ $order->next_payment_at->format('d/m/Y') }}</p>
+                            @if($order->source_type === 'subscription' && $order->proximaEncomendaSubscricao())
+                                <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Prox. encomenda {{ $order->proximaEncomendaSubscricao()->format('d/m/Y') }}</p>
+                            @elseif($order->next_payment_at)
+                                <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Prox. encomenda {{ $order->next_payment_at->format('d/m/Y') }}</p>
                             @endif
                             @if($order->first_delivery_at)
                                 <p class="mt-1 rounded bg-emerald-500/15 px-2 py-1 text-xs text-emerald-200">1a entrega {{ $order->first_delivery_at->format('d/m/Y') }}</p>
                             @endif
-                            @if($order->subscription_ends_at)
+                            @if($order->source_type === 'subscription' && $order->fimCicloSubscricao())
+                                <p class="mt-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-200">Fim {{ $order->fimCicloSubscricao()->format('d/m/Y') }}</p>
+                            @elseif($order->subscription_ends_at)
                                 <p class="mt-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-200">Fim {{ $order->subscription_ends_at->format('d/m/Y') }}</p>
                             @endif
                             @if($order->scheduled_delivery_at)
@@ -156,6 +161,9 @@
                             @if($order->status === 'subscricao' && $order->whatsappRenovacaoUrl())
                                 <a href="{{ $order->whatsappRenovacaoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">WhatsApp</a>
                             @endif
+                            @if($order->status === 'pending' && $order->whatsappPagamentoUrl())
+                                <a href="{{ $order->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Enviar pagamento</a>
+                            @endif
                             <a href="{{ route('encomendas.show', $order) }}" class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Perfil</a>
                             <form method="post" action="{{ route('encomendas.postpone', $order) }}" class="mb-2 grid gap-2">
                                 @csrf
@@ -170,9 +178,9 @@
                                     <button class="rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Limpar adiamento</button>
                                 </form>
                             @endif
-                            <form method="post" action="{{ route('encomendas.duplicate', $order) }}" class="mb-2" onsubmit="return confirm('Duplicar esta encomenda para renovacao?');">
+                            <form method="post" action="{{ route('encomendas.duplicate', $order) }}" class="mb-2" onsubmit="return confirm('Publicar uma nova encomenda WooCommerce em pagamento pendente com os mesmos dados e produtos?');">
                                 @csrf
-                                <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Duplicar</button>
+                                <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Publicar</button>
                             </form>
                             <form method="post" action="{{ route('encomendas.destroy', $order) }}">
                                 @csrf

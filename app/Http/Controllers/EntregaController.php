@@ -24,6 +24,7 @@ class EntregaController extends Controller
         3 => 'Quarta',
         4 => 'Quinta',
         5 => 'Sexta',
+        6 => 'Sabado',
     ];
 
     public function index(): View
@@ -206,9 +207,10 @@ class EntregaController extends Controller
             ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
             ->values();
 
-        $diaB2c = match ($dataSelecionada->dayOfWeek) {
-            3 => 'quarta',
-            6 => 'sabado',
+        $diaB2c = match ($dia) {
+            'Segunda' => 'segunda',
+            'Quarta' => 'quarta',
+            'Sabado' => 'sabado',
             default => null,
         };
 
@@ -221,20 +223,22 @@ class EntregaController extends Controller
                 $query->whereNull('postponed_until')
                     ->orWhereDate('postponed_until', '<', $data);
             })
-            ->when($diaB2c, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
-                $query->whereJsonContains('delivery_dates', $data)
-                    ->orWhereDate('scheduled_delivery_at', $data)
-                    ->orWhere(function ($query) use ($diaB2c): void {
-                        $query->where(function ($query): void {
-                            $query->whereNull('delivery_dates')
-                                ->orWhereJsonLength('delivery_dates', 0);
-                        })->whereNull('scheduled_delivery_at')
-                            ->where(function ($query) use ($diaB2c): void {
-                                $query->where('dia_entrega', $diaB2c)
-                                    ->orWhereNull('dia_entrega');
-                            });
-                    });
-            }))
+            ->when($diaB2c !== null, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
+                    $query->whereJsonContains('delivery_dates', $data)
+                        ->orWhereDate('scheduled_delivery_at', $data)
+                        ->orWhere(function ($query) use ($diaB2c): void {
+                            $query->where(function ($query): void {
+                                $query->whereNull('delivery_dates')
+                                    ->orWhereJsonLength('delivery_dates', 0);
+                            })->whereNull('scheduled_delivery_at')
+                                ->where(function ($query) use ($diaB2c): void {
+                                    $query->where('dia_entrega', $diaB2c)
+                                        ->orWhereNull('dia_entrega');
+                                });
+                        });
+                }),
+                fn ($query) => $query->whereRaw('1 = 0')
+            )
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('billing_name', 'like', "%{$q}%")
                     ->orWhere('billing_phone', 'like', "%{$q}%")

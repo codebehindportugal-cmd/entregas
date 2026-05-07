@@ -80,7 +80,8 @@ class WooOrder extends Model
 
         $hoje = now()->toDateString();
         $postponedUntil = $this->postponed_until?->toDateString();
-        $dataAdiada = $postponedUntil === null
+        $adiamentoJaAplicadoNoCalendario = $postponedUntil !== null && $datas->contains($postponedUntil);
+        $dataAdiada = $postponedUntil === null || $adiamentoJaAplicadoNoCalendario
             ? null
             : $datas
                 ->reject(fn (string $data) => in_array($data, $preparadas, true))
@@ -96,8 +97,132 @@ class WooOrder extends Model
             'total' => $datas->count(),
             'feitas' => $feitas->count(),
             'por_realizar' => $porRealizar->count(),
-            'proxima' => $proxima ?? $postponedUntil,
+            'proxima' => $proxima ?? ($adiamentoJaAplicadoNoCalendario ? null : $postponedUntil),
         ];
+    }
+
+    public function fimCicloSubscricao(): ?Carbon
+    {
+        $ultimaEntrega = $this->datasSubscricao()->last();
+
+        if ($ultimaEntrega !== null) {
+            return Carbon::parse($ultimaEntrega);
+        }
+
+        return $this->subscription_ends_at;
+    }
+
+    public function proximaEncomendaSubscricao(): ?Carbon
+    {
+        if ($this->next_payment_at !== null) {
+            return $this->next_payment_at;
+        }
+
+        $fim = $this->fimCicloSubscricao();
+
+        if ($fim === null) {
+            return null;
+        }
+
+        return $fim->copy()->addWeeks($this->semanasPorCiclo());
+    }
+
+    public function adiarProximaEntregaPara(string|Carbon $data): void
+    {
+        $novaData = Carbon::parse($data)->toDateString();
+        $datas = $this->datasSubscricao();
+        $datas = $this->datasBaseParaAdiamento($datas, $novaData);
+
+        if ($datas->isEmpty()) {
+            $this->guardarAdiamento(['postponed_until' => $novaData]);
+
+            return;
+        }
+
+        $canceladas = collect($this->cancelled_delivery_dates ?? [])
+            ->filter()
+            ->map(fn (string $data) => Carbon::parse($data)->toDateString())
+            ->all();
+
+        $preparadas = $this->preparacaoItemsParaAdiamento()
+            ->where('feito', true)
+            ->map(fn (PreparacaoItem $item) => Carbon::parse($item->data_preparacao)->toDateString())
+            ->all();
+
+        $hoje = now()->toDateString();
+        $datasPorAdiar = $datas
+            ->reject(fn (string $data) => in_array($data, $preparadas, true))
+            ->reject(fn (string $data) => in_array($data, $canceladas, true))
+            ->values();
+        $dataOriginal = $novaData < $hoje
+            ? $datasPorAdiar->last(fn (string $data) => $data < $novaData)
+            : $datasPorAdiar->first(fn (string $data) => $data >= $hoje);
+
+        $dataOriginal ??= $datasPorAdiar->first();
+
+        if ($dataOriginal === null) {
+            $this->guardarAdiamento(['postponed_until' => $novaData]);
+
+            return;
+        }
+
+        $novasDatas = $this->substituirDataDaSubscricao($datas, $dataOriginal, $novaData);
+        $dataFim = collect($novasDatas)->last();
+
+        $this->guardarAdiamento([
+            'delivery_dates' => $novasDatas,
+            'next_payment_at' => $this->next_payment_at?->toDateString(),
+            'subscription_ends_at' => $dataFim,
+            'postponed_until' => $novaData,
+        ]);
+    }
+
+    private function substituirDataDaSubscricao(Collection $datas, string $dataOriginal, string $novaData): array
+    {
+        return $datas
+            ->map(fn (string $data): string => $data === $dataOriginal ? $novaData : $data)
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    private function datasBaseParaAdiamento(Collection $datas, string $novaData): Collection
+    {
+        if ($this->first_delivery_at === null || $novaData >= now()->toDateString()) {
+            return $datas;
+        }
+
+        $data = $this->first_delivery_at->copy()->startOfDay();
+
+        return collect(range(1, max(1, $datas->count())))
+            ->map(function () use (&$data): string {
+                $entrega = $data->toDateString();
+                $data->addWeeks($this->semanasPorCiclo());
+
+                return $entrega;
+            });
+    }
+
+    private function guardarAdiamento(array $attributes): void
+    {
+        $this->forceFill($attributes);
+
+        if ($this->exists) {
+            $this->save();
+        }
+    }
+
+    private function preparacaoItemsParaAdiamento(): Collection
+    {
+        if ($this->relationLoaded('preparacaoItems')) {
+            return $this->preparacaoItems;
+        }
+
+        if (! $this->exists) {
+            return collect();
+        }
+
+        return $this->preparacaoItems()->get();
     }
 
     private function datasSubscricao(): Collection
@@ -105,7 +230,6 @@ class WooOrder extends Model
         $datas = collect($this->delivery_dates ?? [])
             ->filter()
             ->map(fn (string $data) => Carbon::parse($data)->toDateString())
-            ->unique()
             ->sort()
             ->values();
 
@@ -145,6 +269,7 @@ class WooOrder extends Model
     private function diaSemanaSubscricao(Carbon $fallback): int
     {
         return match ($this->dia_entrega) {
+            'segunda' => 1,
             'quarta' => 3,
             'sabado' => 6,
             default => $fallback->dayOfWeek,
@@ -170,6 +295,42 @@ class WooOrder extends Model
 
         $nome = $this->billing_name ?: 'cliente';
         $mensagem = "Olá {$nome}! Esperamos que tenha gostado da sua subscrição da Horta da Maria. A sua subscrição está a terminar e queríamos confirmar se pretende renovar para continuar a receber as suas entregas. Se quiser, podemos enviar-lhe já o link de renovação. Deseja que enviemos?";
+
+        return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
+    }
+
+    public function paymentUrl(): ?string
+    {
+        $url = $this->raw_payload['payment_url'] ?? null;
+
+        if (filled($url)) {
+            return $url;
+        }
+
+        $orderKey = $this->raw_payload['order_key'] ?? null;
+
+        if (blank($orderKey) || blank($this->woo_id)) {
+            return null;
+        }
+
+        return rtrim((string) config('woocommerce.url'), '/')."/checkout/order-pay/{$this->woo_id}/?pay_for_order=true&key={$orderKey}";
+    }
+
+    public function whatsappPagamentoUrl(): ?string
+    {
+        $telefone = preg_replace('/\D+/', '', (string) $this->billing_phone);
+        $paymentUrl = $this->paymentUrl();
+
+        if (blank($telefone) || blank($paymentUrl)) {
+            return null;
+        }
+
+        if (str_starts_with($telefone, '9')) {
+            $telefone = '351'.$telefone;
+        }
+
+        $nome = $this->billing_name ?: 'cliente';
+        $mensagem = "Ola {$nome}! Tudo bem? Ja deixamos a sua encomenda da Horta da Maria pronta. Para finalizar, pode fazer o pagamento por este link: {$paymentUrl} Obrigado!";
 
         return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
     }
