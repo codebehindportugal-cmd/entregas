@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ComparacaoCabazController;
 use App\Http\Controllers\ComprasController;
 use App\Http\Controllers\CorporateController;
 use App\Http\Controllers\DashboardController;
@@ -43,6 +44,7 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'updateItem'])->name('lista-cabazes.itens.update');
         Route::delete('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'destroyItem'])->name('lista-cabazes.itens.destroy');
         Route::get('/lista-cabazes/{listaCabaz}/totais', [ListaCabazController::class, 'totais'])->name('lista-cabazes.totais');
+        Route::get('/margens-cabazes', ComparacaoCabazController::class)->name('comparacao-cabazes.index');
         Route::get('/compras', ComprasController::class)->name('compras.index');
         Route::post('/compras/precos', [ComprasController::class, 'updatePrecos'])->name('compras.precos.update');
         Route::resource('/tabelas-precos', TabelaPrecoController::class)
