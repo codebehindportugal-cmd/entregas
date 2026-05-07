@@ -34,7 +34,7 @@
         </div>
     </form>
 
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div class="rounded border border-[#3B82F6]/30 bg-[#3B82F6]/10 p-5">
             <p class="text-sm text-blue-200">Kg totais</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ number_format($total_kg, 2, ',', ' ') }} kg</p>
@@ -51,17 +51,47 @@
             <p class="text-sm text-slate-400">Entregas corporate</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ $total_clientes }}</p>
         </div>
+        <div class="rounded border border-rose-400/30 bg-rose-500/10 p-5">
+            <p class="text-sm text-rose-200">Custo estimado</p>
+            <p class="mt-2 text-3xl font-semibold text-white">{{ number_format($total_custo, 2, ',', ' ') }} €</p>
+            <p class="mt-1 text-xs text-rose-100/80">{{ $tabelas_precos->isNotEmpty() ? $tabelas_precos->pluck('fornecedor')->unique()->join(', ') : 'Sem tabela ativa' }}</p>
+        </div>
     </div>
 
-    <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+    <form method="post" action="{{ route('compras.precos.update') }}" class="mb-6">
+        @csrf
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         @foreach($labels as $key => $label)
+            @php($selectedPrecoItemId = old('precos.'.$key, $mapeamentos_precos->get($key)?->tabela_preco_item_id))
             <div class="rounded border border-white/10 bg-[#151E2D] p-4">
                 <p class="text-sm text-slate-400">{{ $label }}</p>
                 <p class="mt-2 text-2xl font-semibold text-white">{{ number_format($totais_kg[$key] ?? 0, 2, ',', ' ') }} kg</p>
                 <p class="mt-1 text-xs text-slate-500">{{ in_array($key, \App\Services\ComprasService::PRODUTOS_KG, true) ? 'kg direto' : (($totais_pecas[$key] ?? 0).' pecas') }}</p>
+                <p class="mt-3 text-sm font-semibold text-rose-100">{{ number_format($totais_custos[$key] ?? 0, 2, ',', ' ') }} €</p>
+                <p class="mt-1 min-h-10 text-xs text-slate-500">
+                    @if(isset($precos[$key]))
+                        {{ number_format($precos[$key]['preco'], 2, ',', ' ') }} €/kg · {{ $precos[$key]['produto'] }}@if(! empty($precos[$key]['fornecedor'])) · {{ $precos[$key]['fornecedor'] }}@endif
+                    @else
+                        sem preco
+                    @endif
+                </p>
+                <label class="mt-3 block text-xs text-slate-400">Produto associado
+                    <select name="precos[{{ $key }}]" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-2 py-2 text-xs text-white">
+                        <option value="">Automatico</option>
+                        @foreach($preco_itens_disponiveis as $precoItem)
+                            <option value="{{ $precoItem->id }}" @selected((string) $selectedPrecoItemId === (string) $precoItem->id)>
+                                {{ $precoItem->produto }} - {{ number_format((float) $precoItem->preco_kg, 2, ',', ' ') }} EUR/kg - {{ $precoItem->tabelaPreco?->fornecedor }}
+                            </option>
+                        @endforeach
+                    </select>
+                </label>
             </div>
         @endforeach
-    </div>
+        </div>
+        <div class="mt-3 flex justify-end">
+            <button class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Guardar associacoes</button>
+        </div>
+    </form>
 
     <div class="overflow-hidden rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
@@ -74,6 +104,7 @@
                         <th class="p-3">{{ $label }}</th>
                     @endforeach
                     <th class="p-3">Total kg</th>
+                    <th class="p-3">Custo</th>
                 </tr>
             </thead>
             <tbody>
@@ -89,13 +120,15 @@
                             <td class="p-3 text-slate-300">
                                 <p class="font-semibold text-white">{{ number_format($linha['kg'][$key] ?? 0, 2, ',', ' ') }} kg</p>
                                 <p class="text-xs text-slate-500">{{ in_array($key, \App\Services\ComprasService::PRODUTOS_KG, true) ? 'kg direto' : (($linha['pecas'][$key] ?? 0).' pecas') }}</p>
+                                <p class="mt-1 text-xs font-semibold text-rose-100">{{ number_format($linha['custos'][$key] ?? 0, 2, ',', ' ') }} €</p>
                             </td>
                         @endforeach
                         <td class="p-3 font-semibold text-white">{{ number_format($linha['total_kg'], 2, ',', ' ') }} kg</td>
+                        <td class="p-3 font-semibold text-rose-100">{{ number_format($linha['total_custo'], 2, ',', ' ') }} €</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ count($labels) + 4 }}" class="p-4 text-slate-400">Nao existem dias uteis no intervalo escolhido.</td>
+                        <td colspan="{{ count($labels) + 5 }}" class="p-4 text-slate-400">Nao existem dias uteis no intervalo escolhido.</td>
                     </tr>
                 @endforelse
             </tbody>

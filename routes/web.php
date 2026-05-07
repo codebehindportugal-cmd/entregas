@@ -7,6 +7,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EncomendaController;
 use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
+use App\Http\Controllers\ListaCabazController;
+use App\Http\Controllers\TabelaPrecoController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function (): void {
@@ -34,7 +36,22 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/entregas/verificacao', [EntregaController::class, 'verificacao'])->name('entregas.verificacao');
         Route::get('/preparacao', [EntregaController::class, 'preparacao'])->name('preparacao.index');
         Route::put('/preparacao/{item}', [EntregaController::class, 'updatePreparacaoItem'])->name('preparacao.update');
+        Route::resource('/lista-cabazes', ListaCabazController::class)
+            ->parameters(['lista-cabazes' => 'listaCabaz'])
+            ->except(['show']);
+        Route::post('/lista-cabazes/{listaCabaz}/itens', [ListaCabazController::class, 'storeItem'])->name('lista-cabazes.itens.store');
+        Route::put('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'updateItem'])->name('lista-cabazes.itens.update');
+        Route::delete('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'destroyItem'])->name('lista-cabazes.itens.destroy');
+        Route::get('/lista-cabazes/{listaCabaz}/totais', [ListaCabazController::class, 'totais'])->name('lista-cabazes.totais');
         Route::get('/compras', ComprasController::class)->name('compras.index');
+        Route::post('/compras/precos', [ComprasController::class, 'updatePrecos'])->name('compras.precos.update');
+        Route::resource('/tabelas-precos', TabelaPrecoController::class)
+            ->parameters(['tabelas-precos' => 'tabelaPreco']);
+        Route::post('/tabelas-precos/manual', [TabelaPrecoController::class, 'manual'])->name('tabelas-precos.manual');
+        Route::post('/tabelas-precos/{tabelaPreco}/itens', [TabelaPrecoController::class, 'storeItem'])->name('tabelas-precos.itens.store');
+        Route::put('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'updateItem'])->name('tabelas-precos.itens.update');
+        Route::delete('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'destroyItem'])->name('tabelas-precos.itens.destroy');
+        Route::post('/tabelas-precos/{tabelaPreco}/clonar', [TabelaPrecoController::class, 'clonar'])->name('tabelas-precos.clonar');
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');
         Route::post('/encomendas/sync', [EncomendaController::class, 'sync'])->name('encomendas.sync');
         Route::delete('/encomendas/limpar-todas', [EncomendaController::class, 'destroyAll'])->name('encomendas.destroy-all');

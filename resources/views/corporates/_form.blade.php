@@ -50,6 +50,28 @@
         <input name="numero_caixas" type="number" min="0" value="{{ old('numero_caixas', $corporate->numero_caixas ?? 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
 </div>
+<div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>
+    <label class="flex items-start gap-3 text-sm text-slate-300">
+        <input type="checkbox" class="mt-1" data-cabaz-toggle @checked(filled(old('cabaz_tipo', $corporate->cabaz_tipo)))>
+        <span>
+            <span class="block font-semibold text-white">Esta empresa recebe cabazes do catalogo</span>
+            <span class="mt-1 block text-xs text-slate-500">Se definido, este tipo de cabaz entra nos calculos das listas semanais. Se nao estiver definido, continuam a ser usadas as frutas individuais abaixo.</span>
+        </span>
+    </label>
+    <div class="mt-4 grid gap-4 md:grid-cols-2" data-cabaz-fields>
+        <label class="text-sm text-slate-300">Tipo de cabaz
+            <select name="cabaz_tipo" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+                <option value="">Sem tipo de cabaz</option>
+                <option value="pequeno" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'pequeno')>Pequeno</option>
+                <option value="medio" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'medio')>Medio</option>
+                <option value="grande" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'grande')>Grande</option>
+            </select>
+        </label>
+        <label class="text-sm text-slate-300">Quantidade por entrega
+            <input name="cabaz_quantidade" type="number" min="1" value="{{ old('cabaz_quantidade', $corporate->cabaz_quantidade ?? 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+        </label>
+    </div>
+</div>
 <div class="mt-5">
     <p class="mb-2 text-sm font-medium text-slate-300">Dias de entrega</p>
     <div class="flex flex-wrap gap-2">
@@ -112,6 +134,9 @@
     document.addEventListener('DOMContentLoaded', () => {
         const tabs = Array.from(document.querySelectorAll('[data-product-tab]'));
         const panels = Array.from(document.querySelectorAll('[data-product-panel]'));
+        const cabazToggle = document.querySelector('[data-cabaz-toggle]');
+        const cabazFields = document.querySelector('[data-cabaz-fields]');
+        const cabazSelect = cabazFields?.querySelector('select[name="cabaz_tipo"]');
 
         const activateTab = (activeTab) => {
             tabs.forEach((tab) => {
@@ -131,6 +156,20 @@
             tab.addEventListener('click', () => activateTab(tab.dataset.productTab));
         });
 
+        const toggleCabazFields = () => {
+            if (!cabazToggle || !cabazFields) {
+                return;
+            }
+
+            cabazFields.classList.toggle('hidden', !cabazToggle.checked);
+
+            if (!cabazToggle.checked && cabazSelect) {
+                cabazSelect.value = '';
+            }
+        };
+
+        cabazToggle?.addEventListener('change', toggleCabazFields);
+        toggleCabazFields();
         activateTab('fruta');
     });
 </script>

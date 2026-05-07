@@ -92,18 +92,20 @@
                 @forelse($orders as $order)
                     <tr class="border-t border-white/10 align-top">
                         <td class="p-3">
+                            @php($isSubscricao = $order->source_type === 'subscription' || $order->status === 'subscricao')
+                            @php($entregasSubscricao = $isSubscricao ? $order->entregasSubscricao() : null)
                             <p class="font-semibold text-white">#{{ $order->woo_id }}</p>
-                            <p class="text-xs text-slate-400">{{ $order->source_type === 'subscription' ? 'Subscricao' : 'Em processamento' }}</p>
-                            <p class="mt-1 inline-block rounded bg-white/10 px-2 py-1 text-xs text-slate-200">{{ $order->source_type === 'subscription' ? 'Subscricao' : 'Encomenda' }}</p>
-                            @if($order->source_type === 'subscription')
+                            <p class="text-xs text-slate-400">{{ $isSubscricao ? 'Subscricao' : 'Em processamento' }}</p>
+                            <p class="mt-1 inline-block rounded bg-white/10 px-2 py-1 text-xs text-slate-200">{{ $isSubscricao ? 'Subscricao' : 'Encomenda' }}</p>
+                            @if($isSubscricao)
                                 <p class="mt-1 inline-block rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">{{ $order->ciclo_entrega === 'quinzenal' ? '15 em 15 dias' : 'Semanal' }}</p>
                             @endif
                             @if($order->postponed_until)
                                 <p class="mt-1 rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200">Adiada ate {{ $order->postponed_until->format('d/m/Y') }}</p>
                             @endif
-                            @if($order->source_type === 'subscription' && $order->proximaEncomendaSubscricao())
-                                <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Prox. encomenda {{ $order->proximaEncomendaSubscricao()->format('d/m/Y') }}</p>
-                            @elseif($order->next_payment_at)
+                            @if($isSubscricao && $entregasSubscricao['proxima'])
+                                <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Prox. entrega {{ \Illuminate\Support\Carbon::parse($entregasSubscricao['proxima'])->format('d/m/Y') }}</p>
+                            @elseif(! $isSubscricao && $order->next_payment_at)
                                 <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Prox. encomenda {{ $order->next_payment_at->format('d/m/Y') }}</p>
                             @endif
                             @if($order->first_delivery_at)
@@ -133,8 +135,8 @@
                         </td>
                         <td class="p-3 text-slate-300">{{ $order->dia_entrega ? ucfirst($order->dia_entrega) : '-' }}</td>
                         <td class="p-3 text-slate-300">
-                            @if($order->status === 'subscricao')
-                                @php($entregas = $order->entregasSubscricao())
+                            @if($isSubscricao)
+                                @php($entregas = $entregasSubscricao)
                                 <div class="space-y-1">
                                     <p><span class="text-white">{{ $entregas['total'] }}</span> no ciclo</p>
                                     <p><span class="text-emerald-200">{{ $entregas['feitas'] }}</span> feitas</p>

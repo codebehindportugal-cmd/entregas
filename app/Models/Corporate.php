@@ -32,6 +32,8 @@ class Corporate extends Model
         'fatura_email',
         'fatura_morada',
         'numero_caixas',
+        'cabaz_tipo',
+        'cabaz_quantidade',
         'peso_total',
         'frutas',
         'frutas_por_dia',
@@ -48,6 +50,7 @@ class Corporate extends Model
             'frutas_por_dia' => 'array',
             'ativo' => 'boolean',
             'peso_total' => 'decimal:2',
+            'cabaz_quantidade' => 'integer',
         ];
     }
 
@@ -131,5 +134,10 @@ class Corporate extends Model
         $semanaDaData = Carbon::parse($data)->startOfWeek();
 
         return ((int) $semanaReferencia->diffInWeeks($semanaDaData)) % 2 === 0;
+    }
+
+    public function usaCabazTipo(): bool
+    {
+        return filled($this->cabaz_tipo);
     }
 }

@@ -2,10 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\CompraPrecoMapping;
 use App\Models\Corporate;
+use App\Models\TabelaPreco;
+use App\Models\TabelaPrecoItem;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class ComprasService
 {
@@ -15,6 +19,7 @@ class ComprasService
         3 => 'Quarta',
         4 => 'Quinta',
         5 => 'Sexta',
+        6 => 'Sabado',
     ];
 
     public const FRUTAS = [
@@ -57,6 +62,13 @@ class ComprasService
         $totaisKg = $this->frutasVazias();
         $totalCaixas = 0;
         $totalClientes = 0;
+        $tabelasPreco = $this->tabelasAtivasParaData($inicio->copy());
+        $precoItens = $this->itensDasTabelas($tabelasPreco);
+        $mapeamentosPreco = CompraPrecoMapping::query()
+            ->with('tabelaPrecoItem.tabelaPreco')
+            ->get()
+            ->keyBy('produto');
+        $precos = $this->precosPorProduto($precoItens, $mapeamentosPreco);
 
         foreach (CarbonPeriod::create($inicio, $fim) as $data) {
             $diaSemana = self::DIAS[$data->dayOfWeek] ?? null;
@@ -77,6 +89,9 @@ class ComprasService
             $kg = collect($pecas)
                 ->mapWithKeys(fn (int|float $quantidade, string $fruta) => [$fruta => in_array($fruta, self::PRODUTOS_KG, true) ? round($quantidade, 2) : round($quantidade * $pesos[$fruta], 2)])
                 ->all();
+            $custos = collect($kg)
+                ->mapWithKeys(fn (float $quantidade, string $fruta) => [$fruta => round($quantidade * ($precos[$fruta]['preco'] ?? 0), 2)])
+                ->all();
 
             foreach (array_keys(self::FRUTAS) as $fruta) {
                 $totaisPecas[$fruta] += $pecas[$fruta];
@@ -94,16 +109,29 @@ class ComprasService
                 'caixas' => $caixas,
                 'pecas' => $pecas,
                 'kg' => $kg,
+                'custos' => $custos,
+                'total_custo' => round(array_sum($custos), 2),
                 'total_pecas' => array_sum(collect($pecas)->except(self::PRODUTOS_KG)->all()),
                 'total_kg' => round(array_sum($kg), 2),
             ]);
         }
 
+        $totaisCustos = collect($totaisKg)
+            ->mapWithKeys(fn (float $quantidade, string $fruta) => [$fruta => round($quantidade * ($precos[$fruta]['preco'] ?? 0), 2)])
+            ->all();
+
         return [
             'dias' => $dias,
             'pesos' => $pesos,
+            'tabela_preco' => $tabelasPreco->first(),
+            'tabelas_precos' => $tabelasPreco,
+            'preco_itens_disponiveis' => $precoItens,
+            'mapeamentos_precos' => $mapeamentosPreco,
+            'precos' => $precos,
             'totais_pecas' => $totaisPecas,
             'totais_kg' => collect($totaisKg)->map(fn (float $valor) => round($valor, 2))->all(),
+            'totais_custos' => $totaisCustos,
+            'total_custo' => round(array_sum($totaisCustos), 2),
             'total_pecas' => array_sum(collect($totaisPecas)->except(self::PRODUTOS_KG)->all()),
             'total_kg' => round(array_sum($totaisKg), 2),
             'total_caixas' => $totalCaixas,
@@ -133,5 +161,90 @@ class ComprasService
         return collect(array_keys(self::FRUTAS))
             ->mapWithKeys(fn (string $fruta) => [$fruta => 0])
             ->all();
+    }
+
+    private function tabelasAtivasParaData(Carbon $data): Collection
+    {
+        return TabelaPreco::query()
+            ->with(['itens' => fn ($query) => $query->orderBy('ordem')])
+            ->where('ativa', true)
+            ->whereDate('valida_de', '<=', $data)
+            ->where(fn ($query) => $query->whereNull('valida_ate')->orWhereDate('valida_ate', '>=', $data))
+            ->orderByDesc('valida_de')
+            ->get();
+    }
+
+    private function itensDasTabelas(Collection $tabelasPreco): Collection
+    {
+        return $tabelasPreco
+            ->flatMap(fn (TabelaPreco $tabelaPreco) => $tabelaPreco->itens->map(function (TabelaPrecoItem $item) use ($tabelaPreco): TabelaPrecoItem {
+                $item->setRelation('tabelaPreco', $tabelaPreco);
+
+                return $item;
+            }))
+            ->values();
+    }
+
+    private function precosPorProduto(Collection $itens, Collection $mapeamentosPreco): array
+    {
+        return collect(array_keys(self::FRUTAS))
+            ->mapWithKeys(fn (string $fruta): array => [$fruta => $this->precoParaFruta($fruta, $itens, $mapeamentosPreco)])
+            ->filter()
+            ->all();
+    }
+
+    private function precoParaFruta(string $fruta, Collection $itens, Collection $mapeamentosPreco): ?array
+    {
+        $mapeamento = $mapeamentosPreco->get($fruta);
+        $itemManual = $mapeamento?->tabela_preco_item_id
+            ? $itens->firstWhere('id', $mapeamento->tabela_preco_item_id)
+            : null;
+
+        if ($itemManual instanceof TabelaPrecoItem) {
+            return $this->dadosPreco($itemManual, 'manual');
+        }
+
+        $keywords = [
+            'banana' => ['banana'],
+            'maca' => ['maca', 'maça', 'maçã'],
+            'pera' => ['pera', 'pêra'],
+            'laranja' => ['laranja'],
+            'kiwi' => ['kiwi'],
+            'uvas' => ['uva'],
+            'fruta_epoca' => [],
+            'frutos_secos' => ['amendoa', 'noz', 'figos secos', 'tâmara'],
+            'mirtilos' => ['mirtilo'],
+            'framboesas' => ['framboesa'],
+            'amoras' => ['amora'],
+            'morangos' => ['morango'],
+        ][$fruta] ?? [];
+
+        if ($keywords === []) {
+            return null;
+        }
+
+        $item = $itens->first(function (TabelaPrecoItem $item) use ($keywords): bool {
+            $produto = Str::of($item->produto)->lower()->ascii()->toString();
+
+            return collect($keywords)->contains(fn (string $keyword): bool => str_contains($produto, Str::of($keyword)->lower()->ascii()->toString()));
+        });
+
+        if ($item === null) {
+            return null;
+        }
+
+        return $this->dadosPreco($item, 'automatico');
+    }
+
+    private function dadosPreco(TabelaPrecoItem $item, string $origem): array
+    {
+        return [
+            'preco' => (float) $item->preco_kg,
+            'produto' => $item->produto,
+            'fornecedor' => $item->tabelaPreco?->fornecedor,
+            'unidade' => $item->unidade,
+            'item_id' => $item->id,
+            'origem' => $origem,
+        ];
     }
 }

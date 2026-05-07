@@ -35,6 +35,7 @@ class WooOrder extends Model
         'profile_preferences',
         'customer_notes',
         'dia_entrega',
+        'cabaz_tipo',
         'ciclo_entrega',
         'scheduled_delivery_at',
         'raw_payload',
@@ -65,6 +66,29 @@ class WooOrder extends Model
         return $this->hasMany(PreparacaoItem::class);
     }
 
+    public static function detectarCabazTipo(array $lineItems): ?string
+    {
+        $nomeLower = mb_strtolower(collect($lineItems)->pluck('name')->implode(' '));
+
+        if (str_contains($nomeLower, 'solo') || str_contains($nomeLower, 'mini')) {
+            return 'mini';
+        }
+
+        if (str_contains($nomeLower, 'grande')) {
+            return 'grande';
+        }
+
+        if (str_contains($nomeLower, 'medio') || str_contains($nomeLower, 'médio')) {
+            return 'medio';
+        }
+
+        if (str_contains($nomeLower, 'pequeno')) {
+            return 'pequeno';
+        }
+
+        return null;
+    }
+
     public function entregasSubscricao(): array
     {
         $datas = $this->datasSubscricao();
@@ -89,9 +113,28 @@ class WooOrder extends Model
                 ->filter(fn (string $data) => $data < $postponedUntil)
                 ->last();
 
-        $feitas = $datas->filter(fn (string $data) => $data !== $dataAdiada && ! in_array($data, $canceladas, true) && ($data < $hoje || in_array($data, $preparadas, true)));
-        $porRealizar = $datas->reject(fn (string $data) => $data !== $dataAdiada && ($data < $hoje || in_array($data, $preparadas, true) || in_array($data, $canceladas, true)));
-        $proxima = $porRealizar->first(fn (string $data) => $data >= $hoje && ($postponedUntil === null || $data >= $postponedUntil));
+        $feitas = $datas->filter(fn (string $data): bool => $this->entregaContaComoFeita(
+            $data,
+            $hoje,
+            $postponedUntil,
+            $adiamentoJaAplicadoNoCalendario,
+            $dataAdiada,
+            $preparadas,
+            $canceladas,
+        ));
+        $porRealizar = $datas->reject(fn (string $data): bool => in_array($data, $canceladas, true) || $this->entregaContaComoFeita(
+            $data,
+            $hoje,
+            $postponedUntil,
+            $adiamentoJaAplicadoNoCalendario,
+            $dataAdiada,
+            $preparadas,
+            $canceladas,
+        ));
+        $proxima = $dataAdiada !== null
+            ? $postponedUntil
+            : ($porRealizar->first(fn (string $data) => $postponedUntil === null || $data >= $postponedUntil)
+                ?? $porRealizar->first());
 
         return [
             'total' => $datas->count(),
@@ -99,6 +142,26 @@ class WooOrder extends Model
             'por_realizar' => $porRealizar->count(),
             'proxima' => $proxima ?? ($adiamentoJaAplicadoNoCalendario ? null : $postponedUntil),
         ];
+    }
+
+    private function entregaContaComoFeita(
+        string $data,
+        string $hoje,
+        ?string $postponedUntil,
+        bool $adiamentoJaAplicadoNoCalendario,
+        ?string $dataAdiada,
+        array $preparadas,
+        array $canceladas,
+    ): bool {
+        if (in_array($data, $canceladas, true) || $data === $dataAdiada) {
+            return false;
+        }
+
+        if (in_array($data, $preparadas, true)) {
+            return true;
+        }
+
+        return $data < $hoje;
     }
 
     public function fimCicloSubscricao(): ?Carbon
@@ -114,6 +177,10 @@ class WooOrder extends Model
 
     public function proximaEncomendaSubscricao(): ?Carbon
     {
+        if (($this->entregasSubscricao()['por_realizar'] ?? 0) === 0) {
+            return null;
+        }
+
         if ($this->next_payment_at !== null) {
             return $this->next_payment_at;
         }
@@ -179,9 +246,32 @@ class WooOrder extends Model
 
     private function substituirDataDaSubscricao(Collection $datas, string $dataOriginal, string $novaData): array
     {
-        return $datas
-            ->map(fn (string $data): string => $data === $dataOriginal ? $novaData : $data)
-            ->sort()
+        $anteriores = $datas
+            ->takeUntil(fn (string $data): bool => $data === $dataOriginal)
+            ->values();
+        $posteriores = $datas
+            ->slice($anteriores->count() + 1)
+            ->values();
+        $novasDatas = $anteriores->push($novaData);
+        $ultimaData = Carbon::parse($novaData);
+        $diaSemana = $this->diaSemanaSubscricao($ultimaData);
+
+        foreach ($posteriores as $dataOriginalPosterior) {
+            $data = Carbon::parse($dataOriginalPosterior);
+
+            if ($data->lessThanOrEqualTo($ultimaData) || $ultimaData->diffInDays($data) < $this->diasMinimosEntreEntregas()) {
+                $data = $ultimaData->copy()->addWeeks($this->semanasPorCiclo());
+
+                while ($data->dayOfWeek !== $diaSemana) {
+                    $data->addDay();
+                }
+            }
+
+            $novasDatas->push($data->toDateString());
+            $ultimaData = $data;
+        }
+
+        return $novasDatas
             ->values()
             ->all();
     }
@@ -192,15 +282,30 @@ class WooOrder extends Model
             return $datas;
         }
 
+        return $this->gerarDatasDoCiclo(max(1, $datas->count()));
+    }
+
+    private function gerarDatasDoCiclo(int $total = 4): Collection
+    {
+        if ($this->first_delivery_at === null) {
+            return collect();
+        }
+
+        $datas = collect([$this->first_delivery_at->toDateString()]);
         $data = $this->first_delivery_at->copy()->startOfDay();
+        $diaSemana = $this->diaSemanaSubscricao($data);
 
-        return collect(range(1, max(1, $datas->count())))
-            ->map(function () use (&$data): string {
-                $entrega = $data->toDateString();
-                $data->addWeeks($this->semanasPorCiclo());
+        while ($datas->count() < $total) {
+            $data = $data->copy()->addWeeks($this->semanasPorCiclo());
 
-                return $entrega;
-            });
+            while ($data->dayOfWeek !== $diaSemana) {
+                $data->addDay();
+            }
+
+            $datas->push($data->toDateString());
+        }
+
+        return $datas;
     }
 
     private function guardarAdiamento(array $attributes): void
@@ -237,33 +342,7 @@ class WooOrder extends Model
             return $datas;
         }
 
-        $primeiraEntrega = $this->first_delivery_at->copy()->startOfDay();
-        $limite = $this->subscription_ends_at?->copy()->addDay()->startOfDay()
-            ?? $this->next_payment_at?->copy()->startOfDay()
-            ?? $primeiraEntrega->copy()->addWeeks(4);
-
-        if ($limite->lessThan($primeiraEntrega)) {
-            $limite = $primeiraEntrega->copy();
-        }
-
-        $diaSemana = $this->diaSemanaSubscricao($primeiraEntrega);
-        $datasGeradas = collect();
-        $data = $primeiraEntrega->copy();
-
-        while ($data->lessThan($limite)) {
-            if ($data->dayOfWeek === $diaSemana) {
-                $datasGeradas->push($data->toDateString());
-                $data->addWeeks($this->semanasPorCiclo());
-
-                continue;
-            }
-
-            $data->addDay();
-        }
-
-        return $datasGeradas->isNotEmpty()
-            ? $datasGeradas
-            : collect([$primeiraEntrega->toDateString()]);
+        return $this->gerarDatasDoCiclo();
     }
 
     private function diaSemanaSubscricao(Carbon $fallback): int
@@ -279,6 +358,11 @@ class WooOrder extends Model
     private function semanasPorCiclo(): int
     {
         return $this->ciclo_entrega === 'quinzenal' ? 2 : 1;
+    }
+
+    private function diasMinimosEntreEntregas(): int
+    {
+        return $this->semanasPorCiclo() === 2 ? 7 : 4;
     }
 
     public function whatsappRenovacaoUrl(): ?string

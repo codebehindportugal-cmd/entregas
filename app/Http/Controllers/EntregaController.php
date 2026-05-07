@@ -219,22 +219,36 @@ class EntregaController extends Controller
                 $query->whereIn('status', ['processing', 'on-hold', 'pending'])
                     ->orWhere('status', 'subscricao');
             })
-            ->where(function ($query) use ($data): void {
-                $query->whereNull('postponed_until')
-                    ->orWhereDate('postponed_until', '<', $data);
-            })
             ->when($diaB2c !== null, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
-                    $query->whereJsonContains('delivery_dates', $data)
-                        ->orWhereDate('scheduled_delivery_at', $data)
-                        ->orWhere(function ($query) use ($diaB2c): void {
-                            $query->where(function ($query): void {
-                                $query->whereNull('delivery_dates')
-                                    ->orWhereJsonLength('delivery_dates', 0);
-                            })->whereNull('scheduled_delivery_at')
-                                ->where(function ($query) use ($diaB2c): void {
-                                    $query->where('dia_entrega', $diaB2c)
-                                        ->orWhereNull('dia_entrega');
-                                });
+                    $query->whereDate('postponed_until', $data)
+                        ->orWhere(function ($query) use ($diaB2c, $data): void {
+                            $query->where(function ($query) use ($data): void {
+                                $query->whereNull('postponed_until')
+                                    ->orWhereDate('postponed_until', '<', $data);
+                            })->where(function ($query) use ($diaB2c, $data): void {
+                                $query->whereJsonContains('delivery_dates', $data)
+                                    ->orWhereDate('scheduled_delivery_at', $data)
+                                    ->orWhere(function ($query) use ($diaB2c, $data): void {
+                                        $query->where('source_type', 'order')
+                                            ->where('status', '!=', 'subscricao')
+                                            ->where('dia_entrega', $diaB2c)
+                                            ->where(function ($query) use ($data): void {
+                                                $query->whereNull('scheduled_delivery_at')
+                                                    ->orWhereDate('scheduled_delivery_at', '<=', $data)
+                                                    ->orWhereDate('first_delivery_at', '<=', $data);
+                                            });
+                                    })
+                                    ->orWhere(function ($query) use ($diaB2c): void {
+                                        $query->where(function ($query): void {
+                                            $query->whereNull('delivery_dates')
+                                                ->orWhereJsonLength('delivery_dates', 0);
+                                        })->whereNull('scheduled_delivery_at')
+                                            ->where(function ($query) use ($diaB2c): void {
+                                                $query->where('dia_entrega', $diaB2c)
+                                                    ->orWhereNull('dia_entrega');
+                                            });
+                                    });
+                            });
                         });
                 }),
                 fn ($query) => $query->whereRaw('1 = 0')

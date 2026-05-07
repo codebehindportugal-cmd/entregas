@@ -302,6 +302,7 @@ class WooCommerceService
             'excluded_products' => $excludedProducts,
             'preferences_text' => $preferencesText,
             'dia_entrega' => $diaEntrega,
+            'cabaz_tipo' => WooOrder::detectarCabazTipo(Arr::get($order, 'line_items', [])),
             'ciclo_entrega' => $cicloEntrega,
             'scheduled_delivery_at' => $sourceType === 'subscription' ? null : $this->scheduledDeliveryDate($orderedAt, $diaEntrega),
             'raw_payload' => $order,

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CompraPrecoMapping;
 use App\Services\ComprasService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -48,5 +50,29 @@ class ComprasController extends Controller
             'labels' => ComprasService::FRUTAS,
             ...$calculo,
         ]);
+    }
+
+    public function updatePrecos(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'precos' => ['nullable', 'array'],
+            'precos.*' => ['nullable', 'exists:tabela_preco_itens,id'],
+        ]);
+
+        foreach (ComprasService::FRUTAS as $produto => $label) {
+            $itemId = $data['precos'][$produto] ?? null;
+
+            if (blank($itemId)) {
+                CompraPrecoMapping::where('produto', $produto)->delete();
+                continue;
+            }
+
+            CompraPrecoMapping::updateOrCreate(
+                ['produto' => $produto],
+                ['tabela_preco_item_id' => $itemId],
+            );
+        }
+
+        return back()->with('status', 'Associacoes de precos atualizadas.');
     }
 }

@@ -29,6 +29,8 @@ class StoreCorporateRequest extends FormRequest
             'fatura_email' => ['nullable', 'email', 'max:255'],
             'fatura_morada' => ['nullable', 'string', 'max:500'],
             'numero_caixas' => ['required', 'integer', 'min:0'],
+            'cabaz_tipo' => ['nullable', 'in:pequeno,medio,grande'],
+            'cabaz_quantidade' => ['nullable', 'integer', 'min:1'],
             'peso_total' => ['nullable', 'numeric', 'min:0'],
             'frutas' => ['nullable', 'array'],
             'frutas.*' => ['nullable', 'numeric', 'min:0'],
