@@ -20,7 +20,9 @@ class CorporateController extends Controller
 {
     private const DIAS = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'];
 
-    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca'];
+    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+
+    private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     public function index(Request $request): View
     {
@@ -237,11 +239,14 @@ class CorporateController extends Controller
             })
             ->filter(fn (array $frutas) => array_sum($frutas) > 0)
             ->all();
+        $pesoTotal = collect($data['dias_entrega'] ?? [])
+            ->sum(fn (string $dia) => (int) array_sum(collect($frutasPorDia[$dia] ?? [])->except(self::PRODUTOS_KG)->all()));
 
         return [
             ...$data,
             'frutas' => $frutas,
             'frutas_por_dia' => $frutasPorDia,
+            'peso_total' => $pesoTotal,
             'ativo' => (bool) ($data['ativo'] ?? false),
             'quinzenal_referencia' => $data['periodicidade_entrega'] === 'quinzenal' ? ($data['quinzenal_referencia'] ?? null) : null,
         ];
@@ -249,7 +254,7 @@ class CorporateController extends Controller
 
     private function quantidadeFruta(mixed $value, string $fruta): int|float
     {
-        if ($fruta === 'uvas') {
+        if (in_array($fruta, self::PRODUTOS_KG, true)) {
             return round(max(0, (float) $value), 2);
         }
 
@@ -317,7 +322,7 @@ class CorporateController extends Controller
     private function normalizeImportFruits(array $values): array
     {
         return collect(self::FRUTAS)
-            ->mapWithKeys(fn (string $fruta) => [$fruta => $fruta === 'uvas'
+            ->mapWithKeys(fn (string $fruta) => [$fruta => in_array($fruta, self::PRODUTOS_KG, true)
                 ? round(max(0, (float) ($values[$fruta] ?? 0)), 2)
                 : max(0, (int) ($values[$fruta] ?? 0))])
             ->all();

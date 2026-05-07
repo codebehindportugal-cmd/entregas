@@ -7,7 +7,13 @@
         'kiwi' => 'Kiwis',
         'uvas' => 'Uvas',
         'fruta_epoca' => 'Fruta epoca',
+        'frutos_secos' => 'Frutos secos',
+        'mirtilos' => 'Mirtilos',
+        'framboesas' => 'Framboesas',
+        'amoras' => 'Amoras',
+        'morangos' => 'Morangos',
     ];
+    $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 @endphp
 
 <x-layouts.app title="Preparacao">
@@ -90,7 +96,7 @@
                 @forelse($corporates as $corporate)
                     @php
                         $frutasEmpresa = $corporate->frutasParaDia($dia);
-                        $totalEmpresa = collect(array_keys($labels))->reject(fn (string $key) => $key === 'uvas')->sum(fn (string $key) => (int) ($frutasEmpresa[$key] ?? 0));
+                        $totalEmpresa = collect(array_keys($labels))->reject(fn (string $key) => in_array($key, $produtosKg, true))->sum(fn (string $key) => (int) ($frutasEmpresa[$key] ?? 0));
                         $item = $preparacaoItems->get('corporate-'.$corporate->id);
                     @endphp
                     <tr class="border-t border-white/10">
@@ -100,7 +106,7 @@
                         </td>
                         <td class="p-3 font-semibold text-emerald-200">{{ $corporate->numero_caixas }}</td>
                         @foreach(array_keys($labels) as $key)
-                            <td class="p-3 text-slate-300">{{ $key === 'uvas' ? number_format((float) ($frutasEmpresa[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($frutasEmpresa[$key] ?? 0) }}</td>
+                            <td class="p-3 text-slate-300">{{ in_array($key, $produtosKg, true) ? number_format((float) ($frutasEmpresa[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($frutasEmpresa[$key] ?? 0) }}</td>
                         @endforeach
                         <td class="p-3 font-semibold text-white">{{ $totalEmpresa }}</td>
                         <td class="p-3">
@@ -124,7 +130,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="p-4 text-slate-400">Nao existem empresas com entrega neste dia.</td>
+                        <td colspan="{{ count($labels) + 4 }}" class="p-4 text-slate-400">Nao existem empresas com entrega neste dia.</td>
                     </tr>
                 @endforelse
             </tbody>

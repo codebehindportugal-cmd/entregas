@@ -11,7 +11,9 @@ class NormalizeCorporateFruits extends Command
 
     protected $description = 'Normaliza frutas das empresas e copia valores base para os dias de entrega vazios.';
 
-    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca'];
+    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+
+    private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     public function handle(): int
     {
@@ -66,7 +68,7 @@ class NormalizeCorporateFruits extends Command
     private function normalizarFrutas(array $valores): array
     {
         return collect(self::FRUTAS)
-            ->mapWithKeys(fn (string $fruta) => [$fruta => $fruta === 'uvas'
+            ->mapWithKeys(fn (string $fruta) => [$fruta => in_array($fruta, self::PRODUTOS_KG, true)
                 ? round(max(0, (float) ($valores[$fruta] ?? 0)), 2)
                 : max(0, (int) ($valores[$fruta] ?? 0))])
             ->all();

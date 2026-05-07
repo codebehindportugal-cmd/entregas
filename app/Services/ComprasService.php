@@ -25,7 +25,14 @@ class ComprasService
         'kiwi' => 'Kiwis',
         'uvas' => 'Uvas',
         'fruta_epoca' => 'Fruta epoca',
+        'frutos_secos' => 'Frutos secos',
+        'mirtilos' => 'Mirtilos',
+        'framboesas' => 'Framboesas',
+        'amoras' => 'Amoras',
+        'morangos' => 'Morangos',
     ];
+
+    public const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     public const PESOS_PADRAO = [
         'banana' => 0.18,
@@ -35,6 +42,11 @@ class ComprasService
         'kiwi' => 0.08,
         'uvas' => 0.20,
         'fruta_epoca' => 0.18,
+        'frutos_secos' => 1,
+        'mirtilos' => 1,
+        'framboesas' => 1,
+        'amoras' => 1,
+        'morangos' => 1,
     ];
 
     public function calcular(Carbon $inicio, Carbon $fim, array $pesos): array
@@ -58,12 +70,12 @@ class ComprasService
 
             foreach ($corporates as $corporate) {
                 foreach ($corporate->frutasParaDia($diaSemana) as $fruta => $quantidade) {
-                    $pecas[$fruta] = ($pecas[$fruta] ?? 0) + ($fruta === 'uvas' ? (float) $quantidade : (int) $quantidade);
+                    $pecas[$fruta] = ($pecas[$fruta] ?? 0) + (in_array($fruta, self::PRODUTOS_KG, true) ? (float) $quantidade : (int) $quantidade);
                 }
             }
 
             $kg = collect($pecas)
-                ->mapWithKeys(fn (int|float $quantidade, string $fruta) => [$fruta => $fruta === 'uvas' ? round($quantidade, 2) : round($quantidade * $pesos[$fruta], 2)])
+                ->mapWithKeys(fn (int|float $quantidade, string $fruta) => [$fruta => in_array($fruta, self::PRODUTOS_KG, true) ? round($quantidade, 2) : round($quantidade * $pesos[$fruta], 2)])
                 ->all();
 
             foreach (array_keys(self::FRUTAS) as $fruta) {
@@ -82,7 +94,7 @@ class ComprasService
                 'caixas' => $caixas,
                 'pecas' => $pecas,
                 'kg' => $kg,
-                'total_pecas' => array_sum(collect($pecas)->except('uvas')->all()),
+                'total_pecas' => array_sum(collect($pecas)->except(self::PRODUTOS_KG)->all()),
                 'total_kg' => round(array_sum($kg), 2),
             ]);
         }
@@ -92,7 +104,7 @@ class ComprasService
             'pesos' => $pesos,
             'totais_pecas' => $totaisPecas,
             'totais_kg' => collect($totaisKg)->map(fn (float $valor) => round($valor, 2))->all(),
-            'total_pecas' => array_sum(collect($totaisPecas)->except('uvas')->all()),
+            'total_pecas' => array_sum(collect($totaisPecas)->except(self::PRODUTOS_KG)->all()),
             'total_kg' => round(array_sum($totaisKg), 2),
             'total_caixas' => $totalCaixas,
             'total_clientes' => $totalClientes,

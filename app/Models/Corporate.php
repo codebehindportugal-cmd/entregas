@@ -13,7 +13,9 @@ class Corporate extends Model
     /** @use HasFactory<CorporateFactory> */
     use HasFactory;
 
-    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca'];
+    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+
+    private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     protected $fillable = [
         'empresa',
@@ -97,14 +99,14 @@ class Corporate extends Model
             ->mapWithKeys(function (string $fruta) use ($frutasBase, $frutasDoDia, $temFrutasDoDia): array {
                 $value = $temFrutasDoDia ? ($frutasDoDia[$fruta] ?? 0) : ($frutasBase[$fruta] ?? 0);
 
-                return [$fruta => $fruta === 'uvas' ? round((float) $value, 2) : (int) $value];
+                return [$fruta => in_array($fruta, self::PRODUTOS_KG, true) ? round((float) $value, 2) : (int) $value];
             })
             ->all();
     }
 
     public function totalPecasParaDia(string $dia): int
     {
-        return (int) array_sum(collect($this->frutasParaDia($dia))->except('uvas')->all());
+        return (int) array_sum(collect($this->frutasParaDia($dia))->except(self::PRODUTOS_KG)->all());
     }
 
     public function pecasPorDiaEntrega(): array

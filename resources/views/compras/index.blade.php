@@ -25,7 +25,7 @@
 
         <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             @foreach($labels as $key => $label)
-                @if($key !== 'uvas')
+                @if(! in_array($key, \App\Services\ComprasService::PRODUTOS_KG, true))
                     <label class="text-xs text-slate-400">{{ $label }} kg/peca
                         <input name="pesos[{{ $key }}]" type="number" min="0" step="0.01" value="{{ number_format($pesos[$key], 2, '.', '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                     </label>
@@ -58,7 +58,7 @@
             <div class="rounded border border-white/10 bg-[#151E2D] p-4">
                 <p class="text-sm text-slate-400">{{ $label }}</p>
                 <p class="mt-2 text-2xl font-semibold text-white">{{ number_format($totais_kg[$key] ?? 0, 2, ',', ' ') }} kg</p>
-                <p class="mt-1 text-xs text-slate-500">{{ $key === 'uvas' ? 'kg direto' : (($totais_pecas[$key] ?? 0).' pecas') }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ in_array($key, \App\Services\ComprasService::PRODUTOS_KG, true) ? 'kg direto' : (($totais_pecas[$key] ?? 0).' pecas') }}</p>
             </div>
         @endforeach
     </div>
@@ -88,14 +88,14 @@
                         @foreach(array_keys($labels) as $key)
                             <td class="p-3 text-slate-300">
                                 <p class="font-semibold text-white">{{ number_format($linha['kg'][$key] ?? 0, 2, ',', ' ') }} kg</p>
-                                <p class="text-xs text-slate-500">{{ $key === 'uvas' ? 'kg direto' : (($linha['pecas'][$key] ?? 0).' pecas') }}</p>
+                                <p class="text-xs text-slate-500">{{ in_array($key, \App\Services\ComprasService::PRODUTOS_KG, true) ? 'kg direto' : (($linha['pecas'][$key] ?? 0).' pecas') }}</p>
                             </td>
                         @endforeach
                         <td class="p-3 font-semibold text-white">{{ number_format($linha['total_kg'], 2, ',', ' ') }} kg</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="p-4 text-slate-400">Nao existem dias uteis no intervalo escolhido.</td>
+                        <td colspan="{{ count($labels) + 4 }}" class="p-4 text-slate-400">Nao existem dias uteis no intervalo escolhido.</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -33,6 +33,11 @@ class CorporateTest extends TestCase
             'kiwi' => 0,
             'uvas' => 6.0,
             'fruta_epoca' => 5,
+            'frutos_secos' => 0.0,
+            'mirtilos' => 0.0,
+            'framboesas' => 0.0,
+            'amoras' => 0.0,
+            'morangos' => 0.0,
         ], $corporate->frutasParaDia('Segunda'));
     }
 
@@ -69,6 +74,11 @@ class CorporateTest extends TestCase
             'kiwi' => 2,
             'uvas' => 4.0,
             'fruta_epoca' => 1,
+            'frutos_secos' => 0.0,
+            'mirtilos' => 0.0,
+            'framboesas' => 0.0,
+            'amoras' => 0.0,
+            'morangos' => 0.0,
         ], $corporate->frutasParaDia('Quarta'));
     }
 

@@ -1,8 +1,9 @@
 @php
     $dias = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'];
     $frutas = ['banana' => 'Banana', 'maca' => 'Maca', 'pera' => 'Pera', 'laranja' => 'Laranja', 'kiwi' => 'Kiwi', 'uvas' => 'Uvas', 'fruta_epoca' => 'Fruta epoca'];
+    $outrosProdutos = ['frutos_secos' => 'Frutos secos', 'mirtilos' => 'Mirtilos', 'framboesas' => 'Framboesas', 'amoras' => 'Amoras', 'morangos' => 'Morangos'];
+    $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
     $diasSelecionados = old('dias_entrega', $corporate->dias_entrega ?? []);
-    $frutasValores = old('frutas', $corporate->frutas ?? []);
     $frutasPorDiaValores = old('frutas_por_dia', $corporate->frutas_por_dia ?? []);
 @endphp
 <div class="grid gap-4 lg:grid-cols-2">
@@ -48,10 +49,6 @@
     <label class="text-sm text-slate-300">Numero caixas
         <input name="numero_caixas" type="number" min="0" value="{{ old('numero_caixas', $corporate->numero_caixas ?? 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
-    <label class="text-sm text-slate-300">Total de pecas por semana
-        <input name="peso_total" type="number" step="1" min="0" value="{{ old('peso_total', $corporate->peso_total ?? 0) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-        <span class="mt-1 block text-xs text-slate-500">Este campo corresponde ao antigo "peso total" da importacao.</span>
-    </label>
 </div>
 <div class="mt-5">
     <p class="mb-2 text-sm font-medium text-slate-300">Dias de entrega</p>
@@ -63,37 +60,42 @@
         @endforeach
     </div>
 </div>
-<div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-base-fruits>
-    @foreach($frutas as $key => $label)
-        <label class="text-sm text-slate-300">{{ $label }}
-            <input name="frutas[{{ $key }}]" data-fruit-base="{{ $key }}" type="number" min="0" step="{{ $key === 'uvas' ? '0.01' : '1' }}" value="{{ $frutasValores[$key] ?? 0 }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-            @if($key === 'uvas')
-                <span class="mt-1 block text-xs text-slate-500">Valor em kg.</span>
-            @endif
-        </label>
-    @endforeach
-</div>
 <div class="mt-5">
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-            <p class="text-sm font-medium text-slate-300">Pecas por dia da semana</p>
-            <p class="mt-1 text-xs text-slate-500">Ao selecionar um dia, os valores base sao copiados para esse dia se ainda estiver a zero.</p>
+            <p class="text-sm font-medium text-slate-300">Produtos por dia da semana</p>
+            <p class="mt-1 text-xs text-slate-500">Preencha fruta e outros produtos apenas nos dias em que esta empresa recebe entrega.</p>
         </div>
-        <button type="button" data-copy-base-to-selected class="rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Copiar para dias selecionados</button>
+    </div>
+    <div class="mt-4 inline-flex rounded border border-white/10 bg-[#0A0F1A] p-1" data-product-tabs>
+        <button type="button" data-product-tab="fruta" class="rounded px-4 py-2 text-sm font-semibold">Fruta</button>
+        <button type="button" data-product-tab="outros" class="rounded px-4 py-2 text-sm font-semibold">Outros produtos</button>
     </div>
     <div class="mt-3 space-y-4">
         @foreach($dias as $dia)
             <div class="rounded border border-white/10 bg-[#0A0F1A] p-4" data-day-panel="{{ $dia }}">
                 <p class="mb-3 text-sm font-semibold text-white">{{ $dia }}</p>
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-                    @foreach($frutas as $key => $label)
-                        <label class="text-xs text-slate-400">{{ $label }}
-                            <input name="frutas_por_dia[{{ $dia }}][{{ $key }}]" data-fruit-day="{{ $key }}" type="number" min="0" step="{{ $key === 'uvas' ? '0.01' : '1' }}" value="{{ $frutasPorDiaValores[$dia][$key] ?? 0 }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-white">
-                            @if($key === 'uvas')
+                <div data-product-panel="fruta">
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                        @foreach($frutas as $key => $label)
+                            <label class="text-xs text-slate-400">{{ $label }}
+                                <input name="frutas_por_dia[{{ $dia }}][{{ $key }}]" data-fruit-day="{{ $key }}" type="number" min="0" step="{{ in_array($key, $produtosKg, true) ? '0.01' : '1' }}" value="{{ $frutasPorDiaValores[$dia][$key] ?? 0 }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-white">
+                                @if(in_array($key, $produtosKg, true))
+                                    <span class="mt-1 block text-[11px] text-slate-500">kg</span>
+                                @endif
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+                <div data-product-panel="outros" class="hidden">
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                        @foreach($outrosProdutos as $key => $label)
+                            <label class="text-xs text-slate-400">{{ $label }}
+                                <input name="frutas_por_dia[{{ $dia }}][{{ $key }}]" data-fruit-day="{{ $key }}" type="number" min="0" step="0.01" value="{{ $frutasPorDiaValores[$dia][$key] ?? 0 }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-white">
                                 <span class="mt-1 block text-[11px] text-slate-500">kg</span>
-                            @endif
-                        </label>
-                    @endforeach
+                            </label>
+                        @endforeach
+                    </div>
                 </div>
             </div>
         @endforeach
@@ -108,43 +110,27 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const fruitKeys = @json(array_keys($frutas));
-        const baseInputs = Object.fromEntries(
-            fruitKeys.map((key) => [key, document.querySelector(`[data-fruit-base="${key}"]`)])
-        );
+        const tabs = Array.from(document.querySelectorAll('[data-product-tab]'));
+        const panels = Array.from(document.querySelectorAll('[data-product-panel]'));
 
-        const selectedDayCheckboxes = () => Array.from(document.querySelectorAll('input[name="dias_entrega[]"]:checked'));
+        const activateTab = (activeTab) => {
+            tabs.forEach((tab) => {
+                const isActive = tab.dataset.productTab === activeTab;
 
-        const dayInputs = (day) => Object.fromEntries(
-            fruitKeys.map((key) => [key, document.querySelector(`[data-day-panel="${day}"] [data-fruit-day="${key}"]`)])
-        );
+                tab.classList.toggle('bg-[#3B82F6]', isActive);
+                tab.classList.toggle('text-white', isActive);
+                tab.classList.toggle('text-slate-300', !isActive);
+            });
 
-        const hasDayValues = (inputs) => fruitKeys.some((key) => Number.parseFloat(inputs[key]?.value || '0') > 0);
-
-        const copyBaseToDay = (day, overwrite = false) => {
-            const inputs = dayInputs(day);
-
-            if (!overwrite && hasDayValues(inputs)) {
-                return;
-            }
-
-            fruitKeys.forEach((key) => {
-                if (inputs[key] && baseInputs[key]) {
-                    inputs[key].value = baseInputs[key].value || '0';
-                }
+            panels.forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.productPanel !== activeTab);
             });
         };
 
-        document.querySelectorAll('input[name="dias_entrega[]"]').forEach((checkbox) => {
-            checkbox.addEventListener('change', () => {
-                if (checkbox.checked) {
-                    copyBaseToDay(checkbox.value);
-                }
-            });
+        tabs.forEach((tab) => {
+            tab.addEventListener('click', () => activateTab(tab.dataset.productTab));
         });
 
-        document.querySelector('[data-copy-base-to-selected]')?.addEventListener('click', () => {
-            selectedDayCheckboxes().forEach((checkbox) => copyBaseToDay(checkbox.value, true));
-        });
+        activateTab('fruta');
     });
 </script>

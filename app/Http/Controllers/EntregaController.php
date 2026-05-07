@@ -269,7 +269,8 @@ class EntregaController extends Controller
             ->get()
             ->keyBy(fn (PreparacaoItem $item) => $item->tipo.'-'.($item->corporate_id ?: $item->woo_order_id));
 
-        $frutas = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca'];
+        $frutas = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+        $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
         $totaisFrutas = collect($frutas)
             ->mapWithKeys(fn (string $fruta) => [
                 $fruta => $corporates->sum(fn (Corporate $corporate) => (int) ($corporate->frutasParaDia($dia)[$fruta] ?? 0)),
@@ -285,7 +286,7 @@ class EntregaController extends Controller
             'b2cOrders' => $b2cOrders,
             'preparacaoItems' => $preparacaoItems,
             'totalCaixas' => $corporates->sum('numero_caixas'),
-            'totalPecas' => array_sum(collect($totaisFrutas)->except('uvas')->all()),
+            'totalPecas' => array_sum(collect($totaisFrutas)->except($produtosKg)->all()),
             'totaisFrutas' => $totaisFrutas,
             'totalFeitos' => $preparacaoItems->where('feito', true)->count(),
             'totalPorFazer' => $preparacaoItems->where('feito', false)->count(),

@@ -16,7 +16,9 @@ class ImportCorporates extends Command
 
     protected $description = 'Importa empresas de JSON, criando ou atualizando por empresa e sucursal.';
 
-    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca'];
+    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+
+    private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     public function handle(): int
     {
@@ -141,7 +143,7 @@ class ImportCorporates extends Command
     private function normalizeFruits(array $values): array
     {
         return collect(self::FRUTAS)
-            ->mapWithKeys(fn (string $fruit) => [$fruit => $fruit === 'uvas'
+            ->mapWithKeys(fn (string $fruit) => [$fruit => in_array($fruit, self::PRODUTOS_KG, true)
                 ? round(max(0, (float) ($values[$fruit] ?? 0)), 2)
                 : max(0, (int) ($values[$fruit] ?? 0))])
             ->all();
