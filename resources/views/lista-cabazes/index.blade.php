@@ -3,6 +3,22 @@
         <a href="{{ route('lista-cabazes.create') }}" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Nova lista</a>
     </x-page-title>
 
+    <form method="post" action="{{ route('lista-cabazes.import') }}" enctype="multipart/form-data" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
+        @csrf
+        <div class="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
+            <label class="text-sm text-slate-300">Importar cabazes de subscricao ja feitos
+                <input name="ficheiro" type="file" accept=".json,application/json" required class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-slate-200 file:mr-3 file:rounded file:border-0 file:bg-white/10 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-slate-200">
+            </label>
+            <label class="flex items-end gap-2 pb-2 text-sm text-slate-300">
+                <input name="publicar" value="1" type="checkbox" class="rounded border-white/10 bg-[#0A0F1A]"> Publicar ao importar
+            </label>
+            <div class="flex items-end">
+                <button class="rounded bg-[#3B82F6] px-4 py-2 font-semibold text-white">Importar JSON</button>
+            </div>
+        </div>
+        <p class="mt-3 text-xs text-slate-500">Atualiza pela combinacao semana, mes e ano. Os produtos dessa semana sao substituidos pelos do ficheiro.</p>
+    </form>
+
     <div class="overflow-hidden rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
             <thead class="bg-white/5 text-slate-400">

@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function (): void {
         Route::resource('/lista-cabazes', ListaCabazController::class)
             ->parameters(['lista-cabazes' => 'listaCabaz'])
             ->except(['show']);
+        Route::post('/lista-cabazes/importar', [ListaCabazController::class, 'import'])->name('lista-cabazes.import');
         Route::post('/lista-cabazes/{listaCabaz}/itens', [ListaCabazController::class, 'storeItem'])->name('lista-cabazes.itens.store');
         Route::put('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'updateItem'])->name('lista-cabazes.itens.update');
         Route::delete('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'destroyItem'])->name('lista-cabazes.itens.destroy');

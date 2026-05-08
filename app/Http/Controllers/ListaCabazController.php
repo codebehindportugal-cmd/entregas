@@ -9,6 +9,8 @@ use App\Models\TabelaPreco;
 use App\Models\WooOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
@@ -88,6 +90,68 @@ class ListaCabazController extends Controller
         $listaCabaz->delete();
 
         return redirect()->route('lista-cabazes.index')->with('status', 'Lista removida.');
+    }
+
+    public function import(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'ficheiro' => ['required', 'file', 'max:10240'],
+            'publicar' => ['nullable', 'boolean'],
+        ]);
+
+        try {
+            $payload = json_decode((string) file_get_contents($request->file('ficheiro')->getRealPath()), true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new RuntimeException('JSON invalido: '.json_last_error_msg());
+            }
+
+            $listas = $payload['listas'] ?? null;
+
+            if (! is_array($listas)) {
+                throw new RuntimeException('Formato invalido: falta a chave listas.');
+            }
+
+            $importadas = 0;
+            $itens = 0;
+
+            DB::transaction(function () use ($listas, $request, &$importadas, &$itens): void {
+                foreach ($listas as $index => $listaData) {
+                    if (! is_array($listaData)) {
+                        throw new RuntimeException('Lista '.($index + 1).': esperado objeto/array.');
+                    }
+
+                    $lista = ListaCabaz::updateOrCreate(
+                        [
+                            'semana_numero' => $this->intRange($listaData['semana_numero'] ?? null, 1, 4, 'semana_numero'),
+                            'ano' => $this->intRange($listaData['ano'] ?? null, 2000, 2100, 'ano'),
+                            'mes' => $this->intRange($listaData['mes'] ?? null, 1, 12, 'mes'),
+                        ],
+                        [
+                            'descricao' => $this->nullableString($listaData['descricao'] ?? null),
+                            'estado' => $request->boolean('publicar') ? 'publicada' : $this->estado($listaData['estado'] ?? 'rascunho'),
+                        ],
+                    );
+
+                    $lista->itens()->delete();
+
+                    foreach ($listaData['itens'] ?? [] as $itemIndex => $itemData) {
+                        if (! is_array($itemData)) {
+                            throw new RuntimeException('Lista '.($index + 1).', item '.($itemIndex + 1).': esperado objeto/array.');
+                        }
+
+                        $lista->itens()->create($this->normalizarItem($itemData, $index + 1, $itemIndex + 1));
+                        $itens++;
+                    }
+
+                    $importadas++;
+                }
+            });
+
+            return redirect()->route('lista-cabazes.index')->with('status', "{$importadas} listas importadas com {$itens} produtos.");
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['ficheiro' => $exception->getMessage()]);
+        }
     }
 
     public function storeItem(Request $request, ListaCabaz $listaCabaz): RedirectResponse
@@ -206,5 +270,58 @@ class ListaCabazController extends Controller
                     ->sum(fn (ListaCabazItem $item): float => (float) ($item->custoUnitario() ?? 0)),
             ])
             ->all();
+    }
+
+    private function normalizarItem(array $item, int $lista, int $linha): array
+    {
+        $tipo = (string) ($item['cabaz_tipo'] ?? '');
+
+        if (! array_key_exists($tipo, self::TIPOS)) {
+            throw new RuntimeException("Lista {$lista}, item {$linha}: tipo de cabaz invalido.");
+        }
+
+        $produto = trim((string) ($item['produto'] ?? ''));
+
+        if ($produto === '') {
+            throw new RuntimeException("Lista {$lista}, item {$linha}: produto obrigatorio.");
+        }
+
+        $quantidade = (float) ($item['quantidade'] ?? 0);
+
+        if ($quantidade <= 0) {
+            throw new RuntimeException("Lista {$lista}, item {$linha}: quantidade invalida.");
+        }
+
+        return [
+            'cabaz_tipo' => $tipo,
+            'produto' => $produto,
+            'categoria' => $this->nullableString($item['categoria'] ?? null),
+            'quantidade' => $quantidade,
+            'unidade' => trim((string) ($item['unidade'] ?? 'un')) ?: 'un',
+            'ordem' => max(0, (int) ($item['ordem'] ?? 0)),
+        ];
+    }
+
+    private function intRange(mixed $value, int $min, int $max, string $campo): int
+    {
+        $value = (int) $value;
+
+        if ($value < $min || $value > $max) {
+            throw new RuntimeException("Campo {$campo} invalido.");
+        }
+
+        return $value;
+    }
+
+    private function estado(mixed $value): string
+    {
+        return in_array($value, ['rascunho', 'publicada'], true) ? $value : 'rascunho';
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 }
