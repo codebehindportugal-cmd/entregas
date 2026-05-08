@@ -139,6 +139,18 @@ class ComprasService
         ];
     }
 
+    public function precosParaData(Carbon $data): array
+    {
+        $tabelasPreco = $this->tabelasAtivasParaData($data);
+        $precoItens = $this->itensDasTabelas($tabelasPreco);
+        $mapeamentosPreco = CompraPrecoMapping::query()
+            ->with('tabelaPrecoItem.tabelaPreco')
+            ->get()
+            ->keyBy('produto');
+
+        return $this->precosPorProduto($precoItens, $mapeamentosPreco);
+    }
+
     private function corporatesParaDia(Carbon $data, string $diaSemana): Collection
     {
         return Corporate::where('ativo', true)

@@ -78,6 +78,26 @@ body {
     color: #1e293b;
 }
 
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+main,
+main > div,
+.grid > *,
+.flex > * {
+    min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas {
+    max-width: 100%;
+}
+
 .bg-\[\#151E2D\],
 .bg-\[\#111B17\],
 .bg-\[\#0A0F1A\],
@@ -264,4 +284,99 @@ a.bg-\[\#3B82F6\] {
 
 .disabled\:text-slate-300:disabled {
     color: #64748b !important;
+}
+
+@media (max-width: 767px) {
+    main {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    h1 {
+        font-size: 1.35rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .mb-6.flex.flex-wrap.items-center.justify-between.gap-3 > * {
+        width: 100%;
+    }
+
+    .mb-6.flex.flex-wrap.items-center.justify-between.gap-3 > div:last-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .mb-6.flex.flex-wrap.items-center.justify-between.gap-3 > div:last-child > *,
+    .mb-6.flex.flex-wrap.items-center.justify-between.gap-3 > div:last-child button,
+    .mb-6.flex.flex-wrap.items-center.justify-between.gap-3 > div:last-child a {
+        flex: 1 1 10rem;
+        text-align: center;
+    }
+
+    .overflow-hidden:has(> table) {
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .overflow-hidden:has(> table) table,
+    .overflow-x-auto table {
+        min-width: 46rem;
+    }
+
+    table th,
+    table td {
+        vertical-align: top;
+    }
+
+    td p,
+    td span,
+    td a,
+    td button,
+    label,
+    input,
+    select,
+    textarea {
+        overflow-wrap: anywhere;
+    }
+
+    .flex.items-end.gap-2 {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .flex.items-end.gap-2 > button,
+    .flex.items-end.gap-2 > a {
+        flex: 1 1 8rem;
+        text-align: center;
+    }
+
+    button,
+    a.rounded,
+    input,
+    select,
+    textarea {
+        min-height: 2.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .sticky.top-0 .flex.flex-wrap.items-center.justify-between.gap-3 {
+        gap: 0.75rem;
+    }
+
+    .sticky.top-0 form {
+        margin-left: auto;
+    }
+
+    .text-3xl {
+        font-size: 1.65rem !important;
+        line-height: 1.15 !important;
+    }
+
+    .rounded.border,
+    form.rounded.border {
+        border-radius: 0.375rem;
+    }
 }

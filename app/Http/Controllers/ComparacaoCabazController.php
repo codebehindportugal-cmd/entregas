@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Corporate;
 use App\Models\ListaCabaz;
 use App\Models\ListaCabazItem;
+use App\Services\ComprasService;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
@@ -18,8 +21,19 @@ class ComparacaoCabazController extends Controller
         'grande' => 'Grande',
     ];
 
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request, ComprasService $compras): View
     {
+        $inicio = filled($request->input('inicio')) ? Carbon::parse($request->input('inicio')) : now()->startOfWeek();
+        $fim = filled($request->input('fim')) ? Carbon::parse($request->input('fim')) : $inicio->copy()->endOfWeek();
+
+        if ($fim->lt($inicio)) {
+            $fim = $inicio->copy();
+        }
+
+        if ($inicio->diffInDays($fim) > 31) {
+            $fim = $inicio->copy()->addDays(31);
+        }
+
         $listas = ListaCabaz::query()
             ->with('itens.tabelaPrecoItem')
             ->orderByDesc('ano')
@@ -33,6 +47,7 @@ class ComparacaoCabazController extends Controller
             ->orderBy('empresa')
             ->orderBy('sucursal')
             ->get();
+        $linhasEmpresas = $this->linhasEmpresas($inicio, $fim, $compras);
 
         return view('comparacao-cabazes.index', [
             'listas' => $listas,
@@ -46,6 +61,10 @@ class ComparacaoCabazController extends Controller
                 'margem' => 0,
                 'margem_percentagem' => null,
             ],
+            'inicio' => $inicio->toDateString(),
+            'fim' => $fim->toDateString(),
+            'linhasEmpresas' => $linhasEmpresas,
+            'resumoEmpresas' => $this->resumoEmpresas($linhasEmpresas),
         ]);
     }
 
@@ -126,5 +145,74 @@ class ComparacaoCabazController extends Controller
         $unidade = mb_strtolower(trim((string) $unidade));
 
         return ! in_array($unidade, ['kg', 'g', 'gr', 'gramas'], true);
+    }
+
+    private function linhasEmpresas(Carbon $inicio, Carbon $fim, ComprasService $compras): Collection
+    {
+        $precos = $compras->precosParaData($inicio->copy());
+
+        return Corporate::query()
+            ->where('ativo', true)
+            ->whereNull('cabaz_tipo')
+            ->orderBy('empresa')
+            ->orderBy('sucursal')
+            ->get()
+            ->map(function (Corporate $corporate) use ($inicio, $fim, $precos): array {
+                $entregas = 0;
+                $pecas = 0;
+                $custo = 0.0;
+
+                foreach (CarbonPeriod::create($inicio, $fim) as $data) {
+                    $dia = ComprasService::DIAS[$data->dayOfWeek] ?? null;
+
+                    if ($dia === null || ! in_array($dia, $corporate->dias_entrega ?? [], true) || ! $corporate->temEntregaNaData($data)) {
+                        continue;
+                    }
+
+                    $entregas++;
+                    $frutas = $corporate->frutasParaDia($dia);
+                    $pecas += (int) array_sum(collect($frutas)->except(ComprasService::PRODUTOS_KG)->all());
+
+                    foreach ($frutas as $fruta => $quantidade) {
+                        $kg = in_array($fruta, ComprasService::PRODUTOS_KG, true)
+                            ? (float) $quantidade
+                            : (float) $quantidade * (ComprasService::PESOS_PADRAO[$fruta] ?? 1);
+                        $custo += $kg * ($precos[$fruta]['preco'] ?? 0);
+                    }
+                }
+
+                $precoPeca = $corporate->preco_venda_peca !== null ? (float) $corporate->preco_venda_peca : null;
+                $venda = $precoPeca !== null ? round($pecas * $precoPeca, 2) : null;
+                $custo = round($custo, 2);
+
+                return [
+                    'empresa' => $corporate,
+                    'entregas' => $entregas,
+                    'pecas' => $pecas,
+                    'preco_peca' => $precoPeca,
+                    'custo' => $custo,
+                    'venda' => $venda,
+                    'margem' => $venda !== null ? round($venda - $custo, 2) : null,
+                ];
+            })
+            ->filter(fn (array $linha): bool => $linha['entregas'] > 0)
+            ->values();
+    }
+
+    private function resumoEmpresas(Collection $linhas): array
+    {
+        $custo = round($linhas->sum('custo'), 2);
+        $venda = round($linhas->sum(fn (array $linha): float => (float) ($linha['venda'] ?? 0)), 2);
+        $margem = round($venda - $custo, 2);
+
+        return [
+            'empresas' => $linhas->count(),
+            'entregas' => $linhas->sum('entregas'),
+            'pecas' => $linhas->sum('pecas'),
+            'custo' => $custo,
+            'venda' => $venda,
+            'margem' => $margem,
+            'margem_percentagem' => $venda > 0 ? round(($margem / $venda) * 100, 1) : null,
+        ];
     }
 }
