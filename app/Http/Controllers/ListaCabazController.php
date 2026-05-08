@@ -200,6 +200,7 @@ class ListaCabazController extends Controller
             'categoria' => ['nullable', 'string', 'max:255'],
             'quantidade' => ['required', 'numeric', 'gt:0'],
             'unidade' => ['required', 'string', 'max:20'],
+            'peso_unitario_kg' => ['nullable', 'numeric', 'gt:0'],
             'tabela_preco_item_id' => ['nullable', 'exists:tabela_preco_itens,id'],
             'preco_unitario' => ['nullable', 'numeric', 'min:0'],
             'ordem' => ['nullable', 'integer', 'min:0', 'max:65535'],
@@ -207,6 +208,7 @@ class ListaCabazController extends Controller
 
         $data['tabela_preco_item_id'] = filled($data['tabela_preco_item_id'] ?? null) ? $data['tabela_preco_item_id'] : null;
         $data['preco_unitario'] = filled($data['preco_unitario'] ?? null) ? $data['preco_unitario'] : null;
+        $data['peso_unitario_kg'] = filled($data['peso_unitario_kg'] ?? null) ? $data['peso_unitario_kg'] : null;
 
         return $data;
     }
@@ -298,6 +300,7 @@ class ListaCabazController extends Controller
             'categoria' => $this->nullableString($item['categoria'] ?? null),
             'quantidade' => $quantidade,
             'unidade' => trim((string) ($item['unidade'] ?? 'un')) ?: 'un',
+            'peso_unitario_kg' => filled($item['peso_unitario_kg'] ?? null) ? max(0.0001, (float) $item['peso_unitario_kg']) : null,
             'ordem' => max(0, (int) ($item['ordem'] ?? 0)),
         ];
     }

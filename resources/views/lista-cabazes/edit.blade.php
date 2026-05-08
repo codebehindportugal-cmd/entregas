@@ -41,6 +41,7 @@
                             <th class="p-3">Produto</th>
                             <th class="p-3">Categoria</th>
                             <th class="p-3">Quantidade</th>
+                            <th class="p-3">Conversao</th>
                             <th class="p-3">Preco</th>
                             <th class="p-3">Custo</th>
                             <th class="p-3">Ordem</th>
@@ -61,6 +62,16 @@
                                             <input name="quantidade" type="number" min="0.001" step="0.001" value="{{ $item->quantidade }}" class="w-28 rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                                             <input name="unidade" value="{{ $item->unidade }}" class="w-20 rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                                         </div>
+                                    </td>
+                                    <td class="p-2">
+                                        <input name="peso_unitario_kg" type="number" min="0.0001" step="0.0001" value="{{ $item->peso_unitario_kg }}" placeholder="kg/un" class="w-28 rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-xs text-white">
+                                        <p class="mt-1 text-[11px] text-slate-500">
+                                            @if($item->quantidadeParaCustoKg() !== null)
+                                                {{ number_format($item->quantidadeParaCustoKg(), 4, ',', ' ') }} kg
+                                            @else
+                                                falta kg/un
+                                            @endif
+                                        </p>
                                     </td>
                                     <td class="p-2">
                                         <select name="tabela_preco_item_id" class="mb-2 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-xs text-white">
@@ -85,7 +96,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="p-4 text-slate-400">Sem produtos neste tipo de cabaz.</td>
+                                <td colspan="8" class="p-4 text-slate-400">Sem produtos neste tipo de cabaz.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -96,13 +107,14 @@
                 Custo estimado de 1 cabaz {{ $label }}: {{ number_format($custoPorTipo[$tipo] ?? 0, 2, ',', ' ') }} €
             </div>
 
-            <form method="post" action="{{ route('lista-cabazes.itens.store', $listaCabaz) }}" class="mt-5 grid gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]">
+            <form method="post" action="{{ route('lista-cabazes.itens.store', $listaCabaz) }}" class="mt-5 grid gap-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]">
                 @csrf
                 <input type="hidden" name="cabaz_tipo" value="{{ $tipo }}">
                 <input name="produto" placeholder="Produto" required class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                 <input name="categoria" placeholder="Categoria" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                 <input name="quantidade" type="number" min="0.001" step="0.001" placeholder="Qtd." required class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                 <input name="unidade" value="un" required class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                <input name="peso_unitario_kg" type="number" min="0.0001" step="0.0001" placeholder="kg/un" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                 <input name="preco_unitario" type="number" min="0" step="0.0001" placeholder="Preco manual" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                 <button class="rounded bg-[#3B82F6] px-4 py-2 font-semibold text-white">Adicionar</button>
             </form>
