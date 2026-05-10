@@ -11,7 +11,7 @@
     </form>
 
     @foreach($categorias as $categoria)
-        <section class="mb-6 overflow-hidden rounded border border-white/10 bg-[#151E2D]">
+        <section class="mb-6 overflow-x-auto rounded border border-white/10 bg-[#151E2D]">
             <div class="bg-white/5 p-4">
                 <h2 class="font-semibold text-white">{{ $categoria }}</h2>
             </div>

@@ -79,7 +79,7 @@
         @endforeach
     </div>
 
-    <div class="overflow-hidden rounded border border-white/10 bg-[#151E2D]">
+    <div class="overflow-x-auto rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
             <thead class="bg-white/5 text-slate-400">
                 <tr>
@@ -137,7 +137,7 @@
         </table>
     </div>
 
-    <div class="mt-6 overflow-hidden rounded border border-white/10 bg-[#151E2D]">
+    <div class="mt-6 overflow-x-auto rounded border border-white/10 bg-[#151E2D]">
         <div class="border-b border-white/10 p-4">
             <h2 class="text-lg font-semibold text-white">Clientes B2C</h2>
         </div>

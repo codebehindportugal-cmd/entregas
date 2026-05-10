@@ -25,7 +25,7 @@
             <a href="{{ route('equipa.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
         </div>
     </form>
-    <div class="overflow-hidden rounded border border-white/10 bg-[#151E2D]">
+    <div class="overflow-x-auto rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
             <thead class="bg-white/5 text-slate-400"><tr><th class="p-3">Nome</th><th class="p-3">Role</th><th class="p-3">Estado</th><th class="p-3"></th></tr></thead>
             <tbody>

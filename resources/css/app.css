@@ -44,6 +44,11 @@
 }
 
 @layer components {
+    .overflow-x-auto table,
+    .overflow-hidden:has(> table) table {
+        min-width: max(46rem, 100%);
+    }
+
     table {
         border-collapse: separate;
         border-spacing: 0;
@@ -314,15 +319,11 @@ a.bg-\[\#3B82F6\] {
         text-align: center;
     }
 
-    .overflow-hidden:has(> table) {
+    .overflow-hidden:has(> table),
+    .overflow-x-auto {
         overflow-x: auto !important;
         overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
-    }
-
-    .overflow-hidden:has(> table) table,
-    .overflow-x-auto table {
-        min-width: 46rem;
     }
 
     table th,
