@@ -27,6 +27,7 @@
                     : [
                         ['label' => 'Rota de hoje', 'route' => 'minhas-entregas.index', 'active' => 'minhas-entregas.*'],
                     ];
+                $activeNavItem = collect($navItems)->first(fn ($item) => request()->routeIs($item['active'])) ?? $navItems[0];
             @endphp
 
             <aside class="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-emerald-900/10 bg-white/90 p-4 shadow-xl shadow-slate-200/70 backdrop-blur-xl lg:block">
@@ -61,7 +62,7 @@
                 </div>
             </aside>
 
-            <header class="sticky top-0 z-30 border-b border-emerald-900/10 bg-white/95 shadow-sm shadow-slate-200/80 backdrop-blur lg:hidden">
+            <header class="mobile-app-header sticky top-0 z-30 border-b border-emerald-900/10 bg-white/95 shadow-sm shadow-slate-200/80 backdrop-blur lg:hidden">
                 <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                     <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('minhas-entregas.index') }}" class="flex items-center gap-3">
                         <span class="flex h-11 w-11 items-center justify-center rounded bg-white p-1.5 ring-1 ring-emerald-900/10">
@@ -73,11 +74,17 @@
                         @csrf
                         <button class="rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100" type="submit">Sair</button>
                     </form>
-                    <nav class="flex w-full gap-1 overflow-x-auto pb-1 text-sm text-slate-600">
-                        @foreach($navItems as $item)
-                            <a class="shrink-0 rounded px-3 py-2 {{ request()->routeIs($item['active']) ? 'bg-[#16A34A] text-white' : 'bg-slate-100' }}" href="{{ route($item['route']) }}">{{ $item['label'] }}</a>
-                        @endforeach
-                    </nav>
+                    <details class="mobile-menu w-full">
+                        <summary class="mobile-menu-summary">
+                            <span>Menu</span>
+                            <strong>{{ $activeNavItem['label'] }}</strong>
+                        </summary>
+                        <nav class="mobile-menu-panel">
+                            @foreach($navItems as $item)
+                                <a class="{{ request()->routeIs($item['active']) ? 'is-active' : '' }}" href="{{ route($item['route']) }}">{{ $item['label'] }}</a>
+                            @endforeach
+                        </nav>
+                    </details>
                 </div>
             </header>
         @endauth
