@@ -58,7 +58,7 @@
                     <p class="rounded border border-white/10 bg-[#0A0F1A] p-4 text-slate-400">Sem empresas com entrega neste dia.</p>
                 @endforelse
             </div>
-            <p class="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Clientes B2C</p>
+            <p class="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Clientes B2C para {{ \Illuminate\Support\Carbon::parse($dataB2c)->format('d/m/Y') }}</p>
             <div class="grid max-h-96 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
                 @forelse($b2cOrders as $order)
                     @php($atribuida = $atribuicoes->firstWhere('woo_order_id', $order->id))

@@ -2,9 +2,9 @@
     <x-page-title title="{{ $encomenda->billing_name ?: 'Cliente B2C' }}" subtitle="Perfil e preferencias">
         <div class="flex flex-wrap gap-2">
             @if($encomenda->podeConcluirNoWordPress())
-                <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Marcar esta encomenda como concluida no WordPress?');">
+                <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                     @csrf
-                    <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Concluir WordPress</button>
+                    <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Fechar encomenda</button>
                 </form>
             @endif
             <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Voltar</a>
@@ -75,6 +75,23 @@
                 </div>
                 @if($entregas['proxima'])
                     <p class="mt-3 text-sm text-slate-300">Proxima: {{ \Illuminate\Support\Carbon::parse($entregas['proxima'])->format('d/m/Y') }}</p>
+                @endif
+            </div>
+
+            <div class="rounded border border-white/10 bg-[#151E2D] p-5">
+                <h2 class="text-lg font-semibold text-white">Adiar entrega</h2>
+                <form method="post" action="{{ route('encomendas.postpone', $encomenda) }}" class="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                    @csrf
+                    @method('put')
+                    <input name="postponed_until" type="date" value="{{ optional($encomenda->postponed_until)->toDateString() }}" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
+                    <button class="rounded bg-[#F59E0B]/20 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-[#F59E0B]/30">Guardar adiamento</button>
+                </form>
+                @if($encomenda->postponed_until)
+                    <form method="post" action="{{ route('encomendas.postpone.clear', $encomenda) }}" class="mt-3">
+                        @csrf
+                        @method('delete')
+                        <button class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">Remover adiamento</button>
+                    </form>
                 @endif
             </div>
         </section>

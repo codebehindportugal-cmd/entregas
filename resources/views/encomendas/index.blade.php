@@ -167,27 +167,14 @@
                                 <a href="{{ $order->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Enviar pagamento</a>
                             @endif
                             <a href="{{ route('encomendas.show', $order) }}" class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Perfil</a>
-                            <form method="post" action="{{ route('encomendas.postpone', $order) }}" class="mb-2 grid gap-2">
+                            <form method="post" action="{{ route('encomendas.duplicate', $order) }}" class="mb-2" onsubmit="return confirm('Criar uma renovacao no WooCommerce em pagamento pendente com os mesmos dados e produtos?');">
                                 @csrf
-                                @method('put')
-                                <input name="postponed_until" type="date" value="{{ optional($order->postponed_until)->toDateString() }}" class="w-full rounded border border-white/10 bg-[#0A0F1A] px-2 py-2 text-xs text-white">
-                                <button class="rounded bg-[#F59E0B]/20 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-[#F59E0B]/30">Adiar</button>
-                            </form>
-                            @if($order->postponed_until)
-                                <form method="post" action="{{ route('encomendas.postpone.clear', $order) }}" class="mb-2">
-                                    @csrf
-                                    @method('delete')
-                                    <button class="rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Limpar adiamento</button>
-                                </form>
-                            @endif
-                            <form method="post" action="{{ route('encomendas.duplicate', $order) }}" class="mb-2" onsubmit="return confirm('Publicar uma nova encomenda WooCommerce em pagamento pendente com os mesmos dados e produtos?');">
-                                @csrf
-                                <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Publicar</button>
+                                <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Renovar</button>
                             </form>
                             @if($order->podeConcluirNoWordPress())
-                                <form method="post" action="{{ route('encomendas.complete', $order) }}" class="mb-2" onsubmit="return confirm('Marcar esta encomenda como concluida no WordPress?');">
+                                <form method="post" action="{{ route('encomendas.complete', $order) }}" class="mb-2" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                                     @csrf
-                                    <button class="rounded bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30">Concluir WordPress</button>
+                                    <button class="rounded bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30">Fechar encomenda</button>
                                 </form>
                             @endif
                             <form method="post" action="{{ route('encomendas.destroy', $order) }}">

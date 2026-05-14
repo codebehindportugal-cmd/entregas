@@ -168,7 +168,7 @@ class EncomendaController extends Controller
 
         $novaEncomenda = $result['order'];
         $paymentUrl = $result['payment_url'];
-        $message = "Encomenda publicada no WooCommerce em pagamento pendente: #{$novaEncomenda->woo_id}.";
+        $message = "Renovacao criada no WooCommerce em pagamento pendente: #{$novaEncomenda->woo_id}.";
 
         if ($paymentUrl) {
             $message .= " Link de pagamento: {$paymentUrl}";
@@ -191,7 +191,7 @@ class EncomendaController extends Controller
             return back()->withErrors(['complete' => $exception->getMessage()]);
         }
 
-        return redirect()->route('encomendas.index')->with('status', "Encomenda #{$encomenda->woo_id} marcada como concluida no WordPress.");
+        return redirect()->route('encomendas.index')->with('status', "Encomenda #{$encomenda->woo_id} fechada no WordPress.");
     }
 
     public function destroy(WooOrder $encomenda): RedirectResponse

@@ -33,6 +33,7 @@ class EntregaController extends Controller
         $dia = request('dia', self::DIAS[now()->dayOfWeek] ?? 'Segunda');
         $q = request('q', '');
         $userId = (int) request('user_id', 0);
+        $dataB2c = $this->dataReferenciaParaDia($dia);
 
         $corporatesDoDia = Corporate::where('ativo', true)
             ->whereJsonContains('dias_entrega', $dia)
@@ -45,7 +46,7 @@ class EntregaController extends Controller
             ->orderBy('empresa')
             ->get();
 
-        $b2cOrders = $this->b2cOrdersParaDia($dia, now(), $q)->get();
+        $b2cOrders = $this->b2cOrdersParaDia($dia, $dataB2c, $q)->get();
 
         return view('entregas.index', [
             'dia' => $dia,
@@ -55,7 +56,7 @@ class EntregaController extends Controller
             'atribuicoes' => AtribuicaoEntrega::with(['corporate', 'wooOrder', 'user'])
                 ->where('dia_semana', $dia)
                 ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
-                ->where(function ($query) use ($dia, $q, $b2cOrders): void {
+                ->where(function ($query) use ($dia, $q): void {
                     $query->whereHas('corporate', fn ($query) => $query
                         ->whereJsonContains('dias_entrega', $dia)
                         ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
@@ -64,7 +65,12 @@ class EntregaController extends Controller
                                 ->orWhere('morada_entrega', 'like', "%{$q}%")
                                 ->orWhere('fatura_morada', 'like', "%{$q}%");
                         }))
-                    )->orWhereIn('woo_order_id', $b2cOrders->pluck('id'));
+                    )->orWhereHas('wooOrder', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                        $query->where('billing_name', 'like', "%{$q}%")
+                            ->orWhere('billing_phone', 'like', "%{$q}%")
+                            ->orWhere('billing_email', 'like', "%{$q}%")
+                            ->orWhere('woo_id', 'like', "%{$q}%");
+                    })));
                 })
                 ->orderBy('tipo')
                 ->orderBy('corporate_id')
@@ -72,6 +78,7 @@ class EntregaController extends Controller
                 ->get(),
             'corporates' => $corporatesDoDia,
             'b2cOrders' => $b2cOrders,
+            'dataB2c' => $dataB2c->toDateString(),
             'colaboradores' => User::where('ativo', true)->orderBy('name')->get(),
         ]);
     }
@@ -506,7 +513,8 @@ class EntregaController extends Controller
         return WooOrder::query()
             ->where(function ($query): void {
                 $query->whereIn('status', ['processing', 'on-hold', 'pending'])
-                    ->orWhere('status', 'subscricao');
+                    ->orWhereIn('status', ['subscricao', 'wc-subscricao', 'active'])
+                    ->orWhere('source_type', 'subscription');
             })
             ->when($diaB2c !== null, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
                 $query->whereDate('postponed_until', $data)
@@ -547,6 +555,22 @@ class EntregaController extends Controller
                     ->orWhere('woo_id', 'like', "%{$q}%");
             }))
             ->orderBy('billing_name');
+    }
+
+    private function dataReferenciaParaDia(string $dia): Carbon
+    {
+        $dayOfWeek = array_search($dia, self::DIAS, true);
+        $data = now()->startOfDay();
+
+        if ($dayOfWeek === false) {
+            return $data;
+        }
+
+        while ($data->dayOfWeek !== $dayOfWeek) {
+            $data->addDay();
+        }
+
+        return $data;
     }
 
     private function firstOrCreateRegistoB2c(AtribuicaoEntrega $atribuicao, string $data): RegistoEntrega
