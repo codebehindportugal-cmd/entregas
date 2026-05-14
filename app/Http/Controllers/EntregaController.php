@@ -11,6 +11,7 @@ use App\Models\PreparacaoItem;
 use App\Models\RegistoEntrega;
 use App\Models\User;
 use App\Models\WooOrder;
+use App\Services\ComprasService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -278,13 +279,17 @@ class EntregaController extends Controller
             ->get()
             ->keyBy(fn (PreparacaoItem $item) => $item->tipo.'-'.($item->corporate_id ?: $item->woo_order_id));
 
-        $frutas = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
-        $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
-        $totaisFrutas = collect($frutas)
-            ->mapWithKeys(fn (string $fruta) => [
-                $fruta => $corporates->sum(fn (Corporate $corporate) => (int) ($corporate->frutasParaDia($dia)[$fruta] ?? 0)),
+        $produtosKg = ComprasService::PRODUTOS_KG;
+        $totaisFrutas = collect(ComprasService::FRUTAS)
+            ->mapWithKeys(fn (string $label, string $fruta) => [
+                $fruta => $corporates->sum(fn (Corporate $corporate) => in_array($fruta, $produtosKg, true)
+                    ? (float) ($corporate->frutasParaDia($dia)[$fruta] ?? 0)
+                    : (int) ($corporate->frutasParaDia($dia)[$fruta] ?? 0)),
             ])
             ->all();
+        $totalPecas = collect($totaisFrutas)
+            ->except($produtosKg)
+            ->sum(fn (int|float $quantidade): int => (int) $quantidade);
 
         return view('entregas.preparacao', [
             'data' => $data,
@@ -295,7 +300,7 @@ class EntregaController extends Controller
             'b2cOrders' => $b2cOrders,
             'preparacaoItems' => $preparacaoItems,
             'totalCaixas' => $corporates->sum('numero_caixas'),
-            'totalPecas' => array_sum(collect($totaisFrutas)->except($produtosKg)->all()),
+            'totalPecas' => $totalPecas,
             'totaisFrutas' => $totaisFrutas,
             'totalFeitos' => $preparacaoItems->where('feito', true)->count(),
             'totalPorFazer' => $preparacaoItems->where('feito', false)->count(),

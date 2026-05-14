@@ -13,7 +13,7 @@
         'amoras' => 'Amoras',
         'morangos' => 'Morangos',
     ];
-    $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+    $produtosKg = \App\Services\ComprasService::PRODUTOS_KG;
 @endphp
 
 <x-layouts.app title="Preparacao">
@@ -52,6 +52,7 @@
         <div class="rounded border border-[#3B82F6]/30 bg-[#3B82F6]/10 p-5">
             <p class="text-sm text-blue-200">Pecas totais</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ $totalPecas }}</p>
+            <p class="mt-1 text-xs text-blue-100/80">Sem produtos em kg</p>
         </div>
         <div class="rounded border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-5">
             <p class="text-sm text-amber-200">Dia</p>
@@ -74,7 +75,9 @@
         @foreach($labels as $key => $label)
             <div class="rounded border border-white/10 bg-[#151E2D] p-4">
                 <p class="text-sm text-slate-400">{{ $label }}</p>
-                <p class="mt-2 text-2xl font-semibold text-white">{{ $totaisFrutas[$key] ?? 0 }}</p>
+                <p class="mt-2 text-2xl font-semibold text-white">
+                    {{ in_array($key, $produtosKg, true) ? number_format((float) ($totaisFrutas[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($totaisFrutas[$key] ?? 0) }}
+                </p>
             </div>
         @endforeach
     </div>
