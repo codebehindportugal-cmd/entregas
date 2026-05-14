@@ -77,6 +77,15 @@ class WooOrder extends Model
             return false;
         }
 
+        if ($this->source_type === 'subscription' || in_array($this->status, ['subscricao', 'wc-subscricao'], true)) {
+            $entregas = $this->entregasSubscricao();
+            $total = (int) ($entregas['total'] ?? 0);
+
+            return $total > 0
+                && (int) ($entregas['feitas'] ?? 0) >= $total
+                && (int) ($entregas['por_realizar'] ?? 0) === 0;
+        }
+
         $registos = $this->registosEntregaParaConclusao();
 
         if ($registos->isEmpty()) {
@@ -85,15 +94,6 @@ class WooOrder extends Model
 
         if ($registos->contains(fn (RegistoEntrega $registo): bool => $registo->status !== 'entregue')) {
             return false;
-        }
-
-        if ($this->source_type === 'subscription' || in_array($this->status, ['subscricao', 'wc-subscricao'], true)) {
-            $totalEsperado = (int) ($this->entregasSubscricao()['total'] ?? 0);
-
-            return $totalEsperado > 0 && $registos
-                ->map(fn (RegistoEntrega $registo) => $registo->data_entrega->toDateString())
-                ->unique()
-                ->count() >= $totalEsperado;
         }
 
         return true;
