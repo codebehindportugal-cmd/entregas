@@ -459,12 +459,13 @@ class EntregaController extends Controller
             ]);
         })->load(['corporate', 'wooOrder'])
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values())
-            ->sortBy([
-                fn (RegistoEntrega $registo) => $registo->ordem ?? 999999,
-                fn (RegistoEntrega $registo) => $registo->tipo === 'b2c'
+            ->sortBy(fn (RegistoEntrega $registo): string => sprintf(
+                '%06d-%s',
+                $registo->ordem ?? 999999,
+                mb_strtolower($registo->tipo === 'b2c'
                     ? ($registo->wooOrder?->billing_name ?? '')
-                    : ($registo->corporate?->empresa ?? ''),
-            ])
+                    : ($registo->corporate?->empresa ?? ''))
+            ))
             ->values();
 
         return view('entregas.minhas', compact('registos', 'q', 'status', 'data', 'dia'));
