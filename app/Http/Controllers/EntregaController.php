@@ -417,8 +417,11 @@ class EntregaController extends Controller
 
     public function minhasEntregas(): View
     {
-        $dia = self::DIAS[now()->dayOfWeek] ?? null;
-        $data = now()->toDateString();
+        $dataSelecionada = filled(request('data'))
+            ? Carbon::parse(request('data'))->startOfDay()
+            : now()->startOfDay();
+        $dia = self::DIAS[$dataSelecionada->dayOfWeek] ?? null;
+        $data = $dataSelecionada->toDateString();
         $q = request('q', '');
         $status = request('status', '');
 
@@ -440,7 +443,7 @@ class EntregaController extends Controller
             })
             ->get();
         $atribuicoes = $atribuicoes
-            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c' || $atribuicao->corporate?->temEntregaNaData(now()))
+            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c' || $atribuicao->corporate?->temEntregaNaData($dataSelecionada))
             ->values();
 
         $registos = $atribuicoes->map(function (AtribuicaoEntrega $atribuicao) use ($data) {
@@ -455,9 +458,57 @@ class EntregaController extends Controller
                 'data_entrega' => $data,
             ]);
         })->load(['corporate', 'wooOrder'])
-            ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values());
+            ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values())
+            ->sortBy([
+                fn (RegistoEntrega $registo) => $registo->ordem ?? 999999,
+                fn (RegistoEntrega $registo) => $registo->tipo === 'b2c'
+                    ? ($registo->wooOrder?->billing_name ?? '')
+                    : ($registo->corporate?->empresa ?? ''),
+            ])
+            ->values();
 
-        return view('entregas.minhas', compact('registos', 'q', 'status'));
+        return view('entregas.minhas', compact('registos', 'q', 'status', 'data', 'dia'));
+    }
+
+    public function updateOrdemMinhasEntregas(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'data' => ['required', 'date'],
+            'ordens' => ['nullable', 'array'],
+            'ordens.*' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ]);
+        $dataEntrega = Carbon::parse($data['data'])->toDateString();
+
+        $ids = collect($data['ordens'] ?? [])
+            ->keys()
+            ->map(fn (int|string $id): int => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('status', 'Ordem da volta guardada.');
+        }
+
+        $registos = RegistoEntrega::query()
+            ->whereIn('id', $ids)
+            ->where('user_id', auth()->id())
+            ->whereDate('data_entrega', $dataEntrega)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($data['ordens'] ?? [] as $id => $ordem) {
+            $registo = $registos->get((int) $id);
+
+            if ($registo === null) {
+                continue;
+            }
+
+            $registo->update([
+                'ordem' => filled($ordem) ? (int) $ordem : null,
+            ]);
+        }
+
+        return redirect()->route('minhas-entregas.index', ['data' => $dataEntrega])->with('status', 'Ordem da volta guardada.');
     }
 
     public function show(RegistoEntrega $registoEntrega): View

@@ -19,6 +19,7 @@ class RegistoEntrega extends Model
         'woo_order_id',
         'user_id',
         'data_entrega',
+        'ordem',
         'status',
         'hora_entrega',
         'nota',
