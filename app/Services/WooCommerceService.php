@@ -140,16 +140,30 @@ class WooCommerceService
             throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
         }
 
-        $resource = $order->source_type === 'subscription' || in_array($order->status, ['subscricao', 'wc-subscricao'], true)
-            ? 'subscriptions'
-            : 'orders';
+        $resources = ['orders'];
 
-        $response = $this->client()
-            ->put("{$url}/wp-json/wc/v3/{$resource}/{$order->woo_id}", [
-                'status' => 'completed',
-            ]);
+        if ($order->source_type === 'subscription' || in_array($order->status, ['subscricao', 'wc-subscricao'], true)) {
+            $resources[] = 'subscriptions';
+        }
 
-        if ($response->failed()) {
+        $response = null;
+
+        foreach ($resources as $resource) {
+            $response = $this->client()
+                ->put("{$url}/wp-json/wc/v3/{$resource}/{$order->woo_id}", [
+                    'status' => 'completed',
+                ]);
+
+            if (! $response->failed()) {
+                break;
+            }
+
+            if ($response->status() !== 404) {
+                break;
+            }
+        }
+
+        if ($response === null || $response->failed()) {
             throw new RuntimeException('Erro ao concluir no WooCommerce: '.$response->status().' - '.$response->body());
         }
 
