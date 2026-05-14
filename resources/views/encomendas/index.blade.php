@@ -184,6 +184,12 @@
                                 @csrf
                                 <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Publicar</button>
                             </form>
+                            @if($order->podeConcluirNoWordPress())
+                                <form method="post" action="{{ route('encomendas.complete', $order) }}" class="mb-2" onsubmit="return confirm('Marcar esta encomenda como concluida no WordPress?');">
+                                    @csrf
+                                    <button class="rounded bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30">Concluir WordPress</button>
+                                </form>
+                            @endif
                             <form method="post" action="{{ route('encomendas.destroy', $order) }}">
                                 @csrf
                                 @method('delete')

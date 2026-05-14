@@ -148,7 +148,7 @@
                     <th class="p-3">Tipo</th>
                     <th class="p-3">Produtos</th>
                     <th class="p-3">Preferencias</th>
-                    <th class="p-3">Estado</th>
+                    <th class="p-3">Produtos no cabaz</th>
                 </tr>
             </thead>
             <tbody>
@@ -158,7 +158,7 @@
                     @endphp
                     <tr class="border-t border-white/10 align-top">
                         <td class="p-3">
-                            <p class="font-semibold text-white">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</p>
+                            <a href="{{ route('encomendas.show', $order) }}" class="font-semibold text-white hover:text-[#22C55E]">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</a>
                             <p class="text-xs text-slate-400">{{ $order->billing_phone ?: $order->billing_email }}</p>
                         </td>
                         <td class="p-3 text-slate-300">{{ $order->source_type === 'subscription' ? 'Subscricao' : 'Em processamento' }}</td>
@@ -177,22 +177,27 @@
                             @endif
                         </td>
                         <td class="p-3">
-                            @if($item?->feito)
-                                <div class="mb-2 text-xs text-emerald-200">Feito {{ $item->feito_at?->format('H:i') }}</div>
-                                <form method="post" action="{{ route('preparacao.update', $item) }}">
-                                    @csrf
-                                    @method('put')
-                                    <input type="hidden" name="feito" value="0">
-                                    <button class="rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200">Marcar por fazer</button>
-                                </form>
-                            @else
-                                <form method="post" action="{{ route('preparacao.update', $item) }}">
-                                    @csrf
-                                    @method('put')
-                                    <input type="hidden" name="feito" value="1">
-                                    <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Marcar feito</button>
-                                </form>
-                            @endif
+                            <form method="post" action="{{ route('preparacao.produtos.update', $item) }}" class="min-w-64 space-y-2">
+                                @csrf
+                                @method('put')
+                                @forelse($order->line_items ?? [] as $index => $produto)
+                                    @php($produtoKey = (string) $index)
+                                    <label class="flex items-start gap-2 rounded border border-white/10 bg-[#0A0F1A] p-2 text-xs text-slate-200">
+                                        <input name="produtos_picados[]" type="checkbox" value="{{ $produtoKey }}" @checked(in_array($produtoKey, $item->produtos_picados ?? [], true)) class="mt-0.5 rounded border-white/10 bg-[#0A0F1A]">
+                                        <span>{{ $produto['quantity'] ?? 0 }}x {{ $produto['name'] ?? 'Produto' }}</span>
+                                    </label>
+                                @empty
+                                    <p class="text-xs text-slate-500">Sem produtos para picar.</p>
+                                @endforelse
+                                <div class="flex flex-wrap items-center gap-2 pt-1">
+                                    <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Guardar</button>
+                                    @if($item?->feito)
+                                        <span class="text-xs text-emerald-200">Feito {{ $item->feito_at?->format('H:i') }}</span>
+                                    @else
+                                        <span class="text-xs text-amber-200">{{ count($item->produtos_picados ?? []) }}/{{ count($order->line_items ?? []) }} picados</span>
+                                    @endif
+                                </div>
+                            </form>
                         </td>
                     </tr>
                 @empty

@@ -14,10 +14,21 @@ class BulkAtribuicaoEntregaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'corporate_ids' => ['required', 'array', 'min:1'],
+            'corporate_ids' => ['nullable', 'array'],
             'corporate_ids.*' => ['exists:corporates,id'],
+            'woo_order_ids' => ['nullable', 'array'],
+            'woo_order_ids.*' => ['exists:woo_orders,id'],
             'user_id' => ['required', 'exists:users,id'],
-            'dia_semana' => ['required', 'in:Segunda,Terca,Quarta,Quinta,Sexta'],
+            'dia_semana' => ['required', 'in:Segunda,Terca,Quarta,Quinta,Sexta,Sabado'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            if (empty($this->input('corporate_ids', [])) && empty($this->input('woo_order_ids', []))) {
+                $validator->errors()->add('corporate_ids', 'Selecione pelo menos uma entrega.');
+            }
+        });
     }
 }

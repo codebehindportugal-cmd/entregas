@@ -57,7 +57,7 @@ class EncomendaController extends Controller
             'sort' => $sort ?: 'sincronizado',
             'direction' => $direction,
             'orders' => WooOrder::query()
-                ->with('preparacaoItems')
+                ->with(['preparacaoItems', 'registoEntregas'])
                 ->whereNotIn('status', self::STATUSES_EXCLUIDOS)
                 ->where(function ($query): void {
                     $query->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
@@ -105,7 +105,7 @@ class EncomendaController extends Controller
 
     public function show(WooOrder $encomenda): View
     {
-        $encomenda->load('preparacaoItems.feitoPor');
+        $encomenda->load(['preparacaoItems.feitoPor', 'registoEntregas.user']);
 
         return view('encomendas.show', compact('encomenda'));
     }
@@ -175,6 +175,23 @@ class EncomendaController extends Controller
         }
 
         return back()->with('status', $message);
+    }
+
+    public function complete(WooOrder $encomenda, WooCommerceService $service): RedirectResponse
+    {
+        $encomenda->load('registoEntregas');
+
+        if (! $encomenda->podeConcluirNoWordPress()) {
+            return back()->withErrors(['complete' => 'Esta encomenda ainda nao tem todas as entregas marcadas como entregues.']);
+        }
+
+        try {
+            $service->markAsCompleted($encomenda);
+        } catch (Throwable $exception) {
+            return back()->withErrors(['complete' => $exception->getMessage()]);
+        }
+
+        return redirect()->route('encomendas.index')->with('status', "Encomenda #{$encomenda->woo_id} marcada como concluida no WordPress.");
     }
 
     public function destroy(WooOrder $encomenda): RedirectResponse

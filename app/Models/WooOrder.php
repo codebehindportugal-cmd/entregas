@@ -66,6 +66,52 @@ class WooOrder extends Model
         return $this->hasMany(PreparacaoItem::class);
     }
 
+    public function registoEntregas(): HasMany
+    {
+        return $this->hasMany(RegistoEntrega::class);
+    }
+
+    public function podeConcluirNoWordPress(): bool
+    {
+        if (in_array($this->status, ['completed', 'wc-completed'], true)) {
+            return false;
+        }
+
+        $registos = $this->registosEntregaParaConclusao();
+
+        if ($registos->isEmpty()) {
+            return false;
+        }
+
+        if ($registos->contains(fn (RegistoEntrega $registo): bool => $registo->status !== 'entregue')) {
+            return false;
+        }
+
+        if ($this->source_type === 'subscription' || in_array($this->status, ['subscricao', 'wc-subscricao'], true)) {
+            $totalEsperado = (int) ($this->entregasSubscricao()['total'] ?? 0);
+
+            return $totalEsperado > 0 && $registos
+                ->map(fn (RegistoEntrega $registo) => $registo->data_entrega->toDateString())
+                ->unique()
+                ->count() >= $totalEsperado;
+        }
+
+        return true;
+    }
+
+    private function registosEntregaParaConclusao(): Collection
+    {
+        if ($this->relationLoaded('registoEntregas')) {
+            return $this->registoEntregas;
+        }
+
+        if (! $this->exists) {
+            return collect();
+        }
+
+        return $this->registoEntregas()->get();
+    }
+
     public static function detectarCabazTipo(array $lineItems): ?string
     {
         $nomeLower = mb_strtolower(collect($lineItems)->pluck('name')->implode(' '));

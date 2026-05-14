@@ -70,7 +70,7 @@
                     @if($periodo !== 'dia')
                         <th class="p-3"><a href="{{ $sortUrl('data') }}">Data{{ $sortMark('data') }}</a></th>
                     @endif
-                    <th class="p-3"><a href="{{ $sortUrl('empresa') }}">Empresa{{ $sortMark('empresa') }}</a></th>
+                    <th class="p-3"><a href="{{ $sortUrl('empresa') }}">Cliente{{ $sortMark('empresa') }}</a></th>
                     <th class="p-3"><a href="{{ $sortUrl('colaborador') }}">Colaborador{{ $sortMark('colaborador') }}</a></th>
                     <th class="p-3"><a href="{{ $sortUrl('estado') }}">Estado{{ $sortMark('estado') }}</a></th>
                     <th class="p-3"><a href="{{ $sortUrl('hora') }}">Hora{{ $sortMark('hora') }}</a></th>
@@ -85,8 +85,13 @@
                             <td class="p-3 text-slate-300">{{ $registo->data_entrega->format('d/m/Y') }}</td>
                         @endif
                         <td class="p-3">
-                            <p class="font-semibold text-white">{{ $registo->corporate->empresa }}</p>
-                            <p class="text-xs text-slate-400">{{ $registo->corporate->moradaParaEntrega() ?: $registo->corporate->sucursal }}</p>
+                            @if($registo->tipo === 'b2c')
+                                <p class="font-semibold text-white">#{{ $registo->wooOrder->woo_id }} {{ $registo->wooOrder->billing_name ?: 'Cliente B2C' }}</p>
+                                <p class="text-xs text-slate-400">B2C - {{ $registo->wooOrder->billing_phone ?: $registo->wooOrder->billing_email }}</p>
+                            @else
+                                <p class="font-semibold text-white">{{ $registo->corporate->empresa }}</p>
+                                <p class="text-xs text-slate-400">{{ $registo->corporate->moradaParaEntrega() ?: $registo->corporate->sucursal }}</p>
+                            @endif
                         </td>
                         <td class="p-3 text-slate-300">
                             <span class="mr-2 inline-block h-3 w-3 rounded-full" style="background: {{ $registo->user->cor }}"></span>

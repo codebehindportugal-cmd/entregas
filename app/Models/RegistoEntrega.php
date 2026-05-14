@@ -14,7 +14,9 @@ class RegistoEntrega extends Model
     protected $table = 'registo_entregas';
 
     protected $fillable = [
+        'tipo',
         'corporate_id',
+        'woo_order_id',
         'user_id',
         'data_entrega',
         'status',
@@ -40,5 +42,10 @@ class RegistoEntrega extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function wooOrder(): BelongsTo
+    {
+        return $this->belongsTo(WooOrder::class);
     }
 }

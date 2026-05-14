@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/entregas/verificacao', [EntregaController::class, 'verificacao'])->name('entregas.verificacao');
         Route::get('/preparacao', [EntregaController::class, 'preparacao'])->name('preparacao.index');
         Route::put('/preparacao/{item}', [EntregaController::class, 'updatePreparacaoItem'])->name('preparacao.update');
+        Route::put('/preparacao/{item}/produtos', [EntregaController::class, 'updatePreparacaoProdutos'])->name('preparacao.produtos.update');
         Route::resource('/lista-cabazes', ListaCabazController::class)
             ->parameters(['lista-cabazes' => 'listaCabaz'])
             ->except(['show']);
@@ -63,6 +64,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/encomendas/{encomenda}/duplicar', [EncomendaController::class, 'duplicate'])->name('encomendas.duplicate');
         Route::put('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'postpone'])->name('encomendas.postpone');
         Route::delete('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'clearPostpone'])->name('encomendas.postpone.clear');
+        Route::post('/encomendas/{encomenda}/concluir-wordpress', [EncomendaController::class, 'complete'])->name('encomendas.complete');
         Route::delete('/encomendas/{encomenda}', [EncomendaController::class, 'destroy'])->name('encomendas.destroy');
         Route::post('/entregas/atribuicoes', [EntregaController::class, 'storeAtribuicao'])->name('entregas.atribuicoes.store');
         Route::post('/entregas/atribuicoes/massa', [EntregaController::class, 'storeAtribuicoesBulk'])->name('entregas.atribuicoes.bulk');

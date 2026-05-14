@@ -17,7 +17,7 @@ class UpdateRegistoEntregaRequest extends FormRequest
             'status' => ['required', 'in:pendente,entregue,falhou'],
             'nota' => ['nullable', 'string'],
             'fotos' => ['nullable', 'array', 'max:6'],
-            'fotos.*' => ['file', 'mimes:jpg,jpeg,png,webp,heic,heif', 'max:6144'],
+            'fotos.*' => ['file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,image/heif,application/octet-stream', 'max:6144'],
         ];
     }
 
@@ -25,7 +25,7 @@ class UpdateRegistoEntregaRequest extends FormRequest
     {
         return [
             'fotos.max' => 'Pode enviar no maximo 6 fotos de cada vez.',
-            'fotos.*.mimes' => 'As fotos devem estar em JPG, PNG, WEBP, HEIC ou HEIF.',
+            'fotos.*.mimetypes' => 'As fotos devem estar em JPG, PNG, WEBP, HEIC ou HEIF.',
             'fotos.*.max' => 'Cada foto pode ter no maximo 6 MB.',
         ];
     }

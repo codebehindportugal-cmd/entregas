@@ -14,7 +14,9 @@ class AtribuicaoEntrega extends Model
     protected $table = 'atribuicoes';
 
     protected $fillable = [
+        'tipo',
         'corporate_id',
+        'woo_order_id',
         'user_id',
         'dia_semana',
     ];
@@ -27,5 +29,10 @@ class AtribuicaoEntrega extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function wooOrder(): BelongsTo
+    {
+        return $this->belongsTo(WooOrder::class);
     }
 }

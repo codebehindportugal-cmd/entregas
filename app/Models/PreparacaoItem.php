@@ -19,6 +19,7 @@ class PreparacaoItem extends Model
         'feito',
         'feito_at',
         'feito_por',
+        'produtos_picados',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class PreparacaoItem extends Model
             'data_preparacao' => 'date',
             'feito' => 'boolean',
             'feito_at' => 'datetime',
+            'produtos_picados' => 'array',
         ];
     }
 

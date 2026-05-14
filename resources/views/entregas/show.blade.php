@@ -1,21 +1,30 @@
 <x-layouts.app title="Entrega">
-    <x-page-title title="{{ $registoEntrega->corporate->empresa }}" subtitle="{{ $registoEntrega->data_entrega->format('d/m/Y') }}" />
+    <x-page-title title="{{ $registoEntrega->tipo === 'b2c' ? '#'.$registoEntrega->wooOrder->woo_id.' '.($registoEntrega->wooOrder->billing_name ?: 'Cliente B2C') : $registoEntrega->corporate->empresa }}" subtitle="{{ $registoEntrega->data_entrega->format('d/m/Y') }}" />
     <div class="mb-6 grid gap-4 lg:grid-cols-3">
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
-            <p class="text-sm text-slate-400">Responsavel</p>
-            <p class="mt-1 font-semibold text-white">{{ $registoEntrega->corporate->responsavel_nome ?: 'Por definir' }}</p>
+            <p class="text-sm text-slate-400">{{ $registoEntrega->tipo === 'b2c' ? 'Cliente' : 'Responsavel' }}</p>
+            <p class="mt-1 font-semibold text-white">{{ $registoEntrega->tipo === 'b2c' ? ($registoEntrega->wooOrder->billing_name ?: 'Por definir') : ($registoEntrega->corporate->responsavel_nome ?: 'Por definir') }}</p>
         </div>
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
             <p class="text-sm text-slate-400">Telemovel</p>
-            @if($registoEntrega->corporate->responsavel_telefone)
-                <a href="tel:{{ $registoEntrega->corporate->responsavel_telefone }}" class="mt-1 block font-semibold text-[#22C55E]">{{ $registoEntrega->corporate->responsavel_telefone }}</a>
+            @php($telefone = $registoEntrega->tipo === 'b2c' ? $registoEntrega->wooOrder->billing_phone : $registoEntrega->corporate->responsavel_telefone)
+            @if($telefone)
+                <a href="tel:{{ $telefone }}" class="mt-1 block font-semibold text-[#22C55E]">{{ $telefone }}</a>
             @else
                 <p class="mt-1 font-semibold text-white">Por definir</p>
             @endif
         </div>
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
-            <p class="text-sm text-slate-400">Morada</p>
-            @if($registoEntrega->corporate->moradaParaEntrega())
+            <p class="text-sm text-slate-400">{{ $registoEntrega->tipo === 'b2c' ? 'Produtos' : 'Morada' }}</p>
+            @if($registoEntrega->tipo === 'b2c')
+                <div class="mt-1 space-y-1 text-sm font-semibold text-white">
+                    @forelse($registoEntrega->wooOrder->line_items ?? [] as $produto)
+                        <p>{{ $produto['quantity'] ?? 0 }}x {{ $produto['name'] ?? 'Produto' }}</p>
+                    @empty
+                        <p>Sem produtos</p>
+                    @endforelse
+                </div>
+            @elseif($registoEntrega->corporate->moradaParaEntrega())
                 <p class="mt-1 font-semibold text-white">{{ $registoEntrega->corporate->moradaParaEntrega() }}</p>
                 <div class="mt-3 grid gap-2 sm:grid-cols-2">
                     <a href="{{ $registoEntrega->corporate->googleMapsUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6] px-3 py-2 text-center text-sm font-semibold text-white">Google Maps</a>
@@ -40,7 +49,7 @@
             <textarea name="nota" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('nota', $registoEntrega->nota) }}</textarea>
         </label>
         <label class="mt-5 block text-sm text-slate-300">Fotos
-            <input name="fotos[]" type="file" accept="image/*" capture="environment" multiple class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+            <input name="fotos[]" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
         @if($registoEntrega->fotos)
             <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -14,6 +14,7 @@ use App\Models\WooOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class EntregaController extends Controller
@@ -44,26 +45,33 @@ class EntregaController extends Controller
             ->orderBy('empresa')
             ->get();
 
+        $b2cOrders = $this->b2cOrdersParaDia($dia, now(), $q)->get();
+
         return view('entregas.index', [
             'dia' => $dia,
             'q' => $q,
             'userId' => $userId,
             'dias' => array_values(self::DIAS),
-            'atribuicoes' => AtribuicaoEntrega::with(['corporate', 'user'])
+            'atribuicoes' => AtribuicaoEntrega::with(['corporate', 'wooOrder', 'user'])
                 ->where('dia_semana', $dia)
                 ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
-                ->whereHas('corporate', fn ($query) => $query
-                    ->whereJsonContains('dias_entrega', $dia)
-                    ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                        $query->where('empresa', 'like', "%{$q}%")
-                            ->orWhere('sucursal', 'like', "%{$q}%")
-                            ->orWhere('morada_entrega', 'like', "%{$q}%")
-                            ->orWhere('fatura_morada', 'like', "%{$q}%");
-                    }))
-                )
+                ->where(function ($query) use ($dia, $q, $b2cOrders): void {
+                    $query->whereHas('corporate', fn ($query) => $query
+                        ->whereJsonContains('dias_entrega', $dia)
+                        ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                            $query->where('empresa', 'like', "%{$q}%")
+                                ->orWhere('sucursal', 'like', "%{$q}%")
+                                ->orWhere('morada_entrega', 'like', "%{$q}%")
+                                ->orWhere('fatura_morada', 'like', "%{$q}%");
+                        }))
+                    )->orWhereIn('woo_order_id', $b2cOrders->pluck('id'));
+                })
+                ->orderBy('tipo')
                 ->orderBy('corporate_id')
+                ->orderBy('woo_order_id')
                 ->get(),
             'corporates' => $corporatesDoDia,
+            'b2cOrders' => $b2cOrders,
             'colaboradores' => User::where('ativo', true)->orderBy('name')->get(),
         ]);
     }
@@ -110,6 +118,7 @@ class EntregaController extends Controller
 
             AtribuicaoEntrega::with('corporate')
                 ->where('dia_semana', $dia)
+                ->where('tipo', 'corporate')
                 ->whereIn('corporate_id', $corporateIdsComEntrega)
                 ->whereHas('corporate', fn ($query) => $query
                     ->where('ativo', true)
@@ -118,43 +127,71 @@ class EntregaController extends Controller
                 ->get()
                 ->each(function (AtribuicaoEntrega $atribuicao) use ($data): void {
                     RegistoEntrega::firstOrCreate([
+                        'tipo' => 'corporate',
                         'corporate_id' => $atribuicao->corporate_id,
                         'user_id' => $atribuicao->user_id,
                         'data_entrega' => $data,
                     ]);
                 });
+
+            $b2cOrderIdsComEntrega = $this->b2cOrdersParaDia($dia, $dataSelecionada)->pluck('id');
+
+            AtribuicaoEntrega::with('wooOrder')
+                ->where('dia_semana', $dia)
+                ->where('tipo', 'b2c')
+                ->whereIn('woo_order_id', $b2cOrderIdsComEntrega)
+                ->get()
+                ->each(fn (AtribuicaoEntrega $atribuicao) => $this->firstOrCreateRegistoB2c($atribuicao, $data));
         }
 
         $corporateIdsComEntrega ??= collect();
+        $b2cOrderIdsComEntrega ??= collect();
 
-        $registos = RegistoEntrega::with(['corporate', 'user'])
+        $registos = RegistoEntrega::with(['corporate', 'wooOrder', 'user'])
             ->whereBetween('data_entrega', [$inicioPeriodo->toDateString(), $fimPeriodo->toDateString()])
-            ->when($periodo === 'dia' && $dia !== null, fn ($query) => $query->whereIn('corporate_id', $corporateIdsComEntrega))
+            ->when($periodo === 'dia' && $dia !== null, fn ($query) => $query->where(function ($query) use ($corporateIdsComEntrega, $b2cOrderIdsComEntrega): void {
+                $query->whereIn('corporate_id', $corporateIdsComEntrega)
+                    ->orWhereIn('woo_order_id', $b2cOrderIdsComEntrega);
+            }))
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($query) => $query->where('status', $status))
             ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('corporates.empresa', 'like', "%{$q}%")
                     ->orWhere('corporates.sucursal', 'like', "%{$q}%")
                     ->orWhere('corporates.morada_entrega', 'like', "%{$q}%")
-                    ->orWhere('corporates.fatura_morada', 'like', "%{$q}%");
+                    ->orWhere('corporates.fatura_morada', 'like', "%{$q}%")
+                    ->orWhere('woo_orders.billing_name', 'like', "%{$q}%")
+                    ->orWhere('woo_orders.billing_phone', 'like', "%{$q}%")
+                    ->orWhere('woo_orders.billing_email', 'like', "%{$q}%")
+                    ->orWhere('woo_orders.woo_id', 'like', "%{$q}%");
             }))
-            ->join('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
+            ->leftJoin('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
+            ->leftJoin('woo_orders', 'registo_entregas.woo_order_id', '=', 'woo_orders.id')
             ->join('users', 'registo_entregas.user_id', '=', 'users.id')
             ->orderBy($sortColumn, $direction)
             ->orderBy('corporates.empresa')
+            ->orderBy('woo_orders.billing_name')
             ->select('registo_entregas.*')
             ->get();
 
         $resumo = RegistoEntrega::whereBetween('data_entrega', [$inicioPeriodo->toDateString(), $fimPeriodo->toDateString()])
-            ->when($periodo === 'dia' && $dia !== null, fn ($query) => $query->whereIn('corporate_id', $corporateIdsComEntrega))
+            ->when($periodo === 'dia' && $dia !== null, fn ($query) => $query->where(function ($query) use ($corporateIdsComEntrega, $b2cOrderIdsComEntrega): void {
+                $query->whereIn('corporate_id', $corporateIdsComEntrega)
+                    ->orWhereIn('woo_order_id', $b2cOrderIdsComEntrega);
+            }))
             ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
             ->when(filled($q), fn ($query) => $query
-                ->join('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
+                ->leftJoin('corporates', 'registo_entregas.corporate_id', '=', 'corporates.id')
+                ->leftJoin('woo_orders', 'registo_entregas.woo_order_id', '=', 'woo_orders.id')
                 ->where(function ($query) use ($q): void {
                     $query->where('corporates.empresa', 'like', "%{$q}%")
                         ->orWhere('corporates.sucursal', 'like', "%{$q}%")
                         ->orWhere('corporates.morada_entrega', 'like', "%{$q}%")
-                        ->orWhere('corporates.fatura_morada', 'like', "%{$q}%");
+                        ->orWhere('corporates.fatura_morada', 'like', "%{$q}%")
+                        ->orWhere('woo_orders.billing_name', 'like', "%{$q}%")
+                        ->orWhere('woo_orders.billing_phone', 'like', "%{$q}%")
+                        ->orWhere('woo_orders.billing_email', 'like', "%{$q}%")
+                        ->orWhere('woo_orders.woo_id', 'like', "%{$q}%");
                 })
             )
             ->selectRaw("sum(case when status = 'pendente' then 1 else 0 end) as pendentes")
@@ -207,60 +244,7 @@ class EntregaController extends Controller
             ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
             ->values();
 
-        $diaB2c = match ($dia) {
-            'Segunda' => 'segunda',
-            'Quarta' => 'quarta',
-            'Sabado' => 'sabado',
-            default => null,
-        };
-
-        $b2cOrders = WooOrder::query()
-            ->where(function ($query): void {
-                $query->whereIn('status', ['processing', 'on-hold', 'pending'])
-                    ->orWhere('status', 'subscricao');
-            })
-            ->when($diaB2c !== null, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
-                    $query->whereDate('postponed_until', $data)
-                        ->orWhere(function ($query) use ($diaB2c, $data): void {
-                            $query->where(function ($query) use ($data): void {
-                                $query->whereNull('postponed_until')
-                                    ->orWhereDate('postponed_until', '<', $data);
-                            })->where(function ($query) use ($diaB2c, $data): void {
-                                $query->whereJsonContains('delivery_dates', $data)
-                                    ->orWhereDate('scheduled_delivery_at', $data)
-                                    ->orWhere(function ($query) use ($diaB2c, $data): void {
-                                        $query->where('source_type', 'order')
-                                            ->where('status', '!=', 'subscricao')
-                                            ->where('dia_entrega', $diaB2c)
-                                            ->where(function ($query) use ($data): void {
-                                                $query->whereNull('scheduled_delivery_at')
-                                                    ->orWhereDate('scheduled_delivery_at', '<=', $data)
-                                                    ->orWhereDate('first_delivery_at', '<=', $data);
-                                            });
-                                    })
-                                    ->orWhere(function ($query) use ($diaB2c): void {
-                                        $query->where(function ($query): void {
-                                            $query->whereNull('delivery_dates')
-                                                ->orWhereJsonLength('delivery_dates', 0);
-                                        })->whereNull('scheduled_delivery_at')
-                                            ->where(function ($query) use ($diaB2c): void {
-                                                $query->where('dia_entrega', $diaB2c)
-                                                    ->orWhereNull('dia_entrega');
-                                            });
-                                    });
-                            });
-                        });
-                }),
-                fn ($query) => $query->whereRaw('1 = 0')
-            )
-            ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                $query->where('billing_name', 'like', "%{$q}%")
-                    ->orWhere('billing_phone', 'like', "%{$q}%")
-                    ->orWhere('billing_email', 'like', "%{$q}%")
-                    ->orWhere('woo_id', 'like', "%{$q}%");
-            }))
-            ->orderBy('billing_name')
-            ->get();
+        $b2cOrders = $this->b2cOrdersParaDia($dia, $dataSelecionada, $q)->get();
 
         $corporates->each(function (Corporate $corporate) use ($data): void {
             PreparacaoItem::firstOrCreate([
@@ -324,10 +308,38 @@ class EntregaController extends Controller
         return back()->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
     }
 
+    public function updatePreparacaoProdutos(Request $request, PreparacaoItem $item): RedirectResponse
+    {
+        abort_unless($item->tipo === 'b2c', 404);
+
+        $data = $request->validate([
+            'produtos_picados' => ['nullable', 'array'],
+            'produtos_picados.*' => ['string'],
+        ]);
+
+        $picados = array_values(array_unique($data['produtos_picados'] ?? []));
+        $totalProdutos = count($item->wooOrder?->line_items ?? []);
+        $feito = $totalProdutos > 0 && count($picados) >= $totalProdutos;
+
+        $item->update([
+            'produtos_picados' => $picados,
+            'feito' => $feito,
+            'feito_at' => $feito ? now() : null,
+            'feito_por' => $feito ? auth()->id() : null,
+        ]);
+
+        return back()->with('status', $feito ? 'Encomenda B2C preparada.' : 'Produtos picados guardados.');
+    }
+
     public function storeAtribuicao(StoreAtribuicaoEntregaRequest $request): RedirectResponse
     {
         AtribuicaoEntrega::updateOrCreate(
-            $request->safe()->only(['corporate_id', 'dia_semana']),
+            [
+                'tipo' => $request->validated('tipo'),
+                'corporate_id' => $request->validated('tipo') === 'corporate' ? $request->validated('corporate_id') : null,
+                'woo_order_id' => $request->validated('tipo') === 'b2c' ? $request->validated('woo_order_id') : null,
+                'dia_semana' => $request->validated('dia_semana'),
+            ],
             ['user_id' => $request->validated('user_id')]
         );
 
@@ -338,10 +350,26 @@ class EntregaController extends Controller
     {
         $count = 0;
 
-        foreach ($request->validated('corporate_ids') as $corporateId) {
+        foreach ($request->validated('corporate_ids', []) as $corporateId) {
             AtribuicaoEntrega::updateOrCreate(
                 [
+                    'tipo' => 'corporate',
                     'corporate_id' => $corporateId,
+                    'woo_order_id' => null,
+                    'dia_semana' => $request->validated('dia_semana'),
+                ],
+                ['user_id' => $request->validated('user_id')]
+            );
+
+            $count++;
+        }
+
+        foreach ($request->validated('woo_order_ids', []) as $wooOrderId) {
+            AtribuicaoEntrega::updateOrCreate(
+                [
+                    'tipo' => 'b2c',
+                    'corporate_id' => null,
+                    'woo_order_id' => $wooOrderId,
                     'dia_semana' => $request->validated('dia_semana'),
                 ],
                 ['user_id' => $request->validated('user_id')]
@@ -355,7 +383,13 @@ class EntregaController extends Controller
 
     public function updateAtribuicao(StoreAtribuicaoEntregaRequest $request, AtribuicaoEntrega $atribuicao): RedirectResponse
     {
-        $atribuicao->update($request->safe()->only(['corporate_id', 'user_id', 'dia_semana']));
+        $atribuicao->update([
+            'tipo' => $request->validated('tipo'),
+            'corporate_id' => $request->validated('tipo') === 'corporate' ? $request->validated('corporate_id') : null,
+            'woo_order_id' => $request->validated('tipo') === 'b2c' ? $request->validated('woo_order_id') : null,
+            'user_id' => $request->validated('user_id'),
+            'dia_semana' => $request->validated('dia_semana'),
+        ]);
 
         return back()->with('status', 'Atribuicao atualizada.');
     }
@@ -376,27 +410,39 @@ class EntregaController extends Controller
         $q = request('q', '');
         $status = request('status', '');
 
-        $atribuicoes = AtribuicaoEntrega::with('corporate')
+        $atribuicoes = AtribuicaoEntrega::with(['corporate', 'wooOrder'])
             ->where('user_id', auth()->id())
             ->when($dia, fn ($query) => $query->where('dia_semana', $dia))
-            ->whereHas('corporate', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                $query->where('empresa', 'like', "%{$q}%")
-                    ->orWhere('sucursal', 'like', "%{$q}%")
-                    ->orWhere('morada_entrega', 'like', "%{$q}%")
-                    ->orWhere('fatura_morada', 'like', "%{$q}%");
-            })))
+            ->where(function ($query) use ($q): void {
+                $query->whereHas('corporate', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                    $query->where('empresa', 'like', "%{$q}%")
+                        ->orWhere('sucursal', 'like', "%{$q}%")
+                        ->orWhere('morada_entrega', 'like', "%{$q}%")
+                        ->orWhere('fatura_morada', 'like', "%{$q}%");
+                })))->orWhereHas('wooOrder', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                    $query->where('billing_name', 'like', "%{$q}%")
+                        ->orWhere('billing_phone', 'like', "%{$q}%")
+                        ->orWhere('billing_email', 'like', "%{$q}%")
+                        ->orWhere('woo_id', 'like', "%{$q}%");
+                })));
+            })
             ->get();
         $atribuicoes = $atribuicoes
-            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->corporate->temEntregaNaData(now()))
+            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c' || $atribuicao->corporate?->temEntregaNaData(now()))
             ->values();
 
         $registos = $atribuicoes->map(function (AtribuicaoEntrega $atribuicao) use ($data) {
+            if ($atribuicao->tipo === 'b2c') {
+                return $this->firstOrCreateRegistoB2c($atribuicao, $data);
+            }
+
             return RegistoEntrega::firstOrCreate([
+                'tipo' => 'corporate',
                 'corporate_id' => $atribuicao->corporate_id,
                 'user_id' => $atribuicao->user_id,
                 'data_entrega' => $data,
             ]);
-        })->load('corporate')
+        })->load(['corporate', 'wooOrder'])
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values());
 
         return view('entregas.minhas', compact('registos', 'q', 'status'));
@@ -406,7 +452,7 @@ class EntregaController extends Controller
     {
         abort_unless(auth()->user()->isAdmin() || $registoEntrega->user_id === auth()->id(), 403);
 
-        $registoEntrega->load(['corporate', 'user']);
+        $registoEntrega->load(['corporate', 'wooOrder', 'user']);
 
         return view('entregas.show', compact('registoEntrega'));
     }
@@ -430,6 +476,10 @@ class EntregaController extends Controller
 
             if ($path !== false) {
                 $fotos[] = $path;
+            } else {
+                throw ValidationException::withMessages([
+                    'fotos' => 'Nao foi possivel guardar a foto. Tente novamente ou escolha uma imagem menor.',
+                ]);
             }
         }
 
@@ -441,5 +491,73 @@ class EntregaController extends Controller
         ]);
 
         return redirect()->route('minhas-entregas.show', $registoEntrega)->with('status', 'Entrega atualizada.');
+    }
+
+    private function b2cOrdersParaDia(string $dia, Carbon $dataSelecionada, string $q = '')
+    {
+        $data = $dataSelecionada->toDateString();
+        $diaB2c = match ($dia) {
+            'Segunda' => 'segunda',
+            'Quarta' => 'quarta',
+            'Sabado' => 'sabado',
+            default => null,
+        };
+
+        return WooOrder::query()
+            ->where(function ($query): void {
+                $query->whereIn('status', ['processing', 'on-hold', 'pending'])
+                    ->orWhere('status', 'subscricao');
+            })
+            ->when($diaB2c !== null, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
+                $query->whereDate('postponed_until', $data)
+                    ->orWhere(function ($query) use ($diaB2c, $data): void {
+                        $query->where(function ($query) use ($data): void {
+                            $query->whereNull('postponed_until')
+                                ->orWhereDate('postponed_until', '<', $data);
+                        })->where(function ($query) use ($diaB2c, $data): void {
+                            $query->whereJsonContains('delivery_dates', $data)
+                                ->orWhereDate('scheduled_delivery_at', $data)
+                                ->orWhere(function ($query) use ($diaB2c, $data): void {
+                                    $query->where('source_type', 'order')
+                                        ->where('status', '!=', 'subscricao')
+                                        ->where('dia_entrega', $diaB2c)
+                                        ->where(function ($query) use ($data): void {
+                                            $query->whereNull('scheduled_delivery_at')
+                                                ->orWhereDate('scheduled_delivery_at', '<=', $data)
+                                                ->orWhereDate('first_delivery_at', '<=', $data);
+                                        });
+                                })
+                                ->orWhere(function ($query) use ($diaB2c): void {
+                                    $query->where(function ($query): void {
+                                        $query->whereNull('delivery_dates')
+                                            ->orWhereJsonLength('delivery_dates', 0);
+                                    })->whereNull('scheduled_delivery_at')
+                                        ->where(function ($query) use ($diaB2c): void {
+                                            $query->where('dia_entrega', $diaB2c)
+                                                ->orWhereNull('dia_entrega');
+                                        });
+                                });
+                        });
+                    });
+            }), fn ($query) => $query->whereRaw('1 = 0'))
+            ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                $query->where('billing_name', 'like', "%{$q}%")
+                    ->orWhere('billing_phone', 'like', "%{$q}%")
+                    ->orWhere('billing_email', 'like', "%{$q}%")
+                    ->orWhere('woo_id', 'like', "%{$q}%");
+            }))
+            ->orderBy('billing_name');
+    }
+
+    private function firstOrCreateRegistoB2c(AtribuicaoEntrega $atribuicao, string $data): RegistoEntrega
+    {
+        return RegistoEntrega::firstOrCreate([
+            'tipo' => 'b2c',
+            'woo_order_id' => $atribuicao->woo_order_id,
+            'user_id' => $atribuicao->user_id,
+            'data_entrega' => $data,
+        ], [
+            'corporate_id' => null,
+        ]);
     }
 }

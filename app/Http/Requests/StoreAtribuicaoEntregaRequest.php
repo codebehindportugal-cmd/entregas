@@ -14,9 +14,11 @@ class StoreAtribuicaoEntregaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'corporate_id' => ['required', 'exists:corporates,id'],
+            'tipo' => ['required', 'in:corporate,b2c'],
+            'corporate_id' => ['required_if:tipo,corporate', 'nullable', 'exists:corporates,id'],
+            'woo_order_id' => ['required_if:tipo,b2c', 'nullable', 'exists:woo_orders,id'],
             'user_id' => ['required', 'exists:users,id'],
-            'dia_semana' => ['required', 'in:Segunda,Terca,Quarta,Quinta,Sexta'],
+            'dia_semana' => ['required', 'in:Segunda,Terca,Quarta,Quinta,Sexta,Sabado'],
         ];
     }
 }

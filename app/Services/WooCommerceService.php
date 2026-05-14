@@ -132,6 +132,33 @@ class WooCommerceService
         ];
     }
 
+    public function markAsCompleted(WooOrder $order): WooOrder
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $resource = $order->source_type === 'subscription' || in_array($order->status, ['subscricao', 'wc-subscricao'], true)
+            ? 'subscriptions'
+            : 'orders';
+
+        $response = $this->client()
+            ->put("{$url}/wp-json/wc/v3/{$resource}/{$order->woo_id}", [
+                'status' => 'completed',
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro ao concluir no WooCommerce: '.$response->status().' - '.$response->body());
+        }
+
+        $payload = $response->json();
+        $order->update($this->payload($payload, $order->source_type));
+
+        return $order->fresh();
+    }
+
     private function client(): PendingRequest
     {
         return Http::withBasicAuth(config('woocommerce.key'), config('woocommerce.secret'))

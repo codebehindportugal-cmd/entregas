@@ -1,6 +1,14 @@
 <x-layouts.app title="Perfil do cliente">
     <x-page-title title="{{ $encomenda->billing_name ?: 'Cliente B2C' }}" subtitle="Perfil e preferencias">
-        <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Voltar</a>
+        <div class="flex flex-wrap gap-2">
+            @if($encomenda->podeConcluirNoWordPress())
+                <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Marcar esta encomenda como concluida no WordPress?');">
+                    @csrf
+                    <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Concluir WordPress</button>
+                </form>
+            @endif
+            <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Voltar</a>
+        </div>
     </x-page-title>
 
     <div class="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
@@ -27,6 +35,26 @@
                     @endforelse
                 </div>
             </div>
+
+            @foreach($encomenda->preparacaoItems->where('tipo', 'b2c')->sortByDesc('data_preparacao') as $preparacao)
+                <div class="rounded border border-white/10 bg-[#151E2D] p-5">
+                    <h2 class="text-lg font-semibold text-white">Preparacao {{ $preparacao->data_preparacao->format('d/m/Y') }}</h2>
+                    <form method="post" action="{{ route('preparacao.produtos.update', $preparacao) }}" class="mt-4 space-y-2">
+                        @csrf
+                        @method('put')
+                        @forelse($encomenda->line_items ?? [] as $index => $produto)
+                            @php($produtoKey = (string) $index)
+                            <label class="flex items-start gap-2 rounded border border-white/10 bg-[#0A0F1A] p-3 text-sm text-slate-200">
+                                <input name="produtos_picados[]" type="checkbox" value="{{ $produtoKey }}" @checked(in_array($produtoKey, $preparacao->produtos_picados ?? [], true)) class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
+                                <span>{{ $produto['quantity'] ?? 0 }}x {{ $produto['name'] ?? 'Produto' }}</span>
+                            </label>
+                        @empty
+                            <p class="text-sm text-slate-500">Sem produtos para picar.</p>
+                        @endforelse
+                        <button class="mt-2 rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Guardar produtos no cabaz</button>
+                    </form>
+                </div>
+            @endforeach
 
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Entregas</h2>
