@@ -17,7 +17,7 @@
                 <option value="0">Todos</option>
                 @foreach($colaboradores as $colaborador)
                     <option value="{{ $colaborador->id }}" @selected($userId === $colaborador->id)>{{ $colaborador->name }}</option>
-                @endforeach
+                @endforeach 
             </select>
         </label>
         <div class="flex items-end gap-2">
