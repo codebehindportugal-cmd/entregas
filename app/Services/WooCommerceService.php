@@ -193,7 +193,15 @@ class WooCommerceService
     private function preserveLocalScheduling(WooOrder $model, array $payload): array
     {
         if (! $model->exists || $model->postponed_until === null || filled($payload['postponed_until'] ?? null)) {
+            if ($model->exists && filled($model->customer_language)) {
+                $payload['customer_language'] = $model->customer_language;
+            }
+
             return $payload;
+        }
+
+        if (filled($model->customer_language)) {
+            $payload['customer_language'] = $model->customer_language;
         }
 
         $payload['postponed_until'] = $model->postponed_until->toDateString();
@@ -328,6 +336,7 @@ class WooCommerceService
         });
         $sourceType = $this->detectSourceType($order, $sourceType);
         $orderedAt = $this->dateTimeOrNull(Arr::get($order, 'date_created'));
+        $explicitDeliveryDate = $this->explicitDeliveryDate($order);
         $diaEntrega = $this->normalizeDiaEntrega(
             $metadata->get('_hdm_dia_entrega')
                 ?: $metadata->get('_dia_entrega')
@@ -359,6 +368,7 @@ class WooCommerceService
             'billing_name' => trim(Arr::get($billing, 'first_name', '').' '.Arr::get($billing, 'last_name', '')) ?: null,
             'billing_phone' => Arr::get($billing, 'phone'),
             'billing_email' => Arr::get($billing, 'email'),
+            'customer_language' => $this->customerLanguage($order),
             'line_items' => collect(Arr::get($order, 'line_items', []))->map(fn (array $item): array => [
                 'name' => Arr::get($item, 'name'),
                 'quantity' => (int) Arr::get($item, 'quantity', 0),
@@ -374,10 +384,106 @@ class WooCommerceService
             'dia_entrega' => $diaEntrega,
             'cabaz_tipo' => WooOrder::detectarCabazTipo(Arr::get($order, 'line_items', [])),
             'ciclo_entrega' => $cicloEntrega,
-            'scheduled_delivery_at' => $sourceType === 'subscription' ? null : $this->scheduledDeliveryDate($orderedAt, $diaEntrega),
+            'scheduled_delivery_at' => $sourceType === 'subscription' ? null : ($explicitDeliveryDate ?? $this->scheduledDeliveryDate($orderedAt, $diaEntrega)),
             'raw_payload' => $order,
             'synced_at' => now(),
         ];
+    }
+
+    private function explicitDeliveryDate(array $order): ?string
+    {
+        foreach ($this->deliveryDateMetaValues($order) as $value) {
+            $date = $this->dateOrNull($value);
+
+            if ($date !== null) {
+                return $date;
+            }
+        }
+
+        return null;
+    }
+
+    private function deliveryDateMetaValues(array $order): array
+    {
+        $values = [];
+        $knownKeys = collect([
+            '_data_entrega',
+            'data_entrega',
+            '_hdm_data_entrega',
+            'hdm_data_entrega',
+            '_delivery_date',
+            'delivery_date',
+            'delivery date',
+            'data de entrega',
+            'data entrega',
+            '_orddd_timestamp',
+            'orddd_timestamp',
+            '_orddd_lite_timestamp',
+            'orddd_lite_timestamp',
+        ])->map(fn (string $key): string => $this->normalizeMetaKey($key))->all();
+
+        foreach ($this->allMetaItems($order) as $item) {
+            $key = $this->normalizeMetaKey($item['key'] ?? '');
+
+            if (in_array($key, $knownKeys, true) || (str_contains($key, 'entrega') && str_contains($key, 'data')) || (str_contains($key, 'delivery') && str_contains($key, 'date'))) {
+                $values[] = $item['value'] ?? null;
+            }
+        }
+
+        return $values;
+    }
+
+    private function allMetaItems(array $order): array
+    {
+        $items = collect(Arr::get($order, 'meta_data', []));
+
+        foreach (['line_items', 'shipping_lines'] as $group) {
+            foreach (Arr::get($order, $group, []) as $entry) {
+                $items = $items->merge(Arr::get($entry, 'meta_data', []));
+            }
+        }
+
+        return $items
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->values()
+            ->all();
+    }
+
+    private function normalizeMetaKey(mixed $key): string
+    {
+        return Str::of((string) $key)->lower()->ascii()->replace(['-', '_'], ' ')->squish()->toString();
+    }
+
+    private function customerLanguage(array $order): ?string
+    {
+        foreach (['language', 'locale', 'customer_locale'] as $key) {
+            $value = Arr::get($order, $key);
+
+            if (filled($value)) {
+                return $this->normalizeCustomerLanguage($value);
+            }
+        }
+
+        foreach (Arr::get($order, 'meta_data', []) as $item) {
+            $key = strtolower((string) ($item['key'] ?? ''));
+
+            if (in_array($key, ['trp_language', 'language', 'locale', '_locale', 'customer_locale'], true) && filled($item['value'] ?? null)) {
+                return $this->normalizeCustomerLanguage($item['value']);
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeCustomerLanguage(mixed $value): ?string
+    {
+        $language = Str::of((string) $value)->lower()->replace('_', '-')->trim()->toString();
+
+        return match (true) {
+            str_starts_with($language, 'en') => 'en',
+            str_starts_with($language, 'pt') => 'pt',
+            default => null,
+        };
     }
 
     private function dateOrNull(mixed $value): ?string
@@ -387,6 +493,10 @@ class WooCommerceService
         }
 
         try {
+            if (is_numeric($value) && (int) $value > 1000000000) {
+                return Carbon::createFromTimestamp((int) $value)->toDateString();
+            }
+
             return Carbon::parse($value)->toDateString();
         } catch (\Throwable) {
             return null;

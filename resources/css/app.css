@@ -170,6 +170,10 @@
         min-width: max(46rem, 100%);
     }
 
+    .preparacao-table-scroll table {
+        min-width: max(74rem, 100%);
+    }
+
     table {
         border-collapse: separate;
         border-spacing: 0;
@@ -242,6 +246,8 @@
 
     .overflow-x-auto table th:first-child,
     .overflow-x-auto table td:first-child,
+    .preparacao-table-scroll table th:first-child,
+    .preparacao-table-scroll table td:first-child,
     .overflow-hidden:has(> table) table th:first-child,
     .overflow-hidden:has(> table) table td:first-child {
         position: sticky;
@@ -251,23 +257,28 @@
     }
 
     .overflow-x-auto table th:first-child,
+    .preparacao-table-scroll table th:first-child,
     .overflow-hidden:has(> table) table th:first-child {
         z-index: 6;
         background: #dcefe3;
     }
 
     .overflow-x-auto table tbody tr:nth-child(odd) td:first-child,
+    .preparacao-table-scroll table tbody tr:nth-child(odd) td:first-child,
     .overflow-hidden:has(> table) table tbody tr:nth-child(odd) td:first-child {
         background-color: #f8fffb;
     }
 
     .overflow-x-auto table tbody tr:nth-child(even) td:first-child,
+    .preparacao-table-scroll table tbody tr:nth-child(even) td:first-child,
     .overflow-hidden:has(> table) table tbody tr:nth-child(even) td:first-child {
         background-color: #edf8f1;
     }
 
     .overflow-x-auto table th:last-child,
     .overflow-x-auto table td:last-child,
+    .preparacao-table-scroll table th:last-child,
+    .preparacao-table-scroll table td:last-child,
     .overflow-hidden:has(> table) table th:last-child,
     .overflow-hidden:has(> table) table td:last-child {
         position: sticky;
@@ -277,17 +288,20 @@
     }
 
     .overflow-x-auto table th:last-child,
+    .preparacao-table-scroll table th:last-child,
     .overflow-hidden:has(> table) table th:last-child {
         z-index: 6;
         background: #dcefe3;
     }
 
     .overflow-x-auto table tbody tr:nth-child(odd) td:last-child,
+    .preparacao-table-scroll table tbody tr:nth-child(odd) td:last-child,
     .overflow-hidden:has(> table) table tbody tr:nth-child(odd) td:last-child {
         background-color: #fffdf5;
     }
 
     .overflow-x-auto table tbody tr:nth-child(even) td:last-child,
+    .preparacao-table-scroll table tbody tr:nth-child(even) td:last-child,
     .overflow-hidden:has(> table) table tbody tr:nth-child(even) td:last-child {
         background-color: #fff8df;
     }

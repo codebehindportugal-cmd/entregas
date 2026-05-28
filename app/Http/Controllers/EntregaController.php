@@ -310,6 +310,7 @@ class EntregaController extends Controller
     public function updatePreparacaoItem(Request $request, PreparacaoItem $item): RedirectResponse
     {
         $feito = $request->boolean('feito');
+        $anchor = $request->string('anchor')->toString();
 
         $item->update([
             'feito' => $feito,
@@ -317,7 +318,8 @@ class EntregaController extends Controller
             'feito_por' => $feito ? auth()->id() : null,
         ]);
 
-        return back()->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
+        return $this->redirectBackToAnchor($anchor)
+            ->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
     }
 
     public function updatePreparacaoProdutos(Request $request, PreparacaoItem $item): RedirectResponse
@@ -329,9 +331,10 @@ class EntregaController extends Controller
             'produtos_picados.*' => ['string'],
         ]);
 
+        $anchor = $request->string('anchor')->toString();
         $picados = array_values(array_unique($data['produtos_picados'] ?? []));
         $totalProdutos = count($item->wooOrder?->line_items ?? []);
-        $feito = $totalProdutos > 0 && count($picados) >= $totalProdutos;
+        $feito = $totalProdutos === 0 || count($picados) >= $totalProdutos;
 
         $item->update([
             'produtos_picados' => $picados,
@@ -340,7 +343,19 @@ class EntregaController extends Controller
             'feito_por' => $feito ? auth()->id() : null,
         ]);
 
-        return back()->with('status', $feito ? 'Encomenda B2C preparada.' : 'Produtos picados guardados.');
+        return $this->redirectBackToAnchor($anchor)
+            ->with('status', $feito ? 'Encomenda B2C preparada.' : 'Produtos picados guardados.');
+    }
+
+    private function redirectBackToAnchor(string $anchor): RedirectResponse
+    {
+        $url = preg_replace('/#.*/', '', url()->previous()) ?: url()->previous();
+
+        if (filled($anchor)) {
+            $url .= '#'.rawurlencode($anchor);
+        }
+
+        return redirect()->to($url);
     }
 
     public function storeAtribuicao(StoreAtribuicaoEntregaRequest $request): RedirectResponse

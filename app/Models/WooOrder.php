@@ -23,6 +23,7 @@ class WooOrder extends Model
         'billing_name',
         'billing_phone',
         'billing_email',
+        'customer_language',
         'line_items',
         'postponed_until',
         'next_payment_at',
@@ -464,8 +465,10 @@ class WooOrder extends Model
             $telefone = '351'.$telefone;
         }
 
-        $nome = $this->billing_name ?: 'cliente';
-        $mensagem = "Olá {$nome}! Esperamos que tenha gostado da sua subscrição da Horta da Maria. A sua subscrição está a terminar e queríamos confirmar se pretende renovar para continuar a receber as suas entregas. Se quiser, podemos enviar-lhe já o link de renovação. Deseja que enviemos?";
+        $nome = $this->billing_name ?: ($this->prefersEnglish() ? 'there' : 'cliente');
+        $mensagem = $this->prefersEnglish()
+            ? "Hi {$nome}! We hope you enjoyed your Horta da Maria subscription. Your subscription is coming to an end and we wanted to confirm whether you would like to renew it to keep receiving your deliveries. If you would like, we can send you the renewal link now. Shall we send it?"
+            : "Ola {$nome}! Esperamos que tenha gostado da sua subscricao da Horta da Maria. A sua subscricao esta a terminar e queriamos confirmar se pretende renovar para continuar a receber as suas entregas. Se quiser, podemos enviar-lhe ja o link de renovacao. Deseja que enviemos?";
 
         return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
     }
@@ -500,9 +503,43 @@ class WooOrder extends Model
             $telefone = '351'.$telefone;
         }
 
-        $nome = $this->billing_name ?: 'cliente';
-        $mensagem = "Ola {$nome}! Tudo bem? Ja deixamos a sua encomenda da Horta da Maria pronta. Para finalizar, pode fazer o pagamento por este link: {$paymentUrl} Obrigado!";
+        $nome = $this->billing_name ?: ($this->prefersEnglish() ? 'there' : 'cliente');
+        $mensagem = $this->prefersEnglish()
+            ? "Hi {$nome}! How are you? Your Horta da Maria order is ready. To complete it, you can pay through this link: {$paymentUrl} Thank you!"
+            : "Ola {$nome}! Tudo bem? Ja deixamos a sua encomenda da Horta da Maria pronta. Para finalizar, pode fazer o pagamento por este link: {$paymentUrl} Obrigado!";
 
         return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
+    }
+
+    public function prefersEnglish(): bool
+    {
+        $language = $this->customerLanguage();
+
+        return $language !== null && str_starts_with(strtolower($language), 'en');
+    }
+
+    private function customerLanguage(): ?string
+    {
+        if (filled($this->customer_language)) {
+            return $this->customer_language;
+        }
+
+        foreach (['language', 'locale', 'customer_locale'] as $key) {
+            $value = $this->raw_payload[$key] ?? null;
+
+            if (filled($value)) {
+                return (string) $value;
+            }
+        }
+
+        foreach ($this->raw_payload['meta_data'] ?? [] as $item) {
+            $key = strtolower((string) ($item['key'] ?? ''));
+
+            if (in_array($key, ['trp_language', 'language', 'locale', '_locale', 'customer_locale'], true) && filled($item['value'] ?? null)) {
+                return (string) $item['value'];
+            }
+        }
+
+        return null;
     }
 }

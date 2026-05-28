@@ -82,7 +82,7 @@
         @endforeach
     </div>
 
-    <div class="max-h-[72vh] overflow-auto rounded border border-white/10 bg-[#151E2D]">
+    <div class="preparacao-table-scroll max-h-[72vh] overflow-auto rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
             <thead class="sticky top-0 z-20 bg-[#1B2638] text-slate-300 shadow-sm shadow-black/20">
                 <tr>
@@ -101,8 +101,9 @@
                         $frutasEmpresa = $corporate->frutasParaDia($dia);
                         $totalEmpresa = collect(array_keys($labels))->reject(fn (string $key) => in_array($key, $produtosKg, true))->sum(fn (string $key) => (int) ($frutasEmpresa[$key] ?? 0));
                         $item = $preparacaoItems->get('corporate-'.$corporate->id);
+                        $anchor = 'prep-corporate-'.$corporate->id;
                     @endphp
-                    <tr class="border-t border-white/10">
+                    <tr id="{{ $anchor }}" class="scroll-mt-28 border-t border-white/10">
                         <td class="p-3">
                             <p class="font-semibold text-white">{{ $corporate->empresa }}</p>
                             <p class="text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->moradaParaEntrega() }}</p>
@@ -118,6 +119,7 @@
                                 <form method="post" action="{{ route('preparacao.update', $item) }}">
                                     @csrf
                                     @method('put')
+                                    <input type="hidden" name="anchor" value="{{ $anchor }}">
                                     <input type="hidden" name="feito" value="0">
                                     <button class="rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200">Marcar por fazer</button>
                                 </form>
@@ -125,6 +127,7 @@
                                 <form method="post" action="{{ route('preparacao.update', $item) }}">
                                     @csrf
                                     @method('put')
+                                    <input type="hidden" name="anchor" value="{{ $anchor }}">
                                     <input type="hidden" name="feito" value="1">
                                     <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Marcar feito</button>
                                 </form>
@@ -140,7 +143,7 @@
         </table>
     </div>
 
-    <div class="mt-6 max-h-[72vh] overflow-auto rounded border border-white/10 bg-[#151E2D]">
+    <div class="preparacao-table-scroll mt-6 max-h-[72vh] overflow-auto rounded border border-white/10 bg-[#151E2D]">
         <div class="border-b border-white/10 p-4">
             <h2 class="text-lg font-semibold text-white">Clientes B2C</h2>
         </div>
@@ -158,8 +161,9 @@
                 @forelse($b2cOrders as $order)
                     @php
                         $item = $preparacaoItems->get('b2c-'.$order->id);
+                        $anchor = 'prep-b2c-'.$order->id;
                     @endphp
-                    <tr class="border-t border-white/10 align-top">
+                    <tr id="{{ $anchor }}" class="scroll-mt-28 border-t border-white/10 align-top">
                         <td class="p-3">
                             <a href="{{ route('encomendas.show', $order) }}" class="font-semibold text-white hover:text-[#22C55E]">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</a>
                             <p class="text-xs text-slate-400">{{ $order->billing_phone ?: $order->billing_email }}</p>
@@ -183,6 +187,7 @@
                             <form method="post" action="{{ route('preparacao.produtos.update', $item) }}" class="min-w-64 space-y-2">
                                 @csrf
                                 @method('put')
+                                <input type="hidden" name="anchor" value="{{ $anchor }}">
                                 @forelse($order->line_items ?? [] as $index => $produto)
                                     @php($produtoKey = (string) $index)
                                     <label class="flex items-start gap-2 rounded border border-white/10 bg-[#0A0F1A] p-2 text-xs text-slate-200">
@@ -193,7 +198,7 @@
                                     <p class="text-xs text-slate-500">Sem produtos para picar.</p>
                                 @endforelse
                                 <div class="flex flex-wrap items-center gap-2 pt-1">
-                                    <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Guardar</button>
+                                    <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">{{ count($order->line_items ?? []) === 0 ? 'Marcar feito' : 'Guardar' }}</button>
                                     @if($item?->feito)
                                         <span class="text-xs text-emerald-200">Feito {{ $item->feito_at?->format('H:i') }}</span>
                                     @else

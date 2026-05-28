@@ -14,6 +14,7 @@ use Throwable;
 class EncomendaController extends Controller
 {
     private const EM_PROCESSAMENTO_STATUSES = ['processing', 'on-hold', 'pending'];
+
     private const STATUSES_EXCLUIDOS = ['completed', 'wc-completed'];
 
     public function index(Request $request): View
@@ -70,8 +71,7 @@ class EncomendaController extends Controller
                         ->orWhere('billing_phone', 'like', "%{$q}%")
                         ->orWhere('billing_email', 'like', "%{$q}%");
                 }))
-                ->when($inicio, fn ($query) => $query->whereDate('ordered_at', '>=', $inicio))
-                ->when($fim, fn ($query) => $query->whereDate('ordered_at', '<=', $fim))
+                ->when($inicio || $fim, fn ($query) => $this->filterByDeliveryDate($query, $inicio, $fim))
                 ->when($status === 'em_processamento', fn ($query) => $query
                     ->where('source_type', 'order')
                     ->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
@@ -116,6 +116,7 @@ class EncomendaController extends Controller
             'billing_name' => ['nullable', 'string', 'max:255'],
             'billing_phone' => ['nullable', 'string', 'max:255'],
             'billing_email' => ['nullable', 'email', 'max:255'],
+            'customer_language' => ['nullable', 'in:pt,en'],
             'source_type' => ['required', 'in:order,subscription'],
             'dia_entrega' => ['nullable', 'in:segunda,quarta,sabado'],
             'ciclo_entrega' => ['required', 'in:semanal,quinzenal'],
@@ -233,6 +234,69 @@ class EncomendaController extends Controller
             return [$date->copy()->startOfMonth(), $date->copy()->endOfMonth()];
         }
 
+        if ($periodo === 'personalizado' && $inicio !== null && $fim === null) {
+            return [$inicio->copy()->startOfDay(), $inicio->copy()->endOfDay()];
+        }
+
         return [$inicio, $fim];
+    }
+
+    private function filterByDeliveryDate($query, ?Carbon $inicio, ?Carbon $fim): void
+    {
+        $dates = $this->datesForJsonDeliveryFilter($inicio, $fim);
+
+        $query->where(function ($query) use ($inicio, $fim, $dates): void {
+            $query->where(function ($query) use ($inicio, $fim): void {
+                $this->whereDateBetween($query, 'postponed_until', $inicio, $fim);
+            })->orWhere(function ($query) use ($inicio, $fim): void {
+                $query->whereNull('postponed_until');
+                $this->whereDateBetween($query, 'scheduled_delivery_at', $inicio, $fim);
+            });
+
+            if ($dates !== []) {
+                $query->orWhere(function ($query) use ($dates): void {
+                    foreach ($dates as $date) {
+                        $query->orWhereJsonContains('delivery_dates', $date);
+                    }
+                });
+            }
+
+            $query->orWhere(function ($query) use ($inicio, $fim): void {
+                $query->where(function ($query): void {
+                    $query->whereNull('delivery_dates')
+                        ->orWhereJsonLength('delivery_dates', 0);
+                });
+                $this->whereDateBetween($query, 'first_delivery_at', $inicio, $fim);
+            });
+        });
+    }
+
+    private function whereDateBetween($query, string $column, ?Carbon $inicio, ?Carbon $fim): void
+    {
+        if ($inicio !== null) {
+            $query->whereDate($column, '>=', $inicio->toDateString());
+        }
+
+        if ($fim !== null) {
+            $query->whereDate($column, '<=', $fim->toDateString());
+        }
+    }
+
+    private function datesForJsonDeliveryFilter(?Carbon $inicio, ?Carbon $fim): array
+    {
+        if ($inicio === null || $fim === null) {
+            return [];
+        }
+
+        $dates = [];
+        $date = $inicio->copy()->startOfDay();
+        $last = $fim->copy()->startOfDay();
+
+        while ($date->lessThanOrEqualTo($last) && count($dates) < 120) {
+            $dates[] = $date->toDateString();
+            $date->addDay();
+        }
+
+        return $dates;
     }
 }
