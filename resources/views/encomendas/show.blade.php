@@ -19,6 +19,7 @@
                     <p><span class="text-slate-500">Encomenda:</span> #{{ $encomenda->woo_id }}</p>
                     <p><span class="text-slate-500">Telefone:</span> {{ $encomenda->billing_phone ?: 'Sem telefone' }}</p>
                     <p><span class="text-slate-500">Email:</span> {{ $encomenda->billing_email ?: 'Sem email' }}</p>
+                    <p><span class="text-slate-500">Idioma:</span> {{ $encomenda->customer_language === 'en' ? 'Ingles' : 'Portugues' }}</p>
                     <p><span class="text-slate-500">Tipo:</span> {{ $encomenda->source_type === 'subscription' ? 'Subscricao' : 'Encomenda' }}</p>
                     <p><span class="text-slate-500">Dia:</span> {{ $encomenda->dia_entrega ? ucfirst($encomenda->dia_entrega) : '-' }}</p>
                     <p><span class="text-slate-500">Ciclo:</span> {{ $encomenda->ciclo_entrega === 'quinzenal' ? '15 em 15 dias' : 'Semanal' }}</p>
@@ -51,7 +52,7 @@
                         @empty
                             <p class="text-sm text-slate-500">Sem produtos para picar.</p>
                         @endforelse
-                        <button class="mt-2 rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Guardar produtos no cabaz</button>
+                        <button class="mt-2 rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">{{ count($encomenda->line_items ?? []) === 0 ? 'Marcar como feita' : 'Guardar produtos no cabaz' }}</button>
                     </form>
                 </div>
             @endforeach
@@ -122,6 +123,12 @@
                     </label>
                     <label class="block text-sm text-slate-300 md:col-span-2">Email
                         <input name="billing_email" type="email" value="{{ old('billing_email', $encomenda->billing_email) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Idioma das mensagens
+                        <select name="customer_language" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            <option value="pt" @selected(old('customer_language', $encomenda->customer_language ?: 'pt') === 'pt')>Portugues</option>
+                            <option value="en" @selected(old('customer_language', $encomenda->customer_language) === 'en')>English</option>
+                        </select>
                     </label>
                     <label class="block text-sm text-slate-300">Tipo
                         <select name="source_type" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">

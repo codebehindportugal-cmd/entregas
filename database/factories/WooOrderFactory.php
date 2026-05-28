@@ -24,6 +24,7 @@ class WooOrderFactory extends Factory
             'billing_name' => fake()->name(),
             'billing_phone' => fake()->phoneNumber(),
             'billing_email' => fake()->safeEmail(),
+            'customer_language' => 'pt',
             'line_items' => [],
             'postponed_until' => null,
             'cancelled_delivery_dates' => [],

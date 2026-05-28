@@ -29,6 +29,7 @@
 
     <form method="get" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
         <input type="hidden" name="tipo" value="{{ $tipo }}">
+        <input type="hidden" name="periodo" value="{{ $periodo }}">
         <input type="hidden" name="sort" value="{{ $sort }}">
         <input type="hidden" name="direction" value="{{ $direction }}">
         <div class="mb-4 flex flex-wrap gap-2">
@@ -36,14 +37,15 @@
                 <a href="{{ $periodUrl($value) }}" class="rounded px-3 py-2 text-sm font-medium {{ $periodo === $value ? 'bg-[#3B82F6] text-white' : 'bg-white/10 text-slate-300' }}">{{ $label }}</a>
             @endforeach
         </div>
+        <p class="mb-3 text-xs text-slate-400">As datas filtram a entrega: entrega agendada, adiamento ou datas do ciclo da subscricao.</p>
         <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]">
         <label class="text-sm text-slate-300">Pesquisar
             <input name="q" value="{{ $q }}" placeholder="Cliente, telefone, email ou ID..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
-        <label class="text-sm text-slate-300">Inicio
+        <label class="text-sm text-slate-300">Entrega inicio
             <input name="inicio" type="date" value="{{ $inicio }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
-        <label class="text-sm text-slate-300">Fim
+        <label class="text-sm text-slate-300">Entrega fim
             <input name="fim" type="date" value="{{ $fim }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
         <label class="text-sm text-slate-300">Estado

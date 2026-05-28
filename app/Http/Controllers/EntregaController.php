@@ -226,65 +226,114 @@ class EntregaController extends Controller
 
     public function preparacao(Request $request): View
     {
-        $dataSelecionada = filled($request->input('data'))
-            ? Carbon::parse($request->input('data'))
-            : now();
+        $inicio = filled($request->input('inicio'))
+            ? Carbon::parse($request->input('inicio'))->startOfDay()
+            : (filled($request->input('data'))
+                ? Carbon::parse($request->input('data'))->startOfDay()
+                : now()->startOfDay());
+        $fim = filled($request->input('fim'))
+            ? Carbon::parse($request->input('fim'))->startOfDay()
+            : $inicio->copy();
 
-        $data = $dataSelecionada->toDateString();
-        $dia = self::DIAS[$dataSelecionada->dayOfWeek] ?? 'Segunda';
+        if ($fim->lessThan($inicio)) {
+            $fim = $inicio->copy();
+        }
 
-        if (filled($request->input('dia')) && in_array($request->input('dia'), self::DIAS, true)) {
-            $dia = $request->input('dia');
+        if ($inicio->diffInDays($fim) > 14) {
+            $fim = $inicio->copy()->addDays(14);
+        }
+
+        $diaFiltro = $request->string('dia')->toString();
+
+        if (! in_array($diaFiltro, self::DIAS, true)) {
+            $diaFiltro = '';
+        }
+
+        $data = $inicio->toDateString();
+        $dia = $diaFiltro ?: 'Todos';
+        $datasSelecionadas = $this->datasPreparacao($inicio, $fim, $diaFiltro);
+
+        if ($datasSelecionadas->isEmpty()) {
+            $datasSelecionadas = collect([$inicio->copy()]);
         }
 
         $q = $request->string('q')->toString();
+        $corporatePreparacoes = collect();
+        $b2cPreparacoes = collect();
 
-        $corporates = Corporate::where('ativo', true)
-            ->whereJsonContains('dias_entrega', $dia)
-            ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                $query->where('empresa', 'like', "%{$q}%")
-                    ->orWhere('sucursal', 'like', "%{$q}%")
-                    ->orWhere('morada_entrega', 'like', "%{$q}%")
-                    ->orWhere('fatura_morada', 'like', "%{$q}%");
-            }))
-            ->orderBy('empresa')
-            ->get()
-            ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
-            ->values();
+        foreach ($datasSelecionadas as $dataSelecionada) {
+            $diaData = self::DIAS[$dataSelecionada->dayOfWeek] ?? null;
 
-        $b2cOrders = $this->b2cOrdersParaDia($dia, $dataSelecionada, $q)->get();
+            if ($diaData === null) {
+                continue;
+            }
 
-        $corporates->each(function (Corporate $corporate) use ($data): void {
+            $corporatesDoDia = Corporate::where('ativo', true)
+                ->whereJsonContains('dias_entrega', $diaData)
+                ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                    $query->where('empresa', 'like', "%{$q}%")
+                        ->orWhere('sucursal', 'like', "%{$q}%")
+                        ->orWhere('morada_entrega', 'like', "%{$q}%")
+                        ->orWhere('fatura_morada', 'like', "%{$q}%");
+                }))
+                ->orderBy('empresa')
+                ->get()
+                ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
+                ->values();
+
+            $corporatesDoDia->each(function (Corporate $corporate) use ($corporatePreparacoes, $dataSelecionada, $diaData): void {
+                $corporatePreparacoes->push([
+                    'data' => $dataSelecionada->toDateString(),
+                    'dia' => $diaData,
+                    'corporate' => $corporate,
+                ]);
+            });
+
+            $this->b2cOrdersParaDia($diaData, $dataSelecionada, $q)
+                ->get()
+                ->each(function (WooOrder $order) use ($b2cPreparacoes, $dataSelecionada, $diaData): void {
+                    $b2cPreparacoes->push([
+                        'data' => $dataSelecionada->toDateString(),
+                        'dia' => $diaData,
+                        'order' => $order,
+                    ]);
+                });
+        }
+
+        $corporatePreparacoes->each(function (array $preparacao): void {
             PreparacaoItem::firstOrCreate([
-                'data_preparacao' => $data,
+                'data_preparacao' => $preparacao['data'],
                 'tipo' => 'corporate',
-                'corporate_id' => $corporate->id,
+                'corporate_id' => $preparacao['corporate']->id,
             ]);
         });
 
-        $b2cOrders->each(function (WooOrder $order) use ($data): void {
+        $b2cPreparacoes->each(function (array $preparacao): void {
             PreparacaoItem::firstOrCreate([
-                'data_preparacao' => $data,
+                'data_preparacao' => $preparacao['data'],
                 'tipo' => 'b2c',
-                'woo_order_id' => $order->id,
+                'woo_order_id' => $preparacao['order']->id,
             ]);
         });
+
+        $corporateIds = $corporatePreparacoes->pluck('corporate.id')->filter()->unique()->values();
+        $b2cOrderIds = $b2cPreparacoes->pluck('order.id')->filter()->unique()->values();
 
         $preparacaoItems = PreparacaoItem::with(['corporate', 'wooOrder', 'feitoPor'])
-            ->whereDate('data_preparacao', $data)
-            ->where(function ($query) use ($corporates, $b2cOrders): void {
-                $query->whereIn('corporate_id', $corporates->pluck('id'))
-                    ->orWhereIn('woo_order_id', $b2cOrders->pluck('id'));
+            ->whereBetween('data_preparacao', [$inicio->toDateString(), $fim->toDateString()])
+            ->where(function ($query) use ($corporateIds, $b2cOrderIds): void {
+                $query->whereIn('corporate_id', $corporateIds)
+                    ->orWhereIn('woo_order_id', $b2cOrderIds);
             })
             ->get()
-            ->keyBy(fn (PreparacaoItem $item) => $item->tipo.'-'.($item->corporate_id ?: $item->woo_order_id));
+            ->keyBy(fn (PreparacaoItem $item) => $item->tipo.'-'.($item->corporate_id ?: $item->woo_order_id).'-'.$item->data_preparacao->toDateString());
 
         $produtosKg = ComprasService::PRODUTOS_KG;
         $totaisFrutas = collect(ComprasService::FRUTAS)
             ->mapWithKeys(fn (string $label, string $fruta) => [
-                $fruta => $corporates->sum(fn (Corporate $corporate) => in_array($fruta, $produtosKg, true)
-                    ? (float) ($corporate->frutasParaDia($dia)[$fruta] ?? 0)
-                    : (int) ($corporate->frutasParaDia($dia)[$fruta] ?? 0)),
+                $fruta => $corporatePreparacoes->sum(fn (array $preparacao) => in_array($fruta, $produtosKg, true)
+                    ? (float) ($preparacao['corporate']->frutasParaDia($preparacao['dia'])[$fruta] ?? 0)
+                    : (int) ($preparacao['corporate']->frutasParaDia($preparacao['dia'])[$fruta] ?? 0)),
             ])
             ->all();
         $totalPecas = collect($totaisFrutas)
@@ -293,13 +342,19 @@ class EntregaController extends Controller
 
         return view('entregas.preparacao', [
             'data' => $data,
+            'inicio' => $inicio->toDateString(),
+            'fim' => $fim->toDateString(),
             'dia' => $dia,
+            'diaFiltro' => $diaFiltro,
+            'periodoLabel' => $inicio->isSameDay($fim)
+                ? $inicio->format('d/m/Y')
+                : $inicio->format('d/m/Y').' a '.$fim->format('d/m/Y'),
             'q' => $q,
             'dias' => array_values(self::DIAS),
-            'corporates' => $corporates,
-            'b2cOrders' => $b2cOrders,
+            'corporatePreparacoes' => $corporatePreparacoes,
+            'b2cPreparacoes' => $b2cPreparacoes,
             'preparacaoItems' => $preparacaoItems,
-            'totalCaixas' => $corporates->sum('numero_caixas'),
+            'totalCaixas' => $corporatePreparacoes->sum(fn (array $preparacao) => (int) $preparacao['corporate']->numero_caixas),
             'totalPecas' => $totalPecas,
             'totaisFrutas' => $totaisFrutas,
             'totalFeitos' => $preparacaoItems->where('feito', true)->count(),
@@ -307,9 +362,28 @@ class EntregaController extends Controller
         ]);
     }
 
+    private function datasPreparacao(Carbon $inicio, Carbon $fim, string $diaFiltro)
+    {
+        $datas = collect();
+        $data = $inicio->copy();
+
+        while ($data->lessThanOrEqualTo($fim)) {
+            $diaData = self::DIAS[$data->dayOfWeek] ?? null;
+
+            if ($diaData !== null && ($diaFiltro === '' || $diaFiltro === $diaData)) {
+                $datas->push($data->copy());
+            }
+
+            $data->addDay();
+        }
+
+        return $datas;
+    }
+
     public function updatePreparacaoItem(Request $request, PreparacaoItem $item): RedirectResponse
     {
         $feito = $request->boolean('feito');
+        $anchor = $request->string('anchor')->toString();
 
         $item->update([
             'feito' => $feito,
@@ -317,7 +391,8 @@ class EntregaController extends Controller
             'feito_por' => $feito ? auth()->id() : null,
         ]);
 
-        return back()->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
+        return $this->redirectBackToAnchor($anchor)
+            ->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
     }
 
     public function updatePreparacaoProdutos(Request $request, PreparacaoItem $item): RedirectResponse
@@ -329,9 +404,10 @@ class EntregaController extends Controller
             'produtos_picados.*' => ['string'],
         ]);
 
+        $anchor = $request->string('anchor')->toString();
         $picados = array_values(array_unique($data['produtos_picados'] ?? []));
         $totalProdutos = count($item->wooOrder?->line_items ?? []);
-        $feito = $totalProdutos > 0 && count($picados) >= $totalProdutos;
+        $feito = $totalProdutos === 0 || count($picados) >= $totalProdutos;
 
         $item->update([
             'produtos_picados' => $picados,
@@ -340,7 +416,19 @@ class EntregaController extends Controller
             'feito_por' => $feito ? auth()->id() : null,
         ]);
 
-        return back()->with('status', $feito ? 'Encomenda B2C preparada.' : 'Produtos picados guardados.');
+        return $this->redirectBackToAnchor($anchor)
+            ->with('status', $feito ? 'Encomenda B2C preparada.' : 'Produtos picados guardados.');
+    }
+
+    private function redirectBackToAnchor(string $anchor): RedirectResponse
+    {
+        $url = preg_replace('/#.*/', '', url()->previous()) ?: url()->previous();
+
+        if (filled($anchor)) {
+            $url .= '#'.rawurlencode($anchor);
+        }
+
+        return redirect()->to($url);
     }
 
     public function storeAtribuicao(StoreAtribuicaoEntregaRequest $request): RedirectResponse

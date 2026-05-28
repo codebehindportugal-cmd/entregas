@@ -96,6 +96,7 @@ class WooOrderPublishTest extends TestCase
         $this->assertSame('https://example.test/checkout/order-pay/456/?pay_for_order=true&key=wc_order_test', $result['payment_url']);
         $this->assertDatabaseHas('woo_orders', [
             'woo_id' => 456,
+            'source_type' => 'order',
             'status' => 'pending',
             'billing_email' => 'maria@example.test',
         ]);
@@ -152,6 +153,66 @@ class WooOrderPublishTest extends TestCase
             return $request->method() === 'POST'
                 && ! array_key_exists('email', $payload['billing'])
                 && $payload['billing']['phone'] === '910000000';
+        });
+    }
+
+    public function test_create_pending_order_refreshes_original_order_when_local_product_ids_are_missing(): void
+    {
+        config([
+            'woocommerce.url' => 'https://example.test',
+            'woocommerce.key' => 'ck_test',
+            'woocommerce.secret' => 'cs_test',
+        ]);
+
+        $order = WooOrder::factory()->create([
+            'woo_id' => 123,
+            'billing_name' => 'Maria Silva',
+            'billing_email' => 'maria@example.test',
+            'raw_payload' => [
+                'billing' => [
+                    'first_name' => 'Maria',
+                    'last_name' => 'Silva',
+                ],
+                'line_items' => [],
+            ],
+        ]);
+
+        Http::fake([
+            'example.test/wp-json/wc/v3/orders/123' => Http::response([
+                'id' => 123,
+                'billing' => [
+                    'first_name' => 'Maria',
+                    'last_name' => 'Silva',
+                    'email' => 'maria@example.test',
+                ],
+                'line_items' => [
+                    ['name' => 'Cabaz Pequeno', 'quantity' => 1, 'product_id' => 14383],
+                ],
+            ], 200),
+            'example.test/wp-json/wc/v3/orders' => Http::response([
+                'id' => 456,
+                'status' => 'pending',
+                'total' => '35.50',
+                'date_created' => '2026-05-07T10:00:00',
+                'billing' => [
+                    'first_name' => 'Maria',
+                    'last_name' => 'Silva',
+                    'email' => 'maria@example.test',
+                ],
+                'line_items' => [
+                    ['name' => 'Cabaz Pequeno', 'quantity' => 1, 'product_id' => 14383],
+                ],
+            ], 201),
+        ]);
+
+        app(WooCommerceService::class)->createPendingOrderFrom($order);
+
+        Http::assertSent(function ($request): bool {
+            return $request->method() === 'POST'
+                && $request->url() === 'https://example.test/wp-json/wc/v3/orders'
+                && $request->data('line_items') === [
+                    ['product_id' => 14383, 'quantity' => 1],
+                ];
         });
     }
 }
