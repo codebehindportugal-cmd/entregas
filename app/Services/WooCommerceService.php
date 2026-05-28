@@ -254,6 +254,7 @@ class WooCommerceService
             'billing' => $billing,
             'shipping' => Arr::get($sourcePayload, 'shipping', []),
             'line_items' => $lineItems,
+            'coupon_lines' => $this->pendingOrderCoupons($sourcePayload),
             'customer_note' => $order->customer_notes,
             'meta_data' => $this->pendingOrderMeta($order),
         ];
@@ -265,6 +266,19 @@ class WooCommerceService
         }
 
         return $payload;
+    }
+
+    private function pendingOrderCoupons(array $sourcePayload): array
+    {
+        return collect(Arr::get($sourcePayload, 'coupon_lines', []))
+            ->map(function (array $coupon): array {
+                return array_filter([
+                    'code' => Arr::get($coupon, 'code'),
+                ], fn (mixed $value): bool => filled($value));
+            })
+            ->filter(fn (array $coupon): bool => filled($coupon['code'] ?? null))
+            ->values()
+            ->all();
     }
 
     private function payloadWithPublishableLineItems(WooOrder $order): array

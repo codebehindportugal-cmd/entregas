@@ -53,6 +53,9 @@ class WooOrderPublishTest extends TestCase
                     ['product_id' => 10, 'variation_id' => 0, 'quantity' => 2],
                     ['product_id' => 11, 'variation_id' => 12, 'quantity' => 1],
                 ],
+                'coupon_lines' => [
+                    ['code' => 'DESCONTO10', 'discount' => '10.00'],
+                ],
             ],
         ]);
 
@@ -89,6 +92,9 @@ class WooOrderPublishTest extends TestCase
                 && $payload['line_items'] === [
                     ['product_id' => 10, 'quantity' => 2],
                     ['product_id' => 11, 'variation_id' => 12, 'quantity' => 1],
+                ]
+                && $payload['coupon_lines'] === [
+                    ['code' => 'DESCONTO10'],
                 ]
                 && in_array(['key' => '_hdm_publicada_de', 'value' => 123], $payload['meta_data'], true);
         });

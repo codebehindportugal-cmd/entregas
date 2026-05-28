@@ -113,6 +113,9 @@
                             @if($order->first_delivery_at)
                                 <p class="mt-1 rounded bg-emerald-500/15 px-2 py-1 text-xs text-emerald-200">1a entrega {{ $order->first_delivery_at->format('d/m/Y') }}</p>
                             @endif
+                            @if($order->moloniDocumentId())
+                                <p class="mt-1 rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Fatura #{{ $order->moloniDocumentId() }}</p>
+                            @endif
                             @if($order->source_type === 'subscription' && $order->fimCicloSubscricao())
                                 <p class="mt-1 rounded bg-white/10 px-2 py-1 text-xs text-slate-200">Fim {{ $order->fimCicloSubscricao()->format('d/m/Y') }}</p>
                             @elseif($order->subscription_ends_at)
@@ -167,6 +170,15 @@
                             @endif
                             @if($order->status === 'pending' && $order->whatsappPagamentoUrl())
                                 <a href="{{ $order->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Enviar pagamento</a>
+                            @endif
+                            @if($order->publicInvoiceUrl())
+                                <a href="{{ route('encomendas.invoice', $order) }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Abrir fatura</a>
+                                <a href="{{ $order->publicInvoiceUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">PDF</a>
+                            @else
+                                <span class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-500">Fatura por gerar</span>
+                            @endif
+                            @if($order->whatsappFaturaUrl())
+                                <a href="{{ $order->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
                             @endif
                             <a href="{{ route('encomendas.show', $order) }}" class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Perfil</a>
                             <form method="post" action="{{ route('encomendas.duplicate', $order) }}" class="mb-2" onsubmit="return confirm('Criar uma renovacao no WooCommerce em pagamento pendente com os mesmos dados e produtos?');">

@@ -64,6 +64,66 @@ class WooOrderWhatsappTest extends TestCase
         $this->assertStringContainsString('Shall we send it?', $message);
     }
 
+    public function test_moloni_document_uses_last_positive_document_id(): void
+    {
+        config(['woocommerce.url' => 'https://loja.test']);
+
+        $order = new WooOrder([
+            'woo_id' => 123,
+            'raw_payload' => [
+                'meta_data' => [
+                    ['key' => '_moloni_sent', 'value' => '-1'],
+                    ['key' => '_moloni_sent', 'value' => '456'],
+                    ['key' => '_moloni_sent', 'value' => '789'],
+                ],
+            ],
+        ]);
+
+        $this->assertSame([456, 789], $order->moloniDocumentIds());
+        $this->assertSame(789, $order->moloniDocumentId());
+        $this->assertSame('https://loja.test/wp-admin/admin.php?page=moloni&action=getInvoice&id=789', $order->moloniDocumentUrl());
+        $this->assertSame('https://loja.test/wp-admin/admin.php?page=moloni&action=downloadDocument&id=789', $order->moloniDownloadDocumentUrl());
+    }
+
+    public function test_moloni_generate_document_url_points_to_woocommerce_order(): void
+    {
+        config(['woocommerce.url' => 'https://loja.test']);
+
+        $order = new WooOrder([
+            'woo_id' => 123,
+            'raw_payload' => ['meta_data' => []],
+        ]);
+
+        $this->assertNull($order->moloniDocumentId());
+        $this->assertSame('https://loja.test/wp-admin/admin.php?page=moloni&action=genInvoice&id=123', $order->moloniGenerateDocumentUrl());
+    }
+
+    public function test_invoice_whatsapp_message_is_available_after_moloni_document_exists(): void
+    {
+        config(['woocommerce.url' => 'https://loja.test']);
+
+        $order = new WooOrder([
+            'woo_id' => 123,
+            'billing_name' => 'John',
+            'billing_phone' => '912345678',
+            'customer_language' => 'en',
+            'raw_payload' => [
+                'order_key' => 'wc_order_test',
+                'meta_data' => [
+                    ['key' => '_moloni_sent', 'value' => '789'],
+                ],
+            ],
+        ]);
+        $order->id = 1;
+
+        $message = $this->messageFromUrl($order->whatsappFaturaUrl());
+
+        $this->assertStringContainsString('Hi John!', $message);
+        $this->assertStringContainsString('Your Horta da Maria invoice is available here:', $message);
+        $this->assertStringContainsString('/faturas/', $message);
+        $this->assertStringContainsString('signature=', $message);
+    }
+
     private function messageFromUrl(?string $url): string
     {
         $this->assertNotNull($url);

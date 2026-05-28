@@ -12,6 +12,10 @@ use App\Http\Controllers\ListaCabazController;
 use App\Http\Controllers\TabelaPrecoController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/faturas/{encomenda}', [EncomendaController::class, 'publicInvoice'])
+    ->middleware('signed')
+    ->name('encomendas.invoice.public');
+
 Route::middleware('guest')->group(function (): void {
     Route::get('/', [AuthController::class, 'create'])->name('login');
     Route::get('/login', [AuthController::class, 'create']);
@@ -66,6 +70,7 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'postpone'])->name('encomendas.postpone');
         Route::delete('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'clearPostpone'])->name('encomendas.postpone.clear');
         Route::post('/encomendas/{encomenda}/concluir-wordpress', [EncomendaController::class, 'complete'])->name('encomendas.complete');
+        Route::get('/encomendas/{encomenda}/fatura', [EncomendaController::class, 'invoice'])->name('encomendas.invoice');
         Route::delete('/encomendas/{encomenda}', [EncomendaController::class, 'destroy'])->name('encomendas.destroy');
         Route::post('/entregas/atribuicoes', [EntregaController::class, 'storeAtribuicao'])->name('entregas.atribuicoes.store');
         Route::post('/entregas/atribuicoes/massa', [EntregaController::class, 'storeAtribuicoesBulk'])->name('entregas.atribuicoes.bulk');

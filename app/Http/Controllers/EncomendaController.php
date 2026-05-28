@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WooOrder;
+use App\Services\MoloniService;
 use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -196,6 +197,32 @@ class EncomendaController extends Controller
         }
 
         return redirect()->route('encomendas.index')->with('status', "Encomenda #{$encomenda->woo_id} fechada no WordPress.");
+    }
+
+    public function invoice(WooOrder $encomenda): RedirectResponse
+    {
+        $url = $encomenda->publicInvoiceUrl();
+
+        if ($url === null) {
+            return back()->withErrors(['invoice' => 'A fatura ainda nao existe. Para gerar sem login no WordPress e necessario criar um endpoint proprio no WordPress ou emitir diretamente pela API Moloni.']);
+        }
+
+        return redirect()->away($url);
+    }
+
+    public function publicInvoice(WooOrder $encomenda, MoloniService $moloni): RedirectResponse|View
+    {
+        $documentId = $encomenda->moloniDocumentId();
+
+        abort_if($documentId === null, 404);
+
+        $pdfUrl = $moloni->pdfUrl($documentId);
+
+        if ($pdfUrl !== null) {
+            return redirect()->away($pdfUrl);
+        }
+
+        return view('encomendas.public-invoice', compact('encomenda'));
     }
 
     public function destroy(WooOrder $encomenda): RedirectResponse
