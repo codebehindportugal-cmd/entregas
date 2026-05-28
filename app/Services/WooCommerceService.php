@@ -115,9 +115,13 @@ class WooCommerceService
         }
 
         $wooOrder = $response->json();
+        $payload = $this->payload($wooOrder, 'order');
+        $payload['source_type'] = 'order';
+        $payload['scheduled_delivery_at'] ??= $this->scheduledDeliveryDate($payload['ordered_at'], $payload['dia_entrega']);
+
         $model = WooOrder::updateOrCreate(
             ['woo_id' => (int) Arr::get($wooOrder, 'id')],
-            $this->payload($wooOrder, 'order')
+            $payload
         );
 
         return [
@@ -220,7 +224,8 @@ class WooCommerceService
 
     private function pendingOrderPayload(WooOrder $order): array
     {
-        $lineItems = collect(Arr::get($order->raw_payload ?? [], 'line_items', []))
+        $sourcePayload = $this->payloadWithPublishableLineItems($order);
+        $lineItems = collect(Arr::get($sourcePayload, 'line_items', []))
             ->map(function (array $item): array {
                 return array_filter([
                     'product_id' => (int) Arr::get($item, 'product_id'),
@@ -236,7 +241,7 @@ class WooCommerceService
             throw new RuntimeException('Nao foi possivel publicar: a encomenda nao tem IDs de produto WooCommerce sincronizados.');
         }
 
-        $billing = Arr::get($order->raw_payload ?? [], 'billing', []);
+        $billing = Arr::get($sourcePayload, 'billing', []);
         [$firstName, $lastName] = $this->splitBillingName($order->billing_name);
         $billing['first_name'] = Arr::get($billing, 'first_name') ?: $firstName;
         $billing['last_name'] = Arr::get($billing, 'last_name') ?: $lastName;
@@ -247,19 +252,82 @@ class WooCommerceService
         $payload = [
             'status' => 'pending',
             'billing' => $billing,
-            'shipping' => Arr::get($order->raw_payload ?? [], 'shipping', []),
+            'shipping' => Arr::get($sourcePayload, 'shipping', []),
             'line_items' => $lineItems,
             'customer_note' => $order->customer_notes,
             'meta_data' => $this->pendingOrderMeta($order),
         ];
 
-        $customerId = (int) Arr::get($order->raw_payload ?? [], 'customer_id');
+        $customerId = (int) Arr::get($sourcePayload, 'customer_id');
 
         if ($customerId > 0) {
             $payload['customer_id'] = $customerId;
         }
 
         return $payload;
+    }
+
+    private function payloadWithPublishableLineItems(WooOrder $order): array
+    {
+        $payload = $order->raw_payload ?? [];
+
+        if ($this->hasPublishableLineItems($payload)) {
+            return $payload;
+        }
+
+        $freshPayload = $this->fetchSourceOrderPayload($order);
+
+        if ($freshPayload === null || ! $this->hasPublishableLineItems($freshPayload)) {
+            return $payload;
+        }
+
+        $order->forceFill([
+            'raw_payload' => $freshPayload,
+            'line_items' => collect(Arr::get($freshPayload, 'line_items', []))->map(fn (array $item): array => [
+                'name' => Arr::get($item, 'name'),
+                'quantity' => (int) Arr::get($item, 'quantity', 0),
+            ])->values()->all(),
+            'cabaz_tipo' => WooOrder::detectarCabazTipo(Arr::get($freshPayload, 'line_items', [])),
+        ]);
+
+        if ($order->exists) {
+            $order->save();
+        }
+
+        return $freshPayload;
+    }
+
+    private function hasPublishableLineItems(array $payload): bool
+    {
+        return collect(Arr::get($payload, 'line_items', []))
+            ->contains(fn (array $item): bool => (int) Arr::get($item, 'product_id') > 0);
+    }
+
+    private function fetchSourceOrderPayload(WooOrder $order): ?array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+        $resources = $order->isSubscricao()
+            ? ['subscriptions', 'orders']
+            : ['orders', 'subscriptions'];
+
+        foreach ($resources as $resource) {
+            $response = $this->client()
+                ->get("{$url}/wp-json/wc/v3/{$resource}/{$order->woo_id}");
+
+            if ($response->status() === 404) {
+                continue;
+            }
+
+            if ($response->failed()) {
+                continue;
+            }
+
+            $payload = $response->json();
+
+            return is_array($payload) ? $payload : null;
+        }
+
+        return null;
     }
 
     private function pendingOrderMeta(WooOrder $order): array

@@ -176,7 +176,9 @@ class EncomendaController extends Controller
             $message .= " Link de pagamento: {$paymentUrl}";
         }
 
-        return back()->with('status', $message);
+        return redirect()
+            ->route('encomendas.show', $novaEncomenda)
+            ->with('status', $message);
     }
 
     public function complete(WooOrder $encomenda, WooCommerceService $service): RedirectResponse

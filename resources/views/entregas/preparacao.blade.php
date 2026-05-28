@@ -17,16 +17,20 @@
 @endphp
 
 <x-layouts.app title="Preparacao">
-    <x-page-title title="Preparacao" subtitle="Quantidades para {{ $dia }} - {{ \Illuminate\Support\Carbon::parse($data)->format('d/m/Y') }}" />
+    <x-page-title title="Preparacao" subtitle="Quantidades para {{ $dia }} - {{ $periodoLabel }}" />
 
-    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 lg:grid-cols-[1fr_1fr_2fr_auto]">
-        <label class="text-sm text-slate-300">Data
-            <input name="data" type="date" value="{{ $data }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 lg:grid-cols-[1fr_1fr_1fr_2fr_auto]">
+        <label class="text-sm text-slate-300">Inicio
+            <input name="inicio" type="date" value="{{ $inicio }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        </label>
+        <label class="text-sm text-slate-300">Fim
+            <input name="fim" type="date" value="{{ $fim }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
         <label class="text-sm text-slate-300">Dia
             <select name="dia" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                <option value="" @selected($diaFiltro === '')>Todos</option>
                 @foreach($dias as $diaOption)
-                    <option value="{{ $diaOption }}" @selected($dia === $diaOption)>{{ $diaOption }}</option>
+                    <option value="{{ $diaOption }}" @selected($diaFiltro === $diaOption)>{{ $diaOption }}</option>
                 @endforeach
             </select>
         </label>
@@ -35,15 +39,15 @@
         </label>
         <div class="flex items-end gap-2">
             <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Ver preparacao</button>
-            <a href="{{ route('preparacao.index', ['data' => $data, 'dia' => $dia]) }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
+            <a href="{{ route('preparacao.index', ['inicio' => $inicio, 'fim' => $fim]) }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
         </div>
     </form>
 
     <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded border border-white/10 bg-[#151E2D] p-5">
             <p class="text-sm text-slate-400">Clientes</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $corporates->count() + $b2cOrders->count() }}</p>
-            <p class="mt-1 text-xs text-slate-500">{{ $corporates->count() }} corporate + {{ $b2cOrders->count() }} B2C</p>
+            <p class="mt-2 text-3xl font-semibold text-white">{{ $corporatePreparacoes->count() + $b2cPreparacoes->count() }}</p>
+            <p class="mt-1 text-xs text-slate-500">{{ $corporatePreparacoes->count() }} corporate + {{ $b2cPreparacoes->count() }} B2C</p>
         </div>
         <div class="rounded border border-emerald-400/30 bg-emerald-500/10 p-5">
             <p class="text-sm text-emerald-200">Caixas</p>
@@ -87,6 +91,7 @@
             <thead class="sticky top-0 z-20 bg-[#1B2638] text-slate-300 shadow-sm shadow-black/20">
                 <tr>
                     <th class="p-3">Empresa</th>
+                    <th class="p-3">Data</th>
                     <th class="p-3">Caixas</th>
                     @foreach($labels as $label)
                         <th class="p-3">{{ $label }}</th>
@@ -96,17 +101,24 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($corporates as $corporate)
+                @forelse($corporatePreparacoes as $preparacao)
                     @php
-                        $frutasEmpresa = $corporate->frutasParaDia($dia);
+                        $corporate = $preparacao['corporate'];
+                        $dataLinha = $preparacao['data'];
+                        $diaLinha = $preparacao['dia'];
+                        $frutasEmpresa = $corporate->frutasParaDia($diaLinha);
                         $totalEmpresa = collect(array_keys($labels))->reject(fn (string $key) => in_array($key, $produtosKg, true))->sum(fn (string $key) => (int) ($frutasEmpresa[$key] ?? 0));
-                        $item = $preparacaoItems->get('corporate-'.$corporate->id);
-                        $anchor = 'prep-corporate-'.$corporate->id;
+                        $item = $preparacaoItems->get('corporate-'.$corporate->id.'-'.$dataLinha);
+                        $anchor = 'prep-corporate-'.$corporate->id.'-'.$dataLinha;
                     @endphp
                     <tr id="{{ $anchor }}" class="scroll-mt-28 border-t border-white/10">
                         <td class="p-3">
                             <p class="font-semibold text-white">{{ $corporate->empresa }}</p>
                             <p class="text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->moradaParaEntrega() }}</p>
+                        </td>
+                        <td class="p-3 text-slate-300">
+                            <p>{{ \Illuminate\Support\Carbon::parse($dataLinha)->format('d/m/Y') }}</p>
+                            <p class="text-xs text-slate-500">{{ $diaLinha }}</p>
                         </td>
                         <td class="p-3 font-semibold text-emerald-200">{{ $corporate->numero_caixas }}</td>
                         @foreach(array_keys($labels) as $key)
@@ -136,7 +148,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ count($labels) + 4 }}" class="p-4 text-slate-400">Nao existem empresas com entrega neste dia.</td>
+                        <td colspan="{{ count($labels) + 5 }}" class="p-4 text-slate-400">Nao existem empresas com entrega neste periodo.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -151,6 +163,7 @@
             <thead class="sticky top-0 z-20 bg-[#1B2638] text-slate-300 shadow-sm shadow-black/20">
                 <tr>
                     <th class="p-3">Cliente</th>
+                    <th class="p-3">Data</th>
                     <th class="p-3">Tipo</th>
                     <th class="p-3">Produtos</th>
                     <th class="p-3">Preferencias</th>
@@ -158,15 +171,22 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($b2cOrders as $order)
+                @forelse($b2cPreparacoes as $preparacao)
                     @php
-                        $item = $preparacaoItems->get('b2c-'.$order->id);
-                        $anchor = 'prep-b2c-'.$order->id;
+                        $order = $preparacao['order'];
+                        $dataLinha = $preparacao['data'];
+                        $diaLinha = $preparacao['dia'];
+                        $item = $preparacaoItems->get('b2c-'.$order->id.'-'.$dataLinha);
+                        $anchor = 'prep-b2c-'.$order->id.'-'.$dataLinha;
                     @endphp
                     <tr id="{{ $anchor }}" class="scroll-mt-28 border-t border-white/10 align-top">
                         <td class="p-3">
                             <a href="{{ route('encomendas.show', $order) }}" class="font-semibold text-white hover:text-[#22C55E]">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</a>
                             <p class="text-xs text-slate-400">{{ $order->billing_phone ?: $order->billing_email }}</p>
+                        </td>
+                        <td class="p-3 text-slate-300">
+                            <p>{{ \Illuminate\Support\Carbon::parse($dataLinha)->format('d/m/Y') }}</p>
+                            <p class="text-xs text-slate-500">{{ $diaLinha }}</p>
                         </td>
                         <td class="p-3 text-slate-300">{{ $order->source_type === 'subscription' ? 'Subscricao' : 'Em processamento' }}</td>
                         <td class="p-3 text-slate-300">
@@ -210,7 +230,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="p-4 text-slate-400">Nao existem encomendas B2C para esta preparacao.</td>
+                        <td colspan="6" class="p-4 text-slate-400">Nao existem encomendas B2C para esta preparacao.</td>
                     </tr>
                 @endforelse
             </tbody>
