@@ -201,10 +201,10 @@ class EncomendaController extends Controller
 
     public function invoice(WooOrder $encomenda): RedirectResponse
     {
-        $url = $encomenda->publicInvoiceUrl() ?? $encomenda->moloniGenerateDocumentUrl();
+        $url = $encomenda->publicInvoiceUrl();
 
         if ($url === null) {
-            return back()->withErrors(['invoice' => 'Nao foi possivel abrir o Moloni: confirma o WOOCOMMERCE_URL no .env.']);
+            return back()->withErrors(['invoice' => 'A fatura ainda nao existe. Para gerar sem login no WordPress e necessario criar um endpoint proprio no WordPress ou emitir diretamente pela API Moloni.']);
         }
 
         return redirect()->away($url);

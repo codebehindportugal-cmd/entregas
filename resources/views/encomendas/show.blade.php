@@ -1,11 +1,11 @@
 <x-layouts.app title="Perfil do cliente">
     <x-page-title title="{{ $encomenda->billing_name ?: 'Cliente B2C' }}" subtitle="Perfil e preferencias">
         <div class="flex flex-wrap gap-2">
-            <a href="{{ route('encomendas.invoice', $encomenda) }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">
-                {{ $encomenda->moloniDocumentId() ? 'Abrir fatura' : 'Gerar fatura' }}
-            </a>
             @if($encomenda->publicInvoiceUrl())
+                <a href="{{ route('encomendas.invoice', $encomenda) }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Abrir fatura</a>
                 <a href="{{ $encomenda->publicInvoiceUrl() }}" target="_blank" rel="noopener" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">PDF</a>
+            @else
+                <span class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-400">Fatura por gerar</span>
             @endif
             @if($encomenda->whatsappFaturaUrl())
                 <a href="{{ $encomenda->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
