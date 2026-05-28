@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\Corporate;
 use App\Models\PreparacaoItem;
+use App\Models\RegistoEntrega;
 use App\Models\WooOrder;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -119,6 +120,20 @@ class CorporateTest extends TestCase
         $this->assertSame('2026-05-06', $entregas['proxima']);
 
         Carbon::setTestNow();
+    }
+
+    public function test_regular_order_can_be_completed_when_it_has_any_delivered_record(): void
+    {
+        $order = new WooOrder([
+            'source_type' => 'order',
+            'status' => 'processing',
+        ]);
+        $order->setRelation('registoEntregas', collect([
+            new RegistoEntrega(['status' => 'falhou']),
+            new RegistoEntrega(['status' => 'entregue']),
+        ]));
+
+        $this->assertTrue($order->podeConcluirNoWordPress());
     }
 
     public function test_subscricao_counts_only_dates_with_done_preparation_as_done(): void

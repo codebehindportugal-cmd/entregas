@@ -143,6 +143,7 @@ class EncomendaController extends Controller
         } else {
             $encomenda->update([
                 'postponed_until' => $data['postponed_until'],
+                'scheduled_delivery_at' => $data['postponed_until'],
             ]);
         }
 

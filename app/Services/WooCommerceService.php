@@ -23,12 +23,9 @@ class WooCommerceService
         $updated = 0;
 
         foreach ($orders as $order) {
-            $model = WooOrder::updateOrCreate(
-                ['woo_id' => (int) $order['id']],
-                $this->payload($order, 'order')
-            );
+            $model = $this->saveSyncedOrder($order, 'order');
 
-            $model->wasRecentlyCreated ? $created++ : $updated++;
+            $model['created'] ? $created++ : $updated++;
         }
 
         $subscriptions = [];
@@ -37,12 +34,9 @@ class WooCommerceService
             $subscriptions = $this->fetchSubscriptions();
 
             foreach ($subscriptions as $subscription) {
-                $model = WooOrder::updateOrCreate(
-                    ['woo_id' => (int) $subscription['id']],
-                    $this->payload($subscription, 'subscription')
-                );
+                $model = $this->saveSyncedOrder($subscription, 'subscription');
 
-                $model->wasRecentlyCreated ? $created++ : $updated++;
+                $model['created'] ? $created++ : $updated++;
             }
         }
 
@@ -179,6 +173,41 @@ class WooCommerceService
             ->acceptJson()
             ->timeout(30)
             ->retry(2, 500, throw: false);
+    }
+
+    private function saveSyncedOrder(array $order, string $sourceType): array
+    {
+        $model = WooOrder::firstOrNew(['woo_id' => (int) $order['id']]);
+        $created = ! $model->exists;
+        $payload = $this->preserveLocalScheduling($model, $this->payload($order, $sourceType));
+
+        $model->fill($payload);
+        $model->save();
+
+        return [
+            'order' => $model,
+            'created' => $created,
+        ];
+    }
+
+    private function preserveLocalScheduling(WooOrder $model, array $payload): array
+    {
+        if (! $model->exists || $model->postponed_until === null || filled($payload['postponed_until'] ?? null)) {
+            return $payload;
+        }
+
+        $payload['postponed_until'] = $model->postponed_until->toDateString();
+
+        if ($model->source_type === 'subscription' || in_array($model->status, ['subscricao', 'wc-subscricao', 'active'], true)) {
+            $payload['delivery_dates'] = $model->delivery_dates;
+            $payload['subscription_ends_at'] = $model->subscription_ends_at?->toDateString();
+
+            return $payload;
+        }
+
+        $payload['scheduled_delivery_at'] = $model->scheduled_delivery_at?->toDateString();
+
+        return $payload;
     }
 
     private function pendingOrderPayload(WooOrder $order): array

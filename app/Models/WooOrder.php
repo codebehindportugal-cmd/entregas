@@ -77,7 +77,7 @@ class WooOrder extends Model
             return false;
         }
 
-        if ($this->source_type === 'subscription' || in_array($this->status, ['subscricao', 'wc-subscricao'], true)) {
+        if ($this->isSubscricao()) {
             $entregas = $this->entregasSubscricao();
             $total = (int) ($entregas['total'] ?? 0);
 
@@ -92,11 +92,36 @@ class WooOrder extends Model
             return false;
         }
 
-        if ($registos->contains(fn (RegistoEntrega $registo): bool => $registo->status !== 'entregue')) {
+        return $registos->contains(fn (RegistoEntrega $registo): bool => $registo->status === 'entregue');
+    }
+
+    public function isSubscricao(): bool
+    {
+        return $this->source_type === 'subscription'
+            || in_array($this->status, ['subscricao', 'wc-subscricao', 'active'], true);
+    }
+
+    public function temEntregaB2cNaData(string|Carbon $data): bool
+    {
+        if (in_array($this->status, ['completed', 'wc-completed'], true)) {
             return false;
         }
 
-        return true;
+        $dataEntrega = Carbon::parse($data)->toDateString();
+
+        if ($this->postponed_until !== null) {
+            return $this->postponed_until->toDateString() === $dataEntrega;
+        }
+
+        if ($this->isSubscricao()) {
+            return $this->datasSubscricao()->contains($dataEntrega);
+        }
+
+        if ($this->scheduled_delivery_at !== null) {
+            return $this->scheduled_delivery_at->toDateString() === $dataEntrega;
+        }
+
+        return $this->diaEntregaCoincideComData($dataEntrega);
     }
 
     private function registosEntregaParaConclusao(): Collection
@@ -398,6 +423,22 @@ class WooOrder extends Model
             'quarta' => 3,
             'sabado' => 6,
             default => $fallback->dayOfWeek,
+        };
+    }
+
+    private function diaEntregaCoincideComData(string $data): bool
+    {
+        if ($this->dia_entrega === null) {
+            return false;
+        }
+
+        $dayOfWeek = Carbon::parse($data)->dayOfWeek;
+
+        return match ($this->dia_entrega) {
+            'segunda' => $dayOfWeek === 1,
+            'quarta' => $dayOfWeek === 3,
+            'sabado' => $dayOfWeek === 6,
+            default => false,
         };
     }
 

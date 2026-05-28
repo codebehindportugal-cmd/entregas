@@ -443,7 +443,9 @@ class EntregaController extends Controller
             })
             ->get();
         $atribuicoes = $atribuicoes
-            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c' || $atribuicao->corporate?->temEntregaNaData($dataSelecionada))
+            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c'
+                ? $atribuicao->wooOrder?->temEntregaB2cNaData($dataSelecionada)
+                : $atribuicao->corporate?->temEntregaNaData($dataSelecionada))
             ->values();
 
         $registos = $atribuicoes->map(function (AtribuicaoEntrega $atribuicao) use ($data) {

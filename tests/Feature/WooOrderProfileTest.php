@@ -66,4 +66,27 @@ class WooOrderProfileTest extends TestCase
             'customer_notes' => 'Cliente prefere contacto por SMS.',
         ]);
     }
+
+    public function test_admin_can_postpone_regular_b2c_order_delivery_date(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = WooOrder::factory()->create([
+            'source_type' => 'order',
+            'status' => 'processing',
+            'scheduled_delivery_at' => '2026-05-27',
+        ]);
+
+        $response = $this->actingAs($admin)->put(route('encomendas.postpone', $order), [
+            'postponed_until' => '2026-05-30',
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('status', 'Encomenda adiada ate 30/05/2026.');
+
+        $this->assertDatabaseHas('woo_orders', [
+            'id' => $order->id,
+            'postponed_until' => '2026-05-30',
+            'scheduled_delivery_at' => '2026-05-30',
+        ]);
+    }
 }

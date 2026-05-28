@@ -70,13 +70,16 @@
     .mobile-menu-panel {
         margin-top: 0.5rem;
         display: grid;
+        max-height: min(26rem, calc(100vh - 8.5rem));
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.5rem;
+        overflow-y: auto;
         border-radius: 0.375rem;
         border: 1px solid #dbe7dd;
         background: #ffffff;
         padding: 0.65rem;
         box-shadow: 0 14px 32px rgb(15 23 42 / 0.08);
+        -webkit-overflow-scrolling: touch;
     }
 
     .mobile-menu-panel a {
@@ -97,6 +100,12 @@
         background: #16a34a;
         color: #ffffff;
         box-shadow: 0 8px 18px rgb(22 163 74 / 0.25);
+    }
+
+    @media (max-width: 380px) {
+        .mobile-menu-panel {
+            grid-template-columns: 1fr;
+        }
     }
 
     .column-picker {

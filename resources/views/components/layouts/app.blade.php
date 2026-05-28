@@ -30,7 +30,7 @@
                 $activeNavItem = collect($navItems)->first(fn ($item) => request()->routeIs($item['active'])) ?? $navItems[0];
             @endphp
 
-            <aside class="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-emerald-900/10 bg-white/90 p-4 shadow-xl shadow-slate-200/70 backdrop-blur-xl lg:block">
+            <aside class="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-emerald-900/10 bg-white/90 p-4 shadow-xl shadow-slate-200/70 backdrop-blur-xl lg:flex">
                 <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('minhas-entregas.index') }}" class="flex items-center gap-3 rounded border border-emerald-900/10 bg-emerald-50/70 p-3 shadow-sm">
                     <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-white p-2 shadow-sm ring-1 ring-emerald-900/10">
                         <img src="{{ asset('images/horta-da-maria-logo.png') }}" alt="Horta da Maria" class="h-full w-full object-contain">
@@ -41,7 +41,7 @@
                     </span>
                 </a>
 
-                <nav class="mt-6 space-y-1">
+                <nav class="mt-6 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
                     @foreach($navItems as $item)
                         <a href="{{ route($item['route']) }}" class="group flex items-center justify-between rounded px-3 py-2.5 text-sm font-medium {{ request()->routeIs($item['active']) ? 'bg-[#16A34A] text-white shadow-sm shadow-emerald-900/20' : 'text-slate-600 hover:bg-emerald-50 hover:text-slate-950' }}">
                             <span>{{ $item['label'] }}</span>
@@ -52,7 +52,7 @@
                     @endforeach
                 </nav>
 
-                <div class="absolute bottom-4 left-4 right-4 rounded border border-emerald-900/10 bg-slate-50 p-3">
+                <div class="mt-4 shrink-0 rounded border border-emerald-900/10 bg-slate-50 p-3">
                     <p class="text-sm font-semibold text-slate-950">{{ auth()->user()->name }}</p>
                     <p class="text-xs text-slate-500">{{ auth()->user()->role }}</p>
                     <form method="post" action="{{ route('logout') }}" class="mt-3">
