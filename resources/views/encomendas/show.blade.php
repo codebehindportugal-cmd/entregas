@@ -1,6 +1,15 @@
 <x-layouts.app title="Perfil do cliente">
     <x-page-title title="{{ $encomenda->billing_name ?: 'Cliente B2C' }}" subtitle="Perfil e preferencias">
         <div class="flex flex-wrap gap-2">
+            <a href="{{ route('encomendas.invoice', $encomenda) }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">
+                {{ $encomenda->moloniDocumentId() ? 'Abrir fatura' : 'Gerar fatura' }}
+            </a>
+            @if($encomenda->publicInvoiceUrl())
+                <a href="{{ $encomenda->publicInvoiceUrl() }}" target="_blank" rel="noopener" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">PDF</a>
+            @endif
+            @if($encomenda->whatsappFaturaUrl())
+                <a href="{{ $encomenda->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
+            @endif
             @if($encomenda->podeConcluirNoWordPress())
                 <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                     @csrf
@@ -20,6 +29,7 @@
                     <p><span class="text-slate-500">Telefone:</span> {{ $encomenda->billing_phone ?: 'Sem telefone' }}</p>
                     <p><span class="text-slate-500">Email:</span> {{ $encomenda->billing_email ?: 'Sem email' }}</p>
                     <p><span class="text-slate-500">Idioma:</span> {{ $encomenda->customer_language === 'en' ? 'Ingles' : 'Portugues' }}</p>
+                    <p><span class="text-slate-500">Fatura Moloni:</span> {{ $encomenda->moloniDocumentId() ? '#'.$encomenda->moloniDocumentId() : 'Por gerar' }}</p>
                     <p><span class="text-slate-500">Tipo:</span> {{ $encomenda->source_type === 'subscription' ? 'Subscricao' : 'Encomenda' }}</p>
                     <p><span class="text-slate-500">Dia:</span> {{ $encomenda->dia_entrega ? ucfirst($encomenda->dia_entrega) : '-' }}</p>
                     <p><span class="text-slate-500">Ciclo:</span> {{ $encomenda->ciclo_entrega === 'quinzenal' ? '15 em 15 dias' : 'Semanal' }}</p>

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\URL;
 
 class WooOrder extends Model
 {
@@ -488,6 +489,118 @@ class WooOrder extends Model
         }
 
         return rtrim((string) config('woocommerce.url'), '/')."/checkout/order-pay/{$this->woo_id}/?pay_for_order=true&key={$orderKey}";
+    }
+
+    public function moloniDocumentIds(): array
+    {
+        return collect($this->raw_payload['meta_data'] ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item) && ($item['key'] ?? null) === '_moloni_sent')
+            ->map(fn (array $item): int => (int) ($item['value'] ?? 0))
+            ->filter(fn (int $documentId): bool => $documentId > 0)
+            ->values()
+            ->all();
+    }
+
+    public function moloniDocumentId(): ?int
+    {
+        $documentId = collect($this->moloniDocumentIds())->last();
+
+        return $documentId ?: null;
+    }
+
+    public function moloniDocumentUrl(): ?string
+    {
+        $documentId = $this->moloniDocumentId();
+
+        if ($documentId === null) {
+            return null;
+        }
+
+        return $this->moloniAdminUrl('getInvoice', $documentId);
+    }
+
+    public function moloniDownloadDocumentUrl(): ?string
+    {
+        $documentId = $this->moloniDocumentId();
+
+        if ($documentId === null) {
+            return null;
+        }
+
+        return $this->moloniAdminUrl('downloadDocument', $documentId);
+    }
+
+    public function moloniGenerateDocumentUrl(): ?string
+    {
+        if (blank($this->woo_id)) {
+            return null;
+        }
+
+        return $this->moloniAdminUrl('genInvoice', (int) $this->woo_id);
+    }
+
+    public function wooCommerceOrderReceivedUrl(): ?string
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+        $orderKey = $this->raw_payload['order_key'] ?? null;
+
+        if (blank($url) || blank($this->woo_id) || blank($orderKey)) {
+            return null;
+        }
+
+        return $url.'/checkout/order-received/'.$this->woo_id.'/?'.http_build_query([
+            'key' => $orderKey,
+        ]);
+    }
+
+    public function publicInvoiceUrl(): ?string
+    {
+        if ($this->getKey() === null || $this->moloniDocumentId() === null) {
+            return null;
+        }
+
+        return URL::signedRoute('encomendas.invoice.public', ['encomenda' => $this]);
+    }
+
+    private function moloniAdminUrl(string $action, int $id): ?string
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || $id <= 0) {
+            return null;
+        }
+
+        return $url.'/wp-admin/admin.php?'.http_build_query([
+            'page' => 'moloni',
+            'action' => $action,
+            'id' => $id,
+        ]);
+    }
+
+    public function whatsappFaturaUrl(): ?string
+    {
+        $telefone = preg_replace('/\D+/', '', (string) $this->billing_phone);
+
+        if (blank($telefone) || $this->moloniDocumentId() === null) {
+            return null;
+        }
+
+        if (str_starts_with($telefone, '9')) {
+            $telefone = '351'.$telefone;
+        }
+
+        $nome = $this->billing_name ?: ($this->prefersEnglish() ? 'there' : 'cliente');
+        $invoiceUrl = $this->publicInvoiceUrl();
+
+        if ($invoiceUrl === null) {
+            return null;
+        }
+
+        $mensagem = $this->prefersEnglish()
+            ? "Hi {$nome}! Your Horta da Maria invoice is available here: {$invoiceUrl} Thank you!"
+            : "Ola {$nome}! A fatura da sua encomenda da Horta da Maria esta disponivel aqui: {$invoiceUrl} Obrigado!";
+
+        return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
     }
 
     public function whatsappPagamentoUrl(): ?string
