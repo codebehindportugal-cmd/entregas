@@ -14,9 +14,13 @@ use App\Models\WooOrder;
 use App\Services\ComprasService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 class EntregaController extends Controller
 {
@@ -622,17 +626,21 @@ class EntregaController extends Controller
                 break;
             }
 
-            // Sem Intervention Image instalado ainda; o upload fica pronto para compressao futura.
-            $path = $foto->storePublicly(
-                "entregas/{$registoEntrega->data_entrega->format('Y/m')}/{$registoEntrega->id}",
-                'public'
-            );
+            $directory = "entregas/{$registoEntrega->data_entrega->format('Y/m')}/{$registoEntrega->id}";
+
+            try {
+                $path = $this->storeDeliveryPhoto($foto, $directory);
+            } catch (Throwable) {
+                throw ValidationException::withMessages([
+                    'fotos' => 'Nao foi possivel guardar a foto. Confirma que e uma imagem valida e que o servidor tem permissao de escrita no storage.',
+                ]);
+            }
 
             if ($path !== false) {
-                $fotos[] = $path;
+                $fotos[] = $this->relativePublicDiskPath($path);
             } else {
                 throw ValidationException::withMessages([
-                    'fotos' => 'Nao foi possivel guardar a foto. Tente novamente ou escolha uma imagem menor.',
+                    'fotos' => 'Nao foi possivel guardar a foto. Confirma que e uma imagem valida e que o servidor tem permissao de escrita no storage.',
                 ]);
             }
         }
@@ -645,6 +653,159 @@ class EntregaController extends Controller
         ]);
 
         return redirect()->route('minhas-entregas.show', $registoEntrega)->with('status', 'Entrega atualizada.');
+    }
+
+    public function destroyFoto(RegistoEntrega $registoEntrega, int $index): RedirectResponse
+    {
+        abort_unless(auth()->user()->isAdmin() || $registoEntrega->user_id === auth()->id(), 403);
+
+        $fotos = $registoEntrega->fotos ?? [];
+
+        abort_unless(array_key_exists($index, $fotos), 404);
+
+        Storage::disk('public')->delete($this->relativePublicDiskPath((string) $fotos[$index]));
+        unset($fotos[$index]);
+
+        $registoEntrega->forceFill([
+            'fotos' => array_values($fotos),
+        ])->save();
+
+        return redirect()->route('minhas-entregas.show', $registoEntrega)->with('status', 'Foto removida.');
+    }
+
+    private function storeDeliveryPhoto(UploadedFile $foto, string $directory): string|false
+    {
+        if ($this->isHeicOrHeifUpload($foto)) {
+            $convertedPath = $this->convertHeicToJpeg($foto, $directory);
+
+            if ($convertedPath !== null) {
+                return $convertedPath;
+            }
+
+            return Storage::disk('public')->putFileAs(
+                $directory,
+                $foto,
+                Str::random(40).'.'.$this->heicExtension($foto)
+            );
+        }
+
+        return $foto->storePublicly($directory, 'public');
+    }
+
+    private function convertHeicToJpeg(UploadedFile $foto, string $directory): ?string
+    {
+        $path = $directory.'/'.Str::random(40).'.jpg';
+
+        try {
+            if (class_exists(\Imagick::class)) {
+                $image = new \Imagick($foto->getRealPath());
+                $image->setImageFormat('jpeg');
+                $image->setImageCompressionQuality(85);
+
+                if (Storage::disk('public')->put($path, $image->getImagesBlob(), 'public')) {
+                    $image->clear();
+                    $image->destroy();
+
+                    return $path;
+                }
+
+                $image->clear();
+                $image->destroy();
+            }
+        } catch (Throwable) {
+            //
+        }
+
+        if (! function_exists('imagecreatefromstring') || ! function_exists('imagejpeg')) {
+            return null;
+        }
+
+        $contents = @file_get_contents($foto->getRealPath());
+
+        if ($contents === false) {
+            return null;
+        }
+
+        $image = @imagecreatefromstring($contents);
+
+        if ($image === false) {
+            return null;
+        }
+
+        ob_start();
+        $written = imagejpeg($image, null, 85);
+        $jpeg = ob_get_clean();
+        imagedestroy($image);
+
+        if (! $written || $jpeg === false) {
+            return null;
+        }
+
+        return Storage::disk('public')->put($path, $jpeg, 'public') ? $path : null;
+    }
+
+    private function isHeicOrHeifUpload(UploadedFile $foto): bool
+    {
+        $mime = (string) $foto->getMimeType();
+
+        if (in_array($mime, ['image/heic', 'image/heif'], true)) {
+            return true;
+        }
+
+        $extension = strtolower($foto->getClientOriginalExtension());
+
+        if (in_array($extension, ['heic', 'heif'], true) && $this->hasHeicOrHeifSignature($foto)) {
+            return true;
+        }
+
+        return $this->hasHeicOrHeifSignature($foto);
+    }
+
+    private function hasHeicOrHeifSignature(UploadedFile $foto): bool
+    {
+        $handle = @fopen($foto->getRealPath(), 'rb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        $header = fread($handle, 64);
+        fclose($handle);
+
+        if ($header === false || substr($header, 4, 4) !== 'ftyp') {
+            return false;
+        }
+
+        foreach (['heic', 'heix', 'hevc', 'hevx', 'heif', 'mif1', 'msf1'] as $brand) {
+            if (str_contains($header, $brand)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function heicExtension(UploadedFile $foto): string
+    {
+        $extension = strtolower($foto->getClientOriginalExtension());
+
+        return $extension === 'heif' ? 'heif' : 'heic';
+    }
+
+    private function relativePublicDiskPath(string $path): string
+    {
+        $path = str_replace('\\', '/', $path);
+        $publicRoot = str_replace('\\', '/', storage_path('app/public')).'/';
+
+        if (str_starts_with($path, $publicRoot)) {
+            return ltrim(substr($path, strlen($publicRoot)), '/');
+        }
+
+        if (str_starts_with($path, 'public/')) {
+            return substr($path, strlen('public/'));
+        }
+
+        return ltrim($path, '/');
     }
 
     private function b2cOrdersParaDia(string $dia, Carbon $dataSelecionada, string $q = '')

@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\WooCommerceService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -93,11 +94,65 @@ class WooCommerceServiceTest extends TestCase
         $this->assertSame('en', $payload['customer_language']);
     }
 
+    public function test_scheduled_delivery_uses_only_customer_day(): void
+    {
+        $this->assertSame(
+            '2026-06-01',
+            $this->scheduledDeliveryDate('2026-05-27 10:00:00', 'segunda')
+        );
+    }
+
+    public function test_scheduled_delivery_accepts_orders_until_noon_previous_day(): void
+    {
+        $this->assertSame(
+            '2026-06-03',
+            $this->scheduledDeliveryDate('2026-06-02 12:00:00', 'quarta')
+        );
+
+        $this->assertSame(
+            '2026-06-10',
+            $this->scheduledDeliveryDate('2026-06-02 12:01:00', 'quarta')
+        );
+    }
+
+    public function test_scheduled_delivery_returns_null_without_delivery_day(): void
+    {
+        $this->assertNull($this->scheduledDeliveryDate('2026-05-27 10:00:00', null));
+    }
+
+    public function test_missing_subscription_first_delivery_is_calculated_from_order_date_and_delivery_day(): void
+    {
+        $payload = $this->fillMissingSubscriptionFirstDelivery([
+            'source_type' => 'subscription',
+            'ordered_at' => Carbon::parse('2026-06-02 12:00:00'),
+            'first_delivery_at' => null,
+            'dia_entrega' => 'quarta',
+        ]);
+
+        $this->assertSame('2026-06-03', $payload['first_delivery_at']);
+    }
+
     private function payloadFromWooOrder(array $order): array
     {
         $method = new ReflectionMethod(WooCommerceService::class, 'payload');
         $method->setAccessible(true);
 
         return $method->invoke(app(WooCommerceService::class), $order, 'order');
+    }
+
+    private function scheduledDeliveryDate(string $orderedAt, ?string $diaEntrega): ?string
+    {
+        $method = new ReflectionMethod(WooCommerceService::class, 'scheduledDeliveryDate');
+        $method->setAccessible(true);
+
+        return $method->invoke(app(WooCommerceService::class), Carbon::parse($orderedAt), $diaEntrega);
+    }
+
+    private function fillMissingSubscriptionFirstDelivery(array $payload): array
+    {
+        $method = new ReflectionMethod(WooCommerceService::class, 'fillMissingSubscriptionFirstDelivery');
+        $method->setAccessible(true);
+
+        return $method->invoke(app(WooCommerceService::class), $payload);
     }
 }
