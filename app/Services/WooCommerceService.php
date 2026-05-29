@@ -184,6 +184,7 @@ class WooCommerceService
         $model = WooOrder::firstOrNew(['woo_id' => (int) $order['id']]);
         $created = ! $model->exists;
         $payload = $this->preserveLocalScheduling($model, $this->payload($order, $sourceType));
+        $payload = $this->fillMissingSubscriptionFirstDelivery($payload);
 
         $model->fill($payload);
         $model->save();
@@ -218,6 +219,22 @@ class WooCommerceService
         }
 
         $payload['scheduled_delivery_at'] = $model->scheduled_delivery_at?->toDateString();
+
+        return $payload;
+    }
+
+    private function fillMissingSubscriptionFirstDelivery(array $payload): array
+    {
+        if (
+            ($payload['source_type'] ?? null) === 'subscription'
+            && blank($payload['first_delivery_at'] ?? null)
+            && filled($payload['dia_entrega'] ?? null)
+        ) {
+            $payload['first_delivery_at'] = $this->scheduledDeliveryDate(
+                $payload['ordered_at'] ?? null,
+                $payload['dia_entrega']
+            );
+        }
 
         return $payload;
     }
@@ -769,21 +786,25 @@ class WooCommerceService
             return null;
         }
 
-        $preferredDays = match ($diaEntrega) {
-            'segunda' => [1, 3, 6],
-            'quarta' => [3, 6],
-            'sabado' => [6, 3],
-            default => [1, 3, 6],
+        $preferredDay = match ($diaEntrega) {
+            'segunda' => 1,
+            'quarta' => 3,
+            'sabado' => 6,
+            default => null,
         };
 
-        for ($offset = 0; $offset <= 14; $offset++) {
+        if ($preferredDay === null) {
+            return null;
+        }
+
+        for ($offset = 0; $offset <= 21; $offset++) {
             $candidate = $orderedAt->copy()->startOfDay()->addDays($offset);
 
-            if (! in_array($candidate->dayOfWeek, $preferredDays, true)) {
+            if ($candidate->dayOfWeek !== $preferredDay) {
                 continue;
             }
 
-            $cutoff = $candidate->copy()->subDay()->startOfDay();
+            $cutoff = $candidate->copy()->subDay()->setTime(12, 0);
 
             if ($orderedAt->lessThanOrEqualTo($cutoff)) {
                 return $candidate->toDateString();

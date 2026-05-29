@@ -48,18 +48,77 @@
         <label class="mt-5 block text-sm text-slate-300">Nota
             <textarea name="nota" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('nota', $registoEntrega->nota) }}</textarea>
         </label>
-        <label class="mt-5 block text-sm text-slate-300">Fotos
-            <input name="fotos[]" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-        </label>
+        <div class="mt-5">
+            <p class="text-sm text-slate-300">Fotos</p>
+            <div class="mt-2 grid gap-3 sm:grid-cols-2">
+                <label class="cursor-pointer rounded bg-[#3B82F6] px-4 py-3 text-center text-sm font-semibold text-white">
+                    Tirar Foto
+                    <input data-photo-input name="fotos[]" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" class="sr-only">
+                </label>
+                <label class="cursor-pointer rounded bg-white/10 px-4 py-3 text-center text-sm font-semibold text-slate-200">
+                    Escolher da Galeria
+                    <input data-photo-input name="fotos[]" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple class="sr-only">
+                </label>
+            </div>
+            <div id="photo-preview" class="mt-4 hidden grid-cols-2 gap-3 sm:grid-cols-3"></div>
+        </div>
         @if($registoEntrega->fotos)
             <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                @foreach($registoEntrega->fotos as $foto)
-                    <a href="{{ asset('storage/'.$foto) }}" target="_blank" class="block">
-                        <img src="{{ asset('storage/'.$foto) }}" class="aspect-square rounded object-cover" alt="Foto entrega">
-                    </a>
+                @foreach($registoEntrega->fotos as $index => $foto)
+                    <div class="relative overflow-hidden rounded">
+                        <a href="{{ asset('storage/'.$foto) }}" target="_blank" class="block">
+                            <img src="{{ asset('storage/'.$foto) }}" class="aspect-square rounded object-cover" alt="Foto entrega">
+                        </a>
+                        <button form="delete-photo-{{ $index }}" type="submit" class="absolute right-2 top-2 rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white shadow" onclick="return confirm('Remover esta foto?')">Remover</button>
+                    </div>
                 @endforeach
             </div>
         @endif
         <button class="mt-6 w-full rounded bg-[#22C55E] px-4 py-3 font-semibold text-[#0A0F1A]">Guardar entrega</button>
     </form>
+    @if($registoEntrega->fotos)
+        @foreach($registoEntrega->fotos as $index => $foto)
+            <form id="delete-photo-{{ $index }}" method="post" action="{{ route('minhas-entregas.fotos.destroy', [$registoEntrega, $index]) }}" class="hidden">
+                @csrf
+                @method('delete')
+            </form>
+        @endforeach
+    @endif
+    <script>
+        document.querySelectorAll('[data-photo-input]').forEach((input) => {
+            input.addEventListener('change', () => {
+                const preview = document.getElementById('photo-preview');
+                const files = Array.from(document.querySelectorAll('[data-photo-input]'))
+                    .flatMap((field) => Array.from(field.files || []));
+
+                preview.innerHTML = '';
+                preview.classList.toggle('hidden', files.length === 0);
+                preview.classList.toggle('grid', files.length > 0);
+
+                files.forEach((file) => {
+                    const item = document.createElement('div');
+                    item.className = 'aspect-square overflow-hidden rounded border border-white/10 bg-[#0A0F1A]';
+
+                    if (!file.type.startsWith('image/')) {
+                        item.className += ' flex items-center justify-center px-3 text-center text-xs text-slate-300';
+                        item.textContent = file.name;
+                        preview.appendChild(item);
+                        return;
+                    }
+
+                    const image = document.createElement('img');
+                    image.className = 'h-full w-full object-cover';
+                    image.alt = file.name;
+                    item.appendChild(image);
+                    preview.appendChild(item);
+
+                    const reader = new FileReader();
+                    reader.addEventListener('load', () => {
+                        image.src = reader.result;
+                    });
+                    reader.readAsDataURL(file);
+                });
+            });
+        });
+    </script>
 </x-layouts.app>

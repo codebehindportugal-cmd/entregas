@@ -10,11 +10,17 @@ use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
 use App\Http\Controllers\ListaCabazController;
 use App\Http\Controllers\TabelaPrecoController;
+use App\Http\Controllers\WebhookController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/faturas/{encomenda}', [EncomendaController::class, 'publicInvoice'])
     ->middleware('signed')
     ->name('encomendas.invoice.public');
+
+Route::post('/webhooks/woocommerce', [WebhookController::class, 'woocommerce'])
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->name('webhooks.woocommerce');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/', [AuthController::class, 'create'])->name('login');
@@ -29,6 +35,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/minhas-entregas/ordem', [EntregaController::class, 'updateOrdemMinhasEntregas'])->name('minhas-entregas.ordem.update');
     Route::get('/minhas-entregas/{registoEntrega}', [EntregaController::class, 'show'])->name('minhas-entregas.show');
     Route::put('/minhas-entregas/{registoEntrega}', [EntregaController::class, 'update'])->name('minhas-entregas.update');
+    Route::delete('/minhas-entregas/{registoEntrega}/fotos/{index}', [EntregaController::class, 'destroyFoto'])->name('minhas-entregas.fotos.destroy');
 
     Route::middleware('role:admin')->group(function (): void {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');

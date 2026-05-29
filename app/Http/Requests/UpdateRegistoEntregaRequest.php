@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 
 class UpdateRegistoEntregaRequest extends FormRequest
 {
@@ -17,7 +18,11 @@ class UpdateRegistoEntregaRequest extends FormRequest
             'status' => ['required', 'in:pendente,entregue,falhou'],
             'nota' => ['nullable', 'string'],
             'fotos' => ['nullable', 'array', 'max:6'],
-            'fotos.*' => ['file', 'mimetypes:image/jpeg,image/png,image/webp,image/heic,image/heif,application/octet-stream', 'max:6144'],
+            'fotos.*' => ['file', 'max:6144', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (! $value instanceof UploadedFile || ! $this->validDeliveryPhoto($value)) {
+                    $fail('As fotos devem ser imagens validas em JPG, PNG, WEBP, HEIC ou HEIF.');
+                }
+            }],
         ];
     }
 
@@ -25,8 +30,46 @@ class UpdateRegistoEntregaRequest extends FormRequest
     {
         return [
             'fotos.max' => 'Pode enviar no maximo 6 fotos de cada vez.',
-            'fotos.*.mimetypes' => 'As fotos devem estar em JPG, PNG, WEBP, HEIC ou HEIF.',
             'fotos.*.max' => 'Cada foto pode ter no maximo 6 MB.',
         ];
+    }
+
+    private function validDeliveryPhoto(UploadedFile $file): bool
+    {
+        $mime = (string) $file->getMimeType();
+
+        if (in_array($mime, ['image/heic', 'image/heif'], true)) {
+            return $this->isHeicOrHeif($file);
+        }
+
+        if (! in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            return $this->isHeicOrHeif($file);
+        }
+
+        return @getimagesize($file->getRealPath()) !== false;
+    }
+
+    private function isHeicOrHeif(UploadedFile $file): bool
+    {
+        $handle = @fopen($file->getRealPath(), 'rb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        $header = fread($handle, 64);
+        fclose($handle);
+
+        if ($header === false || substr($header, 4, 4) !== 'ftyp') {
+            return false;
+        }
+
+        foreach (['heic', 'heix', 'hevc', 'hevx', 'heif', 'mif1', 'msf1'] as $brand) {
+            if (str_contains($header, $brand)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
