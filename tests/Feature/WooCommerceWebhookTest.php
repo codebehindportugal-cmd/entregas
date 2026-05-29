@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Services\WooCommerceService;
 use Mockery\MockInterface;
+use RuntimeException;
 use Tests\TestCase;
 
 class WooCommerceWebhookTest extends TestCase
@@ -50,6 +51,28 @@ class WooCommerceWebhookTest extends TestCase
         ], '{"id":123}');
 
         $response->assertUnauthorized();
+    }
+
+    public function test_woocommerce_webhook_defers_sync_failures_without_retrying_webhook(): void
+    {
+        config(['woocommerce.webhook_secret' => 'webhook-secret']);
+
+        $payload = '{"id":123,"topic":"order.updated"}';
+
+        $this->mock(WooCommerceService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('sync')
+                ->once()
+                ->andThrow(new RuntimeException('WooCommerce unavailable.'));
+        });
+
+        $response = $this->call('POST', '/webhooks/woocommerce', [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_X_WC_WEBHOOK_SIGNATURE' => $this->signature($payload, 'webhook-secret'),
+        ], $payload);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('message', 'Sync deferred.');
     }
 
     private function signature(string $payload, string $secret): string

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\WooCommerceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
 class WebhookController extends Controller
 {
@@ -21,7 +22,11 @@ class WebhookController extends Controller
             return response()->json(['message' => 'Invalid webhook signature.'], 401);
         }
 
-        $result = $service->sync();
+        try {
+            $result = $service->sync();
+        } catch (Throwable) {
+            return response()->json(['message' => 'Sync deferred.']);
+        }
 
         return response()->json([
             'message' => 'WooCommerce synchronized.',
