@@ -1,5 +1,6 @@
 <x-layouts.app title="{{ $corporate->empresa }}">
     <x-page-title title="{{ $corporate->empresa }}" subtitle="{{ $corporate->sucursal }}">
+        <a href="{{ route('corporates.mapa-mensal', [$corporate, 'mes' => now()->format('Y-m')]) }}" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Mapa mensal</a>
         <a href="{{ route('corporates.edit', $corporate) }}" class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Editar empresa</a>
     </x-page-title>
 

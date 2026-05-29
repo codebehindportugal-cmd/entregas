@@ -38,7 +38,8 @@ class ComprasService
     ];
 
     public const PASTELARIA = [
-        'pao' => 'Pao',
+        'pao_mistura' => 'Pao de mistura',
+        'pao_forma' => 'Pao de forma',
         'croissant' => 'Croissants',
         'bolo' => 'Bolos',
     ];

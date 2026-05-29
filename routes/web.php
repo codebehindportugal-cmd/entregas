@@ -42,6 +42,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/corporates/exportar/json', [CorporateController::class, 'export'])->name('corporates.export');
         Route::post('/corporates/importar/json', [CorporateController::class, 'import'])->name('corporates.import');
         Route::get('/corporates/{corporate}/relatorio-mensal', [CorporateController::class, 'relatorioMensal'])->name('corporates.relatorio-mensal');
+        Route::get('/corporates/{corporate}/mapa-mensal', [CorporateController::class, 'mapaMensal'])->name('corporates.mapa-mensal');
         Route::resource('/corporates', CorporateController::class);
         Route::post('/corporates/{corporate}/historico', [CorporateController::class, 'storeHistorico'])->name('corporates.historico.store');
         Route::delete('/corporates/{corporate}/historico/{historico}', [CorporateController::class, 'destroyHistorico'])->name('corporates.historico.destroy');

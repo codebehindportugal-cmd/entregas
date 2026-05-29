@@ -33,7 +33,7 @@ class CorporateController extends Controller
 
     private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
-    private const PASTELARIA = ['pao', 'croissant', 'bolo'];
+    private const PASTELARIA = ['pao_mistura', 'pao_forma', 'croissant', 'bolo'];
 
     private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
@@ -258,6 +258,69 @@ class CorporateController extends Controller
             'inicio' => $inicio,
             'linhas' => $linhas,
             'totais' => $totais,
+        ]);
+    }
+
+    public function mapaMensal(Request $request, Corporate $corporate): View
+    {
+        $validated = $request->validate([
+            'mes' => ['nullable', 'date_format:Y-m'],
+        ]);
+        $mes = $validated['mes'] ?? now()->format('Y-m');
+        $inicio = Carbon::createFromFormat('Y-m-d', "{$mes}-01")->startOfDay();
+        $fim = $inicio->copy()->endOfMonth();
+        $diasEntrega = $corporate->dias_entrega ?? [];
+
+        $registos = RegistoEntrega::query()
+            ->where('corporate_id', $corporate->id)
+            ->whereBetween('data_entrega', [$inicio->toDateString(), $fim->toDateString()])
+            ->whereIn('status', ['entregue', 'falhou'])
+            ->get()
+            ->keyBy(fn (RegistoEntrega $registo): string => $registo->data_entrega->toDateString());
+
+        $historicosNaoEntregamos = $corporate->historicos()
+            ->where('tipo', 'nao_entregamos')
+            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+            ->get()
+            ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
+
+        $linhas = collect();
+        $data = $inicio->copy();
+
+        while ($data->lessThanOrEqualTo($fim)) {
+            $diaSemana = self::DIAS_SEMANA[$data->dayOfWeek] ?? null;
+
+            if ($diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data)) {
+                $dataKey = $data->toDateString();
+                $registo = $registos->get($dataKey);
+                $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
+                $status = $historicoNaoEntregamos !== null
+                    ? 'nao_entregamos'
+                    : ($registo?->status ?? 'sem_registo');
+
+                $linhas->push([
+                    'data' => $data->copy(),
+                    'dia_semana' => $diaSemana,
+                    'pecas' => $corporate->totalPecasParaDia($diaSemana),
+                    'status' => $status,
+                    'nota' => $historicoNaoEntregamos?->texto ?: $registo?->nota,
+                ]);
+            }
+
+            $data->addDay();
+        }
+
+        return view('corporates.mapa-mensal', [
+            'corporate' => $corporate,
+            'mes' => $mes,
+            'inicio' => $inicio,
+            'mesAnterior' => $inicio->copy()->subMonthNoOverflow()->format('Y-m'),
+            'mesSeguinte' => $inicio->copy()->addMonthNoOverflow()->format('Y-m'),
+            'linhas' => $linhas,
+            'totalDiasEntregues' => $linhas->where('status', 'entregue')->count(),
+            'totalPecasEntregues' => $linhas
+                ->where('status', 'entregue')
+                ->sum(fn (array $linha): int => (int) $linha['pecas']),
         ]);
     }
 

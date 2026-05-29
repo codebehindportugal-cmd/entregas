@@ -2,9 +2,11 @@
     $dias = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'];
     $frutas = ['banana' => 'Banana', 'maca' => 'Maca', 'pera' => 'Pera', 'laranja' => 'Laranja', 'kiwi' => 'Kiwi', 'uvas' => 'Uvas', 'fruta_epoca' => 'Fruta epoca'];
     $outrosProdutos = ['frutos_secos' => 'Frutos secos', 'mirtilos' => 'Mirtilos', 'framboesas' => 'Framboesas', 'amoras' => 'Amoras', 'morangos' => 'Morangos'];
+    $padaria = ['pao_mistura' => 'Pao de mistura', 'pao_forma' => 'Pao de forma', 'croissant' => 'Croissants', 'bolo' => 'Bolos'];
     $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
     $diasSelecionados = old('dias_entrega', $corporate->dias_entrega ?? []);
     $frutasPorDiaValores = old('frutas_por_dia', $corporate->frutas_por_dia ?? []);
+    $padariaPorDiaValores = old('pastelaria_por_dia', $corporate->pastelaria_por_dia ?? []);
 @endphp
 <div class="grid gap-4 lg:grid-cols-2">
     <label class="text-sm text-slate-300">Empresa
@@ -96,6 +98,7 @@
     <div class="mt-4 inline-flex rounded border border-white/10 bg-[#0A0F1A] p-1" data-product-tabs>
         <button type="button" data-product-tab="fruta" class="rounded px-4 py-2 text-sm font-semibold">Fruta</button>
         <button type="button" data-product-tab="outros" class="rounded px-4 py-2 text-sm font-semibold">Outros produtos</button>
+        <button type="button" data-product-tab="padaria" class="rounded px-4 py-2 text-sm font-semibold">Padaria</button>
     </div>
     <div class="mt-3 space-y-4">
         @foreach($dias as $dia)
@@ -119,6 +122,16 @@
                             <label class="text-xs text-slate-400">{{ $label }}
                                 <input name="frutas_por_dia[{{ $dia }}][{{ $key }}]" data-fruit-day="{{ $key }}" type="number" min="0" step="0.01" value="{{ $frutasPorDiaValores[$dia][$key] ?? 0 }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-white">
                                 <span class="mt-1 block text-[11px] text-slate-500">kg</span>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+                <div data-product-panel="padaria" class="hidden">
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        @foreach($padaria as $key => $label)
+                            <label class="text-xs text-slate-400">{{ $label }}
+                                <input name="pastelaria_por_dia[{{ $dia }}][{{ $key }}]" type="number" min="0" step="1" value="{{ $padariaPorDiaValores[$dia][$key] ?? 0 }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-white">
+                                <span class="mt-1 block text-[11px] text-slate-500">un.</span>
                             </label>
                         @endforeach
                     </div>
