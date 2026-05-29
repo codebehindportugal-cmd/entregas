@@ -107,7 +107,8 @@ class CorporateTest extends TestCase
     {
         $corporate = new Corporate([
             'pastelaria' => [
-                'pao' => 10,
+                'pao_mistura' => 10,
+                'pao_forma' => 1,
                 'croissant' => 4,
                 'bolo' => 2,
             ],
@@ -115,31 +116,34 @@ class CorporateTest extends TestCase
         ]);
 
         $this->assertSame([
-            'pao' => 10,
+            'pao_mistura' => 10,
+            'pao_forma' => 1,
             'croissant' => 4,
             'bolo' => 2,
         ], $corporate->pastelariaPorDia('Segunda'));
-        $this->assertSame(16, $corporate->totalPastelariaPorDia('Segunda'));
+        $this->assertSame(17, $corporate->totalPastelariaPorDia('Segunda'));
     }
 
     public function test_pastelaria_para_dia_uses_day_specific_values_when_available(): void
     {
         $corporate = new Corporate([
             'pastelaria' => [
-                'pao' => 10,
+                'pao_mistura' => 10,
+                'pao_forma' => 1,
                 'croissant' => 4,
                 'bolo' => 2,
             ],
             'pastelaria_por_dia' => [
                 'Quarta' => [
-                    'pao' => 6,
+                    'pao_mistura' => 6,
                     'croissant' => 3,
                 ],
             ],
         ]);
 
         $this->assertSame([
-            'pao' => 6,
+            'pao_mistura' => 6,
+            'pao_forma' => 0,
             'croissant' => 3,
             'bolo' => 0,
         ], $corporate->pastelariaPorDia('Quarta'));

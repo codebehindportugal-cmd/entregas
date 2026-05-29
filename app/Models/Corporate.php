@@ -15,7 +15,7 @@ class Corporate extends Model
 
     private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
-    private const PASTELARIA = ['pao', 'croissant', 'bolo'];
+    private const PASTELARIA = ['pao_mistura', 'pao_forma', 'croissant', 'bolo'];
 
     private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
