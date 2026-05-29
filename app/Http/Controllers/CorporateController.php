@@ -310,6 +310,8 @@ class CorporateController extends Controller
             $data->addDay();
         }
 
+        $linhasEntregues = $linhas->reject(fn (array $linha): bool => in_array($linha['status'], ['falhou', 'nao_entregamos'], true));
+
         return view('corporates.mapa-mensal', [
             'corporate' => $corporate,
             'mes' => $mes,
@@ -317,10 +319,8 @@ class CorporateController extends Controller
             'mesAnterior' => $inicio->copy()->subMonthNoOverflow()->format('Y-m'),
             'mesSeguinte' => $inicio->copy()->addMonthNoOverflow()->format('Y-m'),
             'linhas' => $linhas,
-            'totalDiasEntregues' => $linhas->where('status', 'entregue')->count(),
-            'totalPecasEntregues' => $linhas
-                ->where('status', 'entregue')
-                ->sum(fn (array $linha): int => (int) $linha['pecas']),
+            'totalDiasEntregues' => $linhasEntregues->count(),
+            'totalPecasEntregues' => $linhasEntregues->sum(fn (array $linha): int => (int) $linha['pecas']),
         ]);
     }
 
