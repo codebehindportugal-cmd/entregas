@@ -164,6 +164,19 @@ class WooOrder extends Model
 
     public function entregasSubscricao(): array
     {
+        if (
+            $this->first_delivery_at !== null
+            && $this->subscription_ends_at !== null
+            && $this->first_delivery_at->greaterThan($this->subscription_ends_at)
+        ) {
+            return [
+                'total' => 0,
+                'feitas' => 0,
+                'por_realizar' => 0,
+                'proxima' => null,
+            ];
+        }
+
         $datas = $this->datasSubscricao();
         $canceladas = collect($this->cancelled_delivery_dates ?? [])
             ->filter()

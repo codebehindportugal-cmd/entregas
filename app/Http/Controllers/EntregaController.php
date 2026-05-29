@@ -343,6 +343,11 @@ class EntregaController extends Controller
         $totalPecas = collect($totaisFrutas)
             ->except($produtosKg)
             ->sum(fn (int|float $quantidade): int => (int) $quantidade);
+        $totaisPastelaria = collect(ComprasService::PASTELARIA)
+            ->mapWithKeys(fn (string $label, string $produto) => [
+                $produto => $corporatePreparacoes->sum(fn (array $preparacao) => (int) ($preparacao['corporate']->pastelariaPorDia($preparacao['dia'])[$produto] ?? 0)),
+            ])
+            ->all();
 
         return view('entregas.preparacao', [
             'data' => $data,
@@ -361,6 +366,7 @@ class EntregaController extends Controller
             'totalCaixas' => $corporatePreparacoes->sum(fn (array $preparacao) => (int) $preparacao['corporate']->numero_caixas),
             'totalPecas' => $totalPecas,
             'totaisFrutas' => $totaisFrutas,
+            'totaisPastelaria' => $totaisPastelaria,
             'totalFeitos' => $preparacaoItems->where('feito', true)->count(),
             'totalPorFazer' => $preparacaoItems->where('feito', false)->count(),
         ]);

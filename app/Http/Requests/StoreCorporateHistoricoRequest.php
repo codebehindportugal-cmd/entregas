@@ -15,6 +15,7 @@ class StoreCorporateHistoricoRequest extends FormRequest
     {
         return [
             'data' => ['required', 'date'],
+            'tipo' => ['nullable', 'in:nota,nao_entregamos,entrega_parcial,entrega_extra'],
             'texto' => ['required', 'string', 'max:5000'],
         ];
     }

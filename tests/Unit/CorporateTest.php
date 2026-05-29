@@ -103,6 +103,49 @@ class CorporateTest extends TestCase
         $this->assertSame(5.40, $corporate->valorVendaPorSemana());
     }
 
+    public function test_pastelaria_para_dia_uses_base_values_when_day_has_no_specific_values(): void
+    {
+        $corporate = new Corporate([
+            'pastelaria' => [
+                'pao' => 10,
+                'croissant' => 4,
+                'bolo' => 2,
+            ],
+            'pastelaria_por_dia' => [],
+        ]);
+
+        $this->assertSame([
+            'pao' => 10,
+            'croissant' => 4,
+            'bolo' => 2,
+        ], $corporate->pastelariaPorDia('Segunda'));
+        $this->assertSame(16, $corporate->totalPastelariaPorDia('Segunda'));
+    }
+
+    public function test_pastelaria_para_dia_uses_day_specific_values_when_available(): void
+    {
+        $corporate = new Corporate([
+            'pastelaria' => [
+                'pao' => 10,
+                'croissant' => 4,
+                'bolo' => 2,
+            ],
+            'pastelaria_por_dia' => [
+                'Quarta' => [
+                    'pao' => 6,
+                    'croissant' => 3,
+                ],
+            ],
+        ]);
+
+        $this->assertSame([
+            'pao' => 6,
+            'croissant' => 3,
+            'bolo' => 0,
+        ], $corporate->pastelariaPorDia('Quarta'));
+        $this->assertSame(9, $corporate->totalPastelariaPorDia('Quarta'));
+    }
+
     public function test_subscricao_counts_past_synced_dates_as_done_for_historical_context(): void
     {
         Carbon::setTestNow('2026-04-30 10:00:00');
@@ -269,6 +312,24 @@ class CorporateTest extends TestCase
         $this->assertSame('2026-05-21', $entregas['proxima']);
 
         Carbon::setTestNow();
+    }
+
+    public function test_subscricao_with_first_delivery_after_end_returns_empty_summary(): void
+    {
+        $order = new WooOrder([
+            'first_delivery_at' => '2026-05-22',
+            'subscription_ends_at' => '2026-05-15',
+            'dia_entrega' => 'quarta',
+            'ciclo_entrega' => 'semanal',
+        ]);
+        $order->setRelation('preparacaoItems', collect());
+
+        $this->assertSame([
+            'total' => 0,
+            'feitas' => 0,
+            'por_realizar' => 0,
+            'proxima' => null,
+        ], $order->entregasSubscricao());
     }
 
     public function test_subscricao_postpone_replaces_next_open_delivery_date(): void
