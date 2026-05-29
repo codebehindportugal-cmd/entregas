@@ -14,6 +14,7 @@
         'morangos' => 'Morangos',
     ];
     $produtosKg = \App\Services\ComprasService::PRODUTOS_KG;
+    $labelsPastelaria = \App\Services\ComprasService::PASTELARIA;
 @endphp
 
 <x-layouts.app title="Preparacao">
@@ -82,6 +83,15 @@
                 <p class="mt-2 text-2xl font-semibold text-white">
                     {{ in_array($key, $produtosKg, true) ? number_format((float) ($totaisFrutas[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($totaisFrutas[$key] ?? 0) }}
                 </p>
+            </div>
+        @endforeach
+    </div>
+
+    <div class="mb-6 grid gap-3 sm:grid-cols-3">
+        @foreach($labelsPastelaria as $key => $label)
+            <div class="rounded border border-blue-400/30 bg-blue-500/10 p-4">
+                <p class="text-sm text-blue-200">{{ $label }}</p>
+                <p class="mt-2 text-2xl font-semibold text-white">{{ (int) ($totaisPastelaria[$key] ?? 0) }}</p>
             </div>
         @endforeach
     </div>

@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\RegistoEntrega;
 use App\Models\Corporate;
 use App\Models\User;
+use App\Models\WooOrder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,7 +21,9 @@ class RegistoEntregaFactory extends Factory
     public function definition(): array
     {
         return [
+            'tipo' => 'corporate',
             'corporate_id' => Corporate::factory(),
+            'woo_order_id' => null,
             'user_id' => User::factory(),
             'data_entrega' => now()->toDateString(),
             'status' => 'pendente',
@@ -28,5 +31,14 @@ class RegistoEntregaFactory extends Factory
             'nota' => null,
             'fotos' => [],
         ];
+    }
+
+    public function b2c(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'tipo' => 'b2c',
+            'corporate_id' => null,
+            'woo_order_id' => WooOrder::factory(),
+        ]);
     }
 }

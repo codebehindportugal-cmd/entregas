@@ -37,6 +37,12 @@ class ComprasService
         'morangos' => 'Morangos',
     ];
 
+    public const PASTELARIA = [
+        'pao' => 'Pao',
+        'croissant' => 'Croissants',
+        'bolo' => 'Bolos',
+    ];
+
     public const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     public const PESOS_PADRAO = [
@@ -60,6 +66,7 @@ class ComprasService
         $dias = collect();
         $totaisPecas = $this->frutasVazias();
         $totaisKg = $this->frutasVazias();
+        $totaisPastelaria = $this->pastelariaVazia();
         $totalCaixas = 0;
         $totalClientes = 0;
         $tabelasPreco = $this->tabelasAtivasParaData($inicio->copy());
@@ -79,10 +86,15 @@ class ComprasService
 
             $corporates = $this->corporatesParaDia($data, $diaSemana);
             $pecas = $this->frutasVazias();
+            $pastelaria = $this->pastelariaVazia();
 
             foreach ($corporates as $corporate) {
                 foreach ($corporate->frutasParaDia($diaSemana) as $fruta => $quantidade) {
                     $pecas[$fruta] = ($pecas[$fruta] ?? 0) + (in_array($fruta, self::PRODUTOS_KG, true) ? (float) $quantidade : (int) $quantidade);
+                }
+
+                foreach ($corporate->pastelariaPorDia($diaSemana) as $produto => $quantidade) {
+                    $pastelaria[$produto] = ($pastelaria[$produto] ?? 0) + (int) $quantidade;
                 }
             }
 
@@ -98,6 +110,10 @@ class ComprasService
                 $totaisKg[$fruta] += $kg[$fruta];
             }
 
+            foreach (array_keys(self::PASTELARIA) as $produto) {
+                $totaisPastelaria[$produto] += $pastelaria[$produto];
+            }
+
             $caixas = $corporates->sum('numero_caixas');
             $totalCaixas += $caixas;
             $totalClientes += $corporates->count();
@@ -108,10 +124,12 @@ class ComprasService
                 'clientes' => $corporates->count(),
                 'caixas' => $caixas,
                 'pecas' => $pecas,
+                'pastelaria' => $pastelaria,
                 'kg' => $kg,
                 'custos' => $custos,
                 'total_custo' => round(array_sum($custos), 2),
                 'total_pecas' => array_sum(collect($pecas)->except(self::PRODUTOS_KG)->all()),
+                'total_pastelaria' => array_sum($pastelaria),
                 'total_kg' => round(array_sum($kg), 2),
             ]);
         }
@@ -129,10 +147,12 @@ class ComprasService
             'mapeamentos_precos' => $mapeamentosPreco,
             'precos' => $precos,
             'totais_pecas' => $totaisPecas,
+            'totais_pastelaria' => $totaisPastelaria,
             'totais_kg' => collect($totaisKg)->map(fn (float $valor) => round($valor, 2))->all(),
             'totais_custos' => $totaisCustos,
             'total_custo' => round(array_sum($totaisCustos), 2),
             'total_pecas' => array_sum(collect($totaisPecas)->except(self::PRODUTOS_KG)->all()),
+            'total_pastelaria' => array_sum($totaisPastelaria),
             'total_kg' => round(array_sum($totaisKg), 2),
             'total_caixas' => $totalCaixas,
             'total_clientes' => $totalClientes,
@@ -172,6 +192,13 @@ class ComprasService
     {
         return collect(array_keys(self::FRUTAS))
             ->mapWithKeys(fn (string $fruta) => [$fruta => 0])
+            ->all();
+    }
+
+    private function pastelariaVazia(): array
+    {
+        return collect(array_keys(self::PASTELARIA))
+            ->mapWithKeys(fn (string $produto) => [$produto => 0])
             ->all();
     }
 

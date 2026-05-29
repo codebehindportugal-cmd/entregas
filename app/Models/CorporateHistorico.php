@@ -15,6 +15,7 @@ class CorporateHistorico extends Model
         'corporate_id',
         'user_id',
         'data',
+        'tipo',
         'texto',
     ];
 

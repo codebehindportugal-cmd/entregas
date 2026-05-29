@@ -15,6 +15,8 @@ class Corporate extends Model
 
     private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
+    private const PASTELARIA = ['pao', 'croissant', 'bolo'];
+
     private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     protected $fillable = [
@@ -38,6 +40,8 @@ class Corporate extends Model
         'peso_total',
         'frutas',
         'frutas_por_dia',
+        'pastelaria',
+        'pastelaria_por_dia',
         'notas',
         'ativo',
     ];
@@ -49,6 +53,8 @@ class Corporate extends Model
             'quinzenal_referencia' => 'date',
             'frutas' => 'array',
             'frutas_por_dia' => 'array',
+            'pastelaria' => 'array',
+            'pastelaria_por_dia' => 'array',
             'ativo' => 'boolean',
             'peso_total' => 'decimal:2',
             'preco_venda_peca' => 'decimal:4',
@@ -112,6 +118,26 @@ class Corporate extends Model
     public function totalPecasParaDia(string $dia): int
     {
         return (int) array_sum(collect($this->frutasParaDia($dia))->except(self::PRODUTOS_KG)->all());
+    }
+
+    public function pastelariaPorDia(string $dia): array
+    {
+        $pastelariaBase = $this->pastelaria ?? [];
+        $pastelariaDoDia = $this->pastelaria_por_dia[$dia] ?? [];
+        $temPastelariaDoDia = is_array($this->pastelaria_por_dia ?? null) && array_key_exists($dia, $this->pastelaria_por_dia);
+
+        return collect(self::PASTELARIA)
+            ->mapWithKeys(function (string $produto) use ($pastelariaBase, $pastelariaDoDia, $temPastelariaDoDia): array {
+                $value = $temPastelariaDoDia ? ($pastelariaDoDia[$produto] ?? 0) : ($pastelariaBase[$produto] ?? 0);
+
+                return [$produto => (int) $value];
+            })
+            ->all();
+    }
+
+    public function totalPastelariaPorDia(string $dia): int
+    {
+        return (int) array_sum($this->pastelariaPorDia($dia));
     }
 
     public function pecasPorDiaEntrega(): array

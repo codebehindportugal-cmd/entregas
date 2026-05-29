@@ -89,4 +89,37 @@ class WooOrderProfileTest extends TestCase
             'scheduled_delivery_at' => '2026-05-30',
         ]);
     }
+
+    public function test_updating_subscription_schedule_clears_delivery_dates_for_regeneration(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = WooOrder::factory()->create([
+            'source_type' => 'subscription',
+            'status' => 'active',
+            'dia_entrega' => 'quarta',
+            'ciclo_entrega' => 'semanal',
+            'first_delivery_at' => '2026-05-06',
+            'next_payment_at' => '2026-06-06',
+            'subscription_ends_at' => '2026-05-27',
+            'delivery_dates' => ['2026-05-06', '2026-05-13', '2026-05-20', '2026-05-27'],
+        ]);
+
+        $this->actingAs($admin)->put(route('encomendas.profile.update', $order), [
+            'billing_name' => $order->billing_name,
+            'billing_phone' => $order->billing_phone,
+            'billing_email' => $order->billing_email,
+            'customer_language' => $order->customer_language,
+            'source_type' => 'subscription',
+            'dia_entrega' => 'quarta',
+            'ciclo_entrega' => 'quinzenal',
+            'scheduled_delivery_at' => null,
+            'first_delivery_at' => '2026-05-06',
+            'next_payment_at' => '2026-06-06',
+            'subscription_ends_at' => '2026-05-27',
+            'profile_preferences' => null,
+            'customer_notes' => null,
+        ])->assertRedirect();
+
+        $this->assertSame([], $order->refresh()->delivery_dates);
+    }
 }

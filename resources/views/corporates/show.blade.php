@@ -40,6 +40,14 @@
             <label class="mt-4 block text-sm text-slate-300">Data
                 <input name="data" type="date" value="{{ old('data', now()->toDateString()) }}" required class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
             </label>
+            <label class="mt-4 block text-sm text-slate-300">Tipo
+                <select name="tipo" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    <option value="nota" @selected(old('tipo', 'nota') === 'nota')>Nota geral</option>
+                    <option value="nao_entregamos" @selected(old('tipo') === 'nao_entregamos')>Nao entregamos</option>
+                    <option value="entrega_parcial" @selected(old('tipo') === 'entrega_parcial')>Entrega parcial</option>
+                    <option value="entrega_extra" @selected(old('tipo') === 'entrega_extra')>Entrega extra</option>
+                </select>
+            </label>
             <label class="mt-4 block text-sm text-slate-300">Texto
                 <textarea name="texto" rows="5" required placeholder="Ex: Alterado numero de caixas, contacto atualizado, combinada entrega quinzenal..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('texto') }}</textarea>
             </label>
@@ -53,7 +61,16 @@
                     <article class="rounded border border-white/10 bg-[#0A0F1A] p-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <p class="font-semibold text-white">{{ $historico->data->format('d/m/Y') }}</p>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <p class="font-semibold text-white">{{ $historico->data->format('d/m/Y') }}</p>
+                                    @if($historico->tipo === 'nao_entregamos')
+                                        <span class="rounded bg-red-500/15 px-2 py-1 text-xs font-semibold text-red-200">Nao entregamos</span>
+                                    @elseif($historico->tipo === 'entrega_parcial')
+                                        <span class="rounded bg-yellow-500/15 px-2 py-1 text-xs font-semibold text-yellow-200">Entrega parcial</span>
+                                    @elseif($historico->tipo === 'entrega_extra')
+                                        <span class="rounded bg-blue-500/15 px-2 py-1 text-xs font-semibold text-blue-200">Entrega extra</span>
+                                    @endif
+                                </div>
                                 <p class="text-xs text-slate-500">
                                     Registado por {{ $historico->user?->name ?? 'Sistema' }} em {{ $historico->created_at->format('d/m/Y H:i') }}
                                 </p>

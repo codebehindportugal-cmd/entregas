@@ -23,6 +23,7 @@ class CorporateHistoricoFactory extends Factory
             'corporate_id' => Corporate::factory(),
             'user_id' => User::factory(),
             'data' => fake()->date(),
+            'tipo' => 'nota',
             'texto' => fake()->paragraph(),
         ];
     }

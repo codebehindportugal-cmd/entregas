@@ -93,6 +93,50 @@
         </div>
     </form>
 
+    <section class="mb-6 rounded border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-950">Pastelaria</h2>
+                <p class="text-sm text-slate-500">{{ $total_pastelaria ?? 0 }} pecas no periodo</p>
+            </div>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+            @foreach($labelsPastelaria as $key => $label)
+                <div class="rounded border border-blue-100 bg-blue-50 p-4">
+                    <p class="text-sm font-medium text-blue-700">{{ $label }}</p>
+                    <p class="mt-2 text-2xl font-semibold text-blue-950">{{ (int) ($totais_pastelaria[$key] ?? 0) }}</p>
+                </div>
+            @endforeach
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="text-xs uppercase text-slate-500">
+                    <tr>
+                        <th class="p-2">Dia</th>
+                        @foreach($labelsPastelaria as $label)
+                            <th class="p-2">{{ $label }}</th>
+                        @endforeach
+                        <th class="p-2">Total</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @foreach($dias as $linha)
+                        <tr>
+                            <td class="p-2">
+                                <p class="font-semibold text-slate-950">{{ $linha['dia'] }}</p>
+                                <p class="text-xs text-slate-500">{{ $linha['data']->format('d/m/Y') }}</p>
+                            </td>
+                            @foreach(array_keys($labelsPastelaria) as $key)
+                                <td class="p-2 text-slate-700">{{ (int) ($linha['pastelaria'][$key] ?? 0) }}</td>
+                            @endforeach
+                            <td class="p-2 font-semibold text-slate-950">{{ (int) ($linha['total_pastelaria'] ?? 0) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <div class="overflow-x-auto rounded border border-slate-200 bg-white shadow-sm">
         <table class="w-full text-left text-sm">
             <thead>

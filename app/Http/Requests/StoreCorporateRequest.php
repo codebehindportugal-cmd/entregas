@@ -38,6 +38,11 @@ class StoreCorporateRequest extends FormRequest
             'frutas_por_dia' => ['nullable', 'array'],
             'frutas_por_dia.*' => ['nullable', 'array'],
             'frutas_por_dia.*.*' => ['nullable', 'numeric', 'min:0'],
+            'pastelaria' => ['nullable', 'array'],
+            'pastelaria.*' => ['nullable', 'integer', 'min:0'],
+            'pastelaria_por_dia' => ['nullable', 'array'],
+            'pastelaria_por_dia.*' => ['nullable', 'array'],
+            'pastelaria_por_dia.*.*' => ['nullable', 'integer', 'min:0'],
             'notas' => ['nullable', 'string'],
             'ativo' => ['nullable', 'boolean'],
         ];

@@ -48,6 +48,7 @@ class ComprasController extends Controller
             'inicio' => $inicio->toDateString(),
             'fim' => $fim->toDateString(),
             'labels' => ComprasService::FRUTAS,
+            'labelsPastelaria' => ComprasService::PASTELARIA,
             ...$calculo,
         ]);
     }

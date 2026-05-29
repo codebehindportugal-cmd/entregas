@@ -7,9 +7,11 @@ use App\Http\Requests\StoreCorporateRequest;
 use App\Http\Requests\UpdateCorporateRequest;
 use App\Models\Corporate;
 use App\Models\CorporateHistorico;
+use App\Models\RegistoEntrega;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
@@ -20,7 +22,18 @@ class CorporateController extends Controller
 {
     private const DIAS = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'];
 
+    private const DIAS_SEMANA = [
+        1 => 'Segunda',
+        2 => 'Terca',
+        3 => 'Quarta',
+        4 => 'Quinta',
+        5 => 'Sexta',
+        6 => 'Sabado',
+    ];
+
     private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+
+    private const PASTELARIA = ['pao', 'croissant', 'bolo'];
 
     private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
@@ -184,6 +197,70 @@ class CorporateController extends Controller
         return view('corporates.show', compact('corporate'));
     }
 
+    public function relatorioMensal(Request $request, Corporate $corporate): View
+    {
+        $validated = $request->validate([
+            'mes' => ['nullable', 'date_format:Y-m'],
+        ]);
+        $mes = $validated['mes'] ?? now()->format('Y-m');
+        $inicio = Carbon::createFromFormat('Y-m-d', "{$mes}-01")->startOfDay();
+        $fim = $inicio->copy()->endOfMonth();
+        $diasEntrega = $corporate->dias_entrega ?? [];
+
+        $registos = RegistoEntrega::query()
+            ->where('corporate_id', $corporate->id)
+            ->whereBetween('data_entrega', [$inicio->toDateString(), $fim->toDateString()])
+            ->get()
+            ->keyBy(fn (RegistoEntrega $registo): string => $registo->data_entrega->toDateString());
+
+        $historicosNaoEntregamos = $corporate->historicos()
+            ->where('tipo', 'nao_entregamos')
+            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+            ->get()
+            ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
+
+        $linhas = collect();
+        $data = $inicio->copy();
+
+        while ($data->lessThanOrEqualTo($fim)) {
+            $diaSemana = self::DIAS_SEMANA[$data->dayOfWeek] ?? null;
+
+            if ($diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data)) {
+                $dataKey = $data->toDateString();
+                $registo = $registos->get($dataKey);
+                $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
+                $estado = $historicoNaoEntregamos !== null
+                    ? 'nao_entregamos'
+                    : ($registo?->status ?? 'sem_registo');
+
+                $linhas->push([
+                    'data' => $data->copy(),
+                    'dia' => $diaSemana,
+                    'estado' => $estado,
+                    'hora_entrega' => $registo?->hora_entrega,
+                    'nota' => collect([$registo?->nota, $historicoNaoEntregamos?->texto])->filter()->implode("\n"),
+                ]);
+            }
+
+            $data->addDay();
+        }
+
+        $totais = [
+            'entregue' => $linhas->where('estado', 'entregue')->count(),
+            'falhou' => $linhas->where('estado', 'falhou')->count(),
+            'nao_entregamos' => $linhas->where('estado', 'nao_entregamos')->count(),
+            'sem_registo' => $linhas->where('estado', 'sem_registo')->count(),
+        ];
+
+        return view('corporates.relatorio-mensal', [
+            'corporate' => $corporate,
+            'mes' => $mes,
+            'inicio' => $inicio,
+            'linhas' => $linhas,
+            'totais' => $totais,
+        ]);
+    }
+
     public function edit(Corporate $corporate): View
     {
         return view('corporates.edit', compact('corporate'));
@@ -207,6 +284,7 @@ class CorporateController extends Controller
     {
         $corporate->historicos()->create([
             ...$request->validated(),
+            'tipo' => $request->validated('tipo') ?: 'nota',
             'user_id' => $request->user()->id,
         ]);
 
@@ -242,6 +320,19 @@ class CorporateController extends Controller
             })
             ->filter(fn (array $frutas) => array_sum($frutas) > 0)
             ->all();
+        $pastelaria = $this->quantidadesPastelaria($data['pastelaria'] ?? []);
+        $pastelariaPorDia = collect(self::DIAS)
+            ->mapWithKeys(function (string $dia) use ($data, $pastelaria): array {
+                $valoresDia = $this->quantidadesPastelaria($data['pastelaria_por_dia'][$dia] ?? []);
+
+                if (in_array($dia, $data['dias_entrega'] ?? [], true) && array_sum($valoresDia) <= 0) {
+                    $valoresDia = $pastelaria;
+                }
+
+                return [$dia => $valoresDia];
+            })
+            ->filter(fn (array $pastelaria) => array_sum($pastelaria) > 0)
+            ->all();
         $pesoTotal = collect($data['dias_entrega'] ?? [])
             ->sum(fn (string $dia) => (int) array_sum(collect($frutasPorDia[$dia] ?? [])->except(self::PRODUTOS_KG)->all()));
 
@@ -251,6 +342,8 @@ class CorporateController extends Controller
             'cabaz_quantidade' => filled($data['cabaz_tipo'] ?? null) ? (int) ($data['cabaz_quantidade'] ?? 1) : null,
             'frutas' => $frutas,
             'frutas_por_dia' => $frutasPorDia,
+            'pastelaria' => $pastelaria,
+            'pastelaria_por_dia' => $pastelariaPorDia,
             'peso_total' => $pesoTotal,
             'ativo' => (bool) ($data['ativo'] ?? false),
             'preco_venda_peca' => filled($data['preco_venda_peca'] ?? null) ? (float) $data['preco_venda_peca'] : null,
@@ -265,6 +358,15 @@ class CorporateController extends Controller
         }
 
         return (int) $value;
+    }
+
+    private function quantidadesPastelaria(mixed $values): array
+    {
+        $values = is_array($values) ? $values : [];
+
+        return collect(self::PASTELARIA)
+            ->mapWithKeys(fn (string $produto): array => [$produto => max(0, (int) ($values[$produto] ?? 0))])
+            ->all();
     }
 
     private function normalizeImportRow(array $row, int $line): array

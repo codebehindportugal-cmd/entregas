@@ -123,13 +123,20 @@ class EncomendaController extends Controller
             'ciclo_entrega' => ['required', 'in:semanal,quinzenal'],
             'scheduled_delivery_at' => ['nullable', 'date'],
             'first_delivery_at' => ['nullable', 'date'],
-            'next_payment_at' => ['nullable', 'date'],
-            'subscription_ends_at' => ['nullable', 'date'],
+            'next_payment_at' => ['nullable', 'date', 'after_or_equal:first_delivery_at'],
+            'subscription_ends_at' => ['nullable', 'date', 'after_or_equal:first_delivery_at'],
             'profile_preferences' => ['nullable', 'string'],
             'customer_notes' => ['nullable', 'string'],
         ]);
 
         $encomenda->update($data);
+
+        if (
+            $encomenda->isSubscricao()
+            && $encomenda->wasChanged(['first_delivery_at', 'subscription_ends_at', 'ciclo_entrega', 'dia_entrega'])
+        ) {
+            $encomenda->forceFill(['delivery_dates' => []])->save();
+        }
 
         return back()->with('status', 'Perfil do cliente atualizado.');
     }
