@@ -218,6 +218,11 @@ class CorporateController extends Controller
             ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
             ->get()
             ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
+        $historicosEntregaParcial = $corporate->historicos()
+            ->where('tipo', 'entrega_parcial')
+            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+            ->get()
+            ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
 
         $linhas = collect();
         $data = $inicio->copy();
@@ -229,16 +234,22 @@ class CorporateController extends Controller
                 $dataKey = $data->toDateString();
                 $registo = $registos->get($dataKey);
                 $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
+                $historicoEntregaParcial = $historicosEntregaParcial->get($dataKey);
                 $estado = $historicoNaoEntregamos !== null
                     ? 'nao_entregamos'
-                    : ($registo?->status ?? 'sem_registo');
+                    : ($historicoEntregaParcial !== null ? 'entrega_parcial'
+                    : ($registo?->status ?? 'sem_registo'));
+                $pecasEntregues = $estado === 'entrega_parcial'
+                    ? (int) ($historicoEntregaParcial?->pecas_entregues ?? 0)
+                    : null;
 
                 $linhas->push([
                     'data' => $data->copy(),
                     'dia' => $diaSemana,
                     'estado' => $estado,
                     'hora_entrega' => $registo?->hora_entrega,
-                    'nota' => collect([$registo?->nota, $historicoNaoEntregamos?->texto])->filter()->implode("\n"),
+                    'pecas_entregues' => $pecasEntregues,
+                    'nota' => collect([$registo?->nota, $historicoNaoEntregamos?->texto, $historicoEntregaParcial?->texto])->filter()->implode("\n"),
                 ]);
             }
 
@@ -249,6 +260,7 @@ class CorporateController extends Controller
             'entregue' => $linhas->where('estado', 'entregue')->count(),
             'falhou' => $linhas->where('estado', 'falhou')->count(),
             'nao_entregamos' => $linhas->where('estado', 'nao_entregamos')->count(),
+            'entrega_parcial' => $linhas->where('estado', 'entrega_parcial')->count(),
             'sem_registo' => $linhas->where('estado', 'sem_registo')->count(),
         ];
 
@@ -283,27 +295,52 @@ class CorporateController extends Controller
             ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
             ->get()
             ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
+        $historicosEntregaParcial = $corporate->historicos()
+            ->where('tipo', 'entrega_parcial')
+            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+            ->get()
+            ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
+        $historicosEntregaExtra = $corporate->historicos()
+            ->where('tipo', 'entrega_extra')
+            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+            ->get()
+            ->groupBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
 
         $linhas = collect();
         $data = $inicio->copy();
 
         while ($data->lessThanOrEqualTo($fim)) {
             $diaSemana = self::DIAS_SEMANA[$data->dayOfWeek] ?? null;
+            $dataKey = $data->toDateString();
+            $historicosExtraDoDia = $historicosEntregaExtra->get($dataKey, collect());
 
-            if ($diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data)) {
-                $dataKey = $data->toDateString();
+            if (($diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data)) || $historicosExtraDoDia->isNotEmpty()) {
                 $registo = $registos->get($dataKey);
                 $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
+                $historicoEntregaParcial = $historicosEntregaParcial->get($dataKey);
+                $temEntregaRegular = $diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data);
+                $pecasRegular = $temEntregaRegular ? $corporate->totalPecasParaDia($diaSemana) : 0;
+                $pecasExtra = $historicosExtraDoDia->sum(fn (CorporateHistorico $historico): int => (int) ($historico->pecas_entregues ?? 0));
+                $notasExtra = $historicosExtraDoDia->pluck('texto')->filter()->values();
                 $status = $historicoNaoEntregamos !== null
                     ? 'nao_entregamos'
-                    : ($registo?->status ?? 'sem_registo');
+                    : ($historicoEntregaParcial !== null ? 'entrega_parcial'
+                    : ($registo?->status ?? 'sem_registo'));
+                $pecasEntregues = match ($status) {
+                    'nao_entregamos', 'falhou' => 0,
+                    'entrega_parcial' => (int) ($historicoEntregaParcial?->pecas_entregues ?? 0),
+                    default => $pecasRegular,
+                };
 
                 $linhas->push([
                     'data' => $data->copy(),
                     'dia_semana' => $diaSemana,
-                    'pecas' => $corporate->totalPecasParaDia($diaSemana),
+                    'pecas' => $pecasEntregues + $pecasExtra,
                     'status' => $status,
-                    'nota' => $historicoNaoEntregamos?->texto ?: $registo?->nota,
+                    'nota' => collect([$historicoNaoEntregamos?->texto, $historicoEntregaParcial?->texto, $registo?->nota])
+                        ->merge($notasExtra)
+                        ->filter()
+                        ->implode("\n"),
                 ]);
             }
 
@@ -345,9 +382,15 @@ class CorporateController extends Controller
 
     public function storeHistorico(StoreCorporateHistoricoRequest $request, Corporate $corporate): RedirectResponse
     {
+        $data = $request->validated();
+        $tipo = $data['tipo'] ?: 'nota';
+
         $corporate->historicos()->create([
-            ...$request->validated(),
-            'tipo' => $request->validated('tipo') ?: 'nota',
+            ...$data,
+            'tipo' => $tipo,
+            'pecas_entregues' => in_array($tipo, ['entrega_parcial', 'entrega_extra'], true)
+                ? (int) ($data['pecas_entregues'] ?? 0)
+                : ($tipo === 'nao_entregamos' ? 0 : null),
             'user_id' => $request->user()->id,
         ]);
 

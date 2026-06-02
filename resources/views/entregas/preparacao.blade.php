@@ -44,7 +44,7 @@
         </div>
     </form>
 
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div class="rounded border border-white/10 bg-[#151E2D] p-5">
             <p class="text-sm text-slate-400">Clientes</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ $corporatePreparacoes->count() + $b2cPreparacoes->count() }}</p>
@@ -58,6 +58,11 @@
             <p class="text-sm text-blue-200">Pecas totais</p>
             <p class="mt-2 text-3xl font-semibold text-white">{{ $totalPecas }}</p>
             <p class="mt-1 text-xs text-blue-100/80">Sem produtos em kg</p>
+        </div>
+        <div class="rounded border border-cyan-400/30 bg-cyan-500/10 p-5">
+            <p class="text-sm text-cyan-200">Pecas entregues</p>
+            <p class="mt-2 text-3xl font-semibold text-white">{{ $totalPecasEntregues }}</p>
+            <p class="mt-1 text-xs text-cyan-100/80">Com parciais e extras</p>
         </div>
         <div class="rounded border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-5">
             <p class="text-sm text-amber-200">Dia</p>
@@ -102,6 +107,8 @@
                 <tr>
                     <th class="p-3">Empresa</th>
                     <th class="p-3">Data</th>
+                    <th class="p-3">Tipo entrega</th>
+                    <th class="p-3">Pecas entregues</th>
                     <th class="p-3">Caixas</th>
                     @foreach($labels as $label)
                         <th class="p-3">{{ $label }}</th>
@@ -116,10 +123,12 @@
                         $corporate = $preparacao['corporate'];
                         $dataLinha = $preparacao['data'];
                         $diaLinha = $preparacao['dia'];
-                        $frutasEmpresa = $corporate->frutasParaDia($diaLinha);
+                        $usarProdutos = $preparacao['usar_produtos'] ?? true;
+                        $frutasEmpresa = $usarProdutos ? $corporate->frutasParaDia($diaLinha) : [];
                         $totalEmpresa = collect(array_keys($labels))->reject(fn (string $key) => in_array($key, $produtosKg, true))->sum(fn (string $key) => (int) ($frutasEmpresa[$key] ?? 0));
                         $item = $preparacaoItems->get('corporate-'.$corporate->id.'-'.$dataLinha);
                         $anchor = 'prep-corporate-'.$corporate->id.'-'.$dataLinha;
+                        $tipoEntrega = $preparacao['tipo_entrega'] ?? 'Entrega regular';
                     @endphp
                     <tr id="{{ $anchor }}" class="scroll-mt-28 border-t border-white/10">
                         <td class="p-3">
@@ -130,6 +139,18 @@
                             <p>{{ \Illuminate\Support\Carbon::parse($dataLinha)->format('d/m/Y') }}</p>
                             <p class="text-xs text-slate-500">{{ $diaLinha }}</p>
                         </td>
+                        <td class="p-3">
+                            @if(str_contains($tipoEntrega, 'Nao entregamos'))
+                                <span class="rounded bg-red-500/15 px-2 py-1 text-xs font-semibold text-red-200">{{ $tipoEntrega }}</span>
+                            @elseif(str_contains($tipoEntrega, 'parcial'))
+                                <span class="rounded bg-yellow-500/15 px-2 py-1 text-xs font-semibold text-yellow-200">{{ $tipoEntrega }}</span>
+                            @elseif(str_contains($tipoEntrega, 'extra'))
+                                <span class="rounded bg-blue-500/15 px-2 py-1 text-xs font-semibold text-blue-200">{{ $tipoEntrega }}</span>
+                            @else
+                                <span class="rounded bg-emerald-500/15 px-2 py-1 text-xs font-semibold text-emerald-200">{{ $tipoEntrega }}</span>
+                            @endif
+                        </td>
+                        <td class="p-3 font-semibold text-cyan-200">{{ (int) ($preparacao['pecas_entregues'] ?? $totalEmpresa) }}</td>
                         <td class="p-3 font-semibold text-emerald-200">{{ $corporate->numero_caixas }}</td>
                         @foreach(array_keys($labels) as $key)
                             <td class="p-3 text-slate-300">{{ in_array($key, $produtosKg, true) ? number_format((float) ($frutasEmpresa[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($frutasEmpresa[$key] ?? 0) }}</td>
@@ -158,7 +179,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ count($labels) + 5 }}" class="p-4 text-slate-400">Nao existem empresas com entrega neste periodo.</td>
+                        <td colspan="{{ count($labels) + 7 }}" class="p-4 text-slate-400">Nao existem empresas com entrega neste periodo.</td>
                     </tr>
                 @endforelse
             </tbody>

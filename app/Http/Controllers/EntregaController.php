@@ -7,6 +7,7 @@ use App\Http\Requests\StoreAtribuicaoEntregaRequest;
 use App\Http\Requests\UpdateRegistoEntregaRequest;
 use App\Models\AtribuicaoEntrega;
 use App\Models\Corporate;
+use App\Models\CorporateHistorico;
 use App\Models\PreparacaoItem;
 use App\Models\RegistoEntrega;
 use App\Models\User;
@@ -264,6 +265,20 @@ class EntregaController extends Controller
         $q = $request->string('q')->toString();
         $corporatePreparacoes = collect();
         $b2cPreparacoes = collect();
+        $historicosEntrega = CorporateHistorico::with('corporate')
+            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
+            ->whereIn('tipo', ['nao_entregamos', 'entrega_parcial', 'entrega_extra'])
+            ->whereHas('corporate', fn ($query) => $query
+                ->where('ativo', true)
+                ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                    $query->where('empresa', 'like', "%{$q}%")
+                        ->orWhere('sucursal', 'like', "%{$q}%")
+                        ->orWhere('morada_entrega', 'like', "%{$q}%")
+                        ->orWhere('fatura_morada', 'like', "%{$q}%");
+                }))
+            )
+            ->get()
+            ->groupBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
 
         foreach ($datasSelecionadas as $dataSelecionada) {
             $diaData = self::DIAS[$dataSelecionada->dayOfWeek] ?? null;
@@ -271,6 +286,9 @@ class EntregaController extends Controller
             if ($diaData === null) {
                 continue;
             }
+
+            $dataKey = $dataSelecionada->toDateString();
+            $historicosDoDia = $historicosEntrega->get($dataKey, collect())->groupBy('corporate_id');
 
             $corporatesDoDia = Corporate::where('ativo', true)
                 ->whereJsonContains('dias_entrega', $diaData)
@@ -285,13 +303,37 @@ class EntregaController extends Controller
                 ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
                 ->values();
 
-            $corporatesDoDia->each(function (Corporate $corporate) use ($corporatePreparacoes, $dataSelecionada, $diaData): void {
+            $corporatesDoDia->each(function (Corporate $corporate) use ($corporatePreparacoes, $dataSelecionada, $diaData, $historicosDoDia): void {
+                $historicosCorporate = $historicosDoDia->get($corporate->id, collect());
+
                 $corporatePreparacoes->push([
                     'data' => $dataSelecionada->toDateString(),
                     'dia' => $diaData,
                     'corporate' => $corporate,
+                    'entrega_regular' => true,
+                    ...$this->resumoHistoricosPreparacao($historicosCorporate, $corporate->totalPecasParaDia($diaData), true),
                 ]);
             });
+
+            $corporateIdsRegulares = $corporatesDoDia->pluck('id');
+            $historicosDoDia
+                ->reject(fn ($historicosCorporate, $corporateId): bool => $corporateIdsRegulares->contains($corporateId))
+                ->filter(fn ($historicosCorporate): bool => $historicosCorporate->contains(fn (CorporateHistorico $historico): bool => $historico->tipo === 'entrega_extra'))
+                ->each(function ($historicosCorporate) use ($corporatePreparacoes, $dataSelecionada, $diaData): void {
+                    $corporate = $historicosCorporate->first()?->corporate;
+
+                    if ($corporate === null) {
+                        return;
+                    }
+
+                    $corporatePreparacoes->push([
+                        'data' => $dataSelecionada->toDateString(),
+                        'dia' => $diaData,
+                        'corporate' => $corporate,
+                        'entrega_regular' => false,
+                        ...$this->resumoHistoricosPreparacao($historicosCorporate, 0, false),
+                    ]);
+                });
 
             $this->b2cOrdersParaDia($diaData, $dataSelecionada, $q)
                 ->get()
@@ -335,9 +377,9 @@ class EntregaController extends Controller
         $produtosKg = ComprasService::PRODUTOS_KG;
         $totaisFrutas = collect(ComprasService::FRUTAS)
             ->mapWithKeys(fn (string $label, string $fruta) => [
-                $fruta => $corporatePreparacoes->sum(fn (array $preparacao) => in_array($fruta, $produtosKg, true)
+                $fruta => $corporatePreparacoes->sum(fn (array $preparacao) => ($preparacao['usar_produtos'] ?? true) && in_array($fruta, $produtosKg, true)
                     ? (float) ($preparacao['corporate']->frutasParaDia($preparacao['dia'])[$fruta] ?? 0)
-                    : (int) ($preparacao['corporate']->frutasParaDia($preparacao['dia'])[$fruta] ?? 0)),
+                    : (($preparacao['usar_produtos'] ?? true) ? (int) ($preparacao['corporate']->frutasParaDia($preparacao['dia'])[$fruta] ?? 0) : 0)),
             ])
             ->all();
         $totalPecas = collect($totaisFrutas)
@@ -345,7 +387,7 @@ class EntregaController extends Controller
             ->sum(fn (int|float $quantidade): int => (int) $quantidade);
         $totaisPastelaria = collect(ComprasService::PASTELARIA)
             ->mapWithKeys(fn (string $label, string $produto) => [
-                $produto => $corporatePreparacoes->sum(fn (array $preparacao) => (int) ($preparacao['corporate']->pastelariaPorDia($preparacao['dia'])[$produto] ?? 0)),
+                $produto => $corporatePreparacoes->sum(fn (array $preparacao) => ($preparacao['usar_produtos'] ?? true) ? (int) ($preparacao['corporate']->pastelariaPorDia($preparacao['dia'])[$produto] ?? 0) : 0),
             ])
             ->all();
 
@@ -365,11 +407,50 @@ class EntregaController extends Controller
             'preparacaoItems' => $preparacaoItems,
             'totalCaixas' => $corporatePreparacoes->sum(fn (array $preparacao) => (int) $preparacao['corporate']->numero_caixas),
             'totalPecas' => $totalPecas,
+            'totalPecasEntregues' => $corporatePreparacoes->sum(fn (array $preparacao) => (int) ($preparacao['pecas_entregues'] ?? 0)),
             'totaisFrutas' => $totaisFrutas,
             'totaisPastelaria' => $totaisPastelaria,
             'totalFeitos' => $preparacaoItems->where('feito', true)->count(),
             'totalPorFazer' => $preparacaoItems->where('feito', false)->count(),
         ]);
+    }
+
+    private function resumoHistoricosPreparacao($historicos, int $pecasRegulares, bool $entregaRegular): array
+    {
+        $historicoNaoEntregamos = $historicos->first(fn (CorporateHistorico $historico): bool => $historico->tipo === 'nao_entregamos');
+        $historicoParcial = $historicos->first(fn (CorporateHistorico $historico): bool => $historico->tipo === 'entrega_parcial');
+        $historicosExtra = $historicos->filter(fn (CorporateHistorico $historico): bool => $historico->tipo === 'entrega_extra');
+        $pecasExtra = $historicosExtra->sum(fn (CorporateHistorico $historico): int => (int) ($historico->pecas_entregues ?? 0));
+
+        if ($historicoNaoEntregamos !== null) {
+            return [
+                'tipo_entrega' => 'Nao entregamos'.($pecasExtra > 0 ? ' + entrega extra' : ''),
+                'pecas_entregues' => $pecasExtra,
+                'usar_produtos' => false,
+            ];
+        }
+
+        if ($historicoParcial !== null) {
+            return [
+                'tipo_entrega' => 'Entrega parcial'.($pecasExtra > 0 ? ' + extra' : ''),
+                'pecas_entregues' => (int) ($historicoParcial->pecas_entregues ?? 0) + $pecasExtra,
+                'usar_produtos' => true,
+            ];
+        }
+
+        if ($pecasExtra > 0 && ! $entregaRegular) {
+            return [
+                'tipo_entrega' => 'Entrega extra',
+                'pecas_entregues' => $pecasExtra,
+                'usar_produtos' => false,
+            ];
+        }
+
+        return [
+            'tipo_entrega' => $pecasExtra > 0 ? 'Entrega regular + extra' : 'Entrega regular',
+            'pecas_entregues' => $pecasRegulares + $pecasExtra,
+            'usar_produtos' => true,
+        ];
     }
 
     private function datasPreparacao(Carbon $inicio, Carbon $fim, string $diaFiltro)
