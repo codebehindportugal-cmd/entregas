@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\WooOrder;
-use App\Models\TabelaPrecoItem;
+use App\Models\WooProduct;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -98,6 +98,93 @@ class WooCommerceService
         return $response->json();
     }
 
+    public function syncProducts(): array
+    {
+        $products = collect($this->fetchProducts());
+        $created = 0;
+        $updated = 0;
+
+        foreach ($products as $product) {
+            $model = WooProduct::firstOrNew(['woo_id' => (int) Arr::get($product, 'id')]);
+            $model->exists ? $updated++ : $created++;
+            $model->fill($this->productPayload($product));
+            $model->save();
+        }
+
+        return [
+            'fetched' => $products->count(),
+            'created' => $created,
+            'updated' => $updated,
+        ];
+    }
+
+    public function fetchProducts(): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $all = [];
+        $page = 1;
+        $perPage = (int) config('woocommerce.per_page', 50);
+
+        do {
+            $response = $this->client()
+                ->get("{$url}/wp-json/wc/v3/products", [
+                    'per_page' => $perPage,
+                    'page' => $page,
+                    'orderby' => 'title',
+                    'order' => 'asc',
+                    'status' => 'any',
+                ]);
+
+            if ($response->failed()) {
+                throw new RuntimeException('Erro WooCommerce Produtos: '.$response->status().' - '.$response->body());
+            }
+
+            $items = $response->json();
+            $items = is_array($items) ? $items : [];
+            $all = array_merge($all, $items);
+            $page++;
+        } while (count($items) === $perPage);
+
+        return $all;
+    }
+
+    public function updateProductFromLocal(WooProduct $product): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $disponivel = (bool) $product->disponivel_compra && (bool) $product->em_epoca;
+        $response = $this->client()
+            ->put("{$url}/wp-json/wc/v3/products/{$product->woo_id}", [
+                'name' => $product->name,
+                'regular_price' => $product->regular_price !== null ? number_format((float) $product->regular_price, 2, '.', '') : '',
+                'sale_price' => $product->sale_price !== null ? number_format((float) $product->sale_price, 2, '.', '') : '',
+                'stock_status' => $disponivel ? 'instock' : 'outofstock',
+                'status' => $product->status ?: 'publish',
+                'meta_data' => [
+                    ['key' => '_hdm_epoca', 'value' => $product->epoca],
+                    ['key' => '_hdm_em_epoca', 'value' => $product->em_epoca ? '1' : '0'],
+                    ['key' => '_hdm_disponivel_compra', 'value' => $product->disponivel_compra ? '1' : '0'],
+                ],
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro ao atualizar produto no WooCommerce: '.$response->status().' - '.$response->body());
+        }
+
+        $product->update($this->productPayload($response->json()));
+
+        return $response->json();
+    }
+
     public function createPendingOrderFrom(WooOrder $order): array
     {
         $url = rtrim((string) config('woocommerce.url'), '/');
@@ -172,40 +259,6 @@ class WooCommerceService
         return $order->fresh();
     }
 
-    public function updateProductFromTabelaItem(TabelaPrecoItem $item): array
-    {
-        $url = rtrim((string) config('woocommerce.url'), '/');
-
-        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
-            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
-        }
-
-        if (blank($item->woo_product_id)) {
-            throw new RuntimeException('Este produto nao tem ID WooCommerce configurado.');
-        }
-
-        $endpoint = filled($item->woo_variation_id)
-            ? "{$url}/wp-json/wc/v3/products/{$item->woo_product_id}/variations/{$item->woo_variation_id}"
-            : "{$url}/wp-json/wc/v3/products/{$item->woo_product_id}";
-        $disponivel = (bool) $item->disponivel_compra && (bool) $item->em_epoca;
-
-        $response = $this->client()->put($endpoint, [
-            'regular_price' => number_format((float) $item->preco_kg_iva, 2, '.', ''),
-            'stock_status' => $disponivel ? 'instock' : 'outofstock',
-            'meta_data' => [
-                ['key' => '_hdm_epoca', 'value' => $item->epoca],
-                ['key' => '_hdm_em_epoca', 'value' => $item->em_epoca ? '1' : '0'],
-                ['key' => '_hdm_disponivel_compra', 'value' => $item->disponivel_compra ? '1' : '0'],
-            ],
-        ]);
-
-        if ($response->failed()) {
-            throw new RuntimeException('Erro ao atualizar produto no WooCommerce: '.$response->status().' - '.$response->body());
-        }
-
-        return $response->json();
-    }
-
     private function client(): PendingRequest
     {
         return Http::withBasicAuth(config('woocommerce.key'), config('woocommerce.secret'))
@@ -228,6 +281,45 @@ class WooCommerceService
             'order' => $model,
             'created' => $created,
         ];
+    }
+
+    private function productPayload(array $product): array
+    {
+        $categories = collect(Arr::get($product, 'categories', []))
+            ->pluck('name')
+            ->filter()
+            ->values()
+            ->all();
+        $images = Arr::get($product, 'images', []);
+        $firstImage = is_array($images) ? ($images[0]['src'] ?? null) : null;
+
+        return [
+            'woo_id' => (int) Arr::get($product, 'id'),
+            'name' => (string) Arr::get($product, 'name', ''),
+            'slug' => Arr::get($product, 'slug'),
+            'sku' => Arr::get($product, 'sku'),
+            'type' => Arr::get($product, 'type'),
+            'status' => Arr::get($product, 'status'),
+            'permalink' => Arr::get($product, 'permalink'),
+            'image_url' => $firstImage,
+            'price' => $this->decimalOrNull(Arr::get($product, 'price')),
+            'regular_price' => $this->decimalOrNull(Arr::get($product, 'regular_price')),
+            'sale_price' => $this->decimalOrNull(Arr::get($product, 'sale_price')),
+            'stock_status' => Arr::get($product, 'stock_status'),
+            'purchasable' => (bool) Arr::get($product, 'purchasable', false),
+            'categories' => $categories,
+            'raw_payload' => $product,
+            'synced_at' => now(),
+        ];
+    }
+
+    private function decimalOrNull(mixed $value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        return (float) $value;
     }
 
     private function preserveLocalScheduling(WooOrder $model, array $payload): array

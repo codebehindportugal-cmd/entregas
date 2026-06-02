@@ -73,47 +73,81 @@
         </header>
 
         <main class="mt-8">
+            @php
+                $labelsKg = [
+                    'uvas' => 'Uvas',
+                    'frutos_secos' => 'Frutos secos',
+                    'mirtilos' => 'Mirtilos',
+                    'framboesas' => 'Framboesas',
+                    'amoras' => 'Amoras',
+                    'morangos' => 'Morangos',
+                ];
+                $labelsPadaria = [
+                    'pao_mistura' => 'Pao mistura',
+                    'pao_forma' => 'Pao forma',
+                    'croissant' => 'Croissants',
+                    'bolo' => 'Bolos',
+                ];
+            @endphp
             <table class="w-full text-left text-sm">
                 <thead>
                     <tr class="bg-slate-100">
                         <th class="border border-slate-300 px-3 py-2">Data</th>
                         <th class="border border-slate-300 px-3 py-2">Dia</th>
-                        <th class="border border-slate-300 px-3 py-2 text-right">No de Pecas</th>
+                        <th class="border border-slate-300 px-3 py-2 text-right">Pecas fruta</th>
+                        <th class="border border-slate-300 px-3 py-2 text-right">Produtos kg</th>
+                        <th class="border border-slate-300 px-3 py-2 text-right">Padaria</th>
                         <th class="border border-slate-300 px-3 py-2">Observacao</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($linhas as $linha)
+                        @php
+                            $produtosKgTexto = collect($linha['produtos_kg'] ?? [])
+                                ->map(fn ($quantidade, $produto) => ($labelsKg[$produto] ?? $produto).': '.number_format((float) $quantidade, 2, ',', ' ').' kg')
+                                ->implode("\n");
+                            $pastelariaTexto = collect($linha['pastelaria'] ?? [])
+                                ->map(fn ($quantidade, $produto) => ($labelsPadaria[$produto] ?? $produto).': '.(int) $quantidade)
+                                ->implode("\n");
+                            $observacaoProdutos = collect([
+                                $produtosKgTexto ? "Produtos kg:\n".$produtosKgTexto : null,
+                                $pastelariaTexto ? "Padaria:\n".$pastelariaTexto : null,
+                            ])->filter()->implode("\n");
+                        @endphp
                         <tr>
                             <td class="border border-slate-300 px-3 py-2">{{ $linha['data']->format('d/m/Y') }}</td>
                             <td class="border border-slate-300 px-3 py-2">{{ $linha['dia_semana'] }}</td>
                             <td class="border border-slate-300 px-3 py-2 text-right font-semibold">{{ $linha['pecas'] }}</td>
+                            <td class="border border-slate-300 px-3 py-2 text-right font-semibold">{{ number_format((float) ($linha['total_kg'] ?? 0), 2, ',', ' ') }} kg</td>
+                            <td class="border border-slate-300 px-3 py-2 text-right font-semibold">{{ (int) ($linha['total_pastelaria'] ?? 0) }}</td>
                             <td class="whitespace-pre-line border border-slate-300 px-3 py-2">
                                 @if($linha['status'] === 'nao_entregamos')
                                     Nao entregue{{ $linha['nota'] ? "\n".$linha['nota'] : '' }}
                                 @elseif($linha['status'] === 'entrega_parcial')
-                                    Entrega parcial{{ $linha['nota'] ? "\n".$linha['nota'] : '' }}
+                                    Entrega parcial{{ $linha['nota'] ? "\n".$linha['nota'] : '' }}{{ $observacaoProdutos ? "\n".$observacaoProdutos : '' }}
                                 @elseif($linha['status'] === 'falhou')
                                     {{ $linha['nota'] ?: 'Nao entregue' }}
                                 @else
-                                    {{ $linha['nota'] }}
+                                    {{ collect([$linha['nota'], $observacaoProdutos])->filter()->implode("\n") }}
                                 @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="border border-slate-300 px-3 py-6 text-center text-slate-500">Nao existem dias de entrega previstos neste mes.</td>
+                            <td colspan="6" class="border border-slate-300 px-3 py-6 text-center text-slate-500">Nao existem dias de entrega previstos neste mes.</td>
                         </tr>
                     @endforelse
                 </tbody>
                 <tfoot>
                     <tr class="bg-slate-100 font-semibold">
                         <td colspan="2" class="border border-slate-300 px-3 py-2">Total de dias entregues</td>
-                        <td colspan="2" class="border border-slate-300 px-3 py-2">{{ $totalDiasEntregues }}</td>
+                        <td colspan="4" class="border border-slate-300 px-3 py-2">{{ $totalDiasEntregues }}</td>
                     </tr>
                     <tr class="bg-slate-100 font-semibold">
-                        <td colspan="2" class="border border-slate-300 px-3 py-2">Total de pecas entregues no mes</td>
-                        <td colspan="2" class="border border-slate-300 px-3 py-2">{{ $totalPecasEntregues }}</td>
+                        <td colspan="2" class="border border-slate-300 px-3 py-2">Totais entregues no mes</td>
+                        <td class="border border-slate-300 px-3 py-2">{{ $totalPecasEntregues }} pecas</td>
+                        <td class="border border-slate-300 px-3 py-2">{{ number_format((float) $totalKgEntregues, 2, ',', ' ') }} kg</td>
+                        <td colspan="2" class="border border-slate-300 px-3 py-2">{{ $totalPastelariaEntregue }} padaria</td>
                     </tr>
                 </tfoot>
             </table>

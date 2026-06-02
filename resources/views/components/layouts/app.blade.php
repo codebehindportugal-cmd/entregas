@@ -18,6 +18,7 @@
                         ['label' => 'Preparar cabazes', 'route' => 'preparacao.index', 'active' => 'preparacao.*'],
                         ['label' => 'Listas Semanais', 'route' => 'lista-cabazes.index', 'active' => 'lista-cabazes.*'],
                         ['label' => 'Margens', 'route' => 'comparacao-cabazes.index', 'active' => 'comparacao-cabazes.*'],
+                        ['label' => 'Produtos', 'route' => 'produtos.index', 'active' => 'produtos.*'],
                         ['label' => 'Precos', 'route' => 'tabelas-precos.index', 'active' => 'tabelas-precos.*'],
                         ['label' => 'Compras', 'route' => 'compras.index', 'active' => 'compras.*'],
                         ['label' => 'Clientes B2C', 'route' => 'encomendas.index', 'active' => 'encomendas.*'],

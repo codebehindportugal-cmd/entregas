@@ -37,6 +37,22 @@ class CorporateController extends Controller
 
     private const PRODUTOS_KG = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
+    private const PRODUTOS_KG_LABELS = [
+        'uvas' => 'Uvas',
+        'frutos_secos' => 'Frutos secos',
+        'mirtilos' => 'Mirtilos',
+        'framboesas' => 'Framboesas',
+        'amoras' => 'Amoras',
+        'morangos' => 'Morangos',
+    ];
+
+    private const PASTELARIA_LABELS = [
+        'pao_mistura' => 'Pao mistura',
+        'pao_forma' => 'Pao forma',
+        'croissant' => 'Croissants',
+        'bolo' => 'Bolos',
+    ];
+
     public function index(Request $request): View
     {
         $q = $request->string('q')->toString();
@@ -180,7 +196,8 @@ class CorporateController extends Controller
 
     public function store(StoreCorporateRequest $request): RedirectResponse
     {
-        Corporate::create($this->payload($request->validated()));
+        $corporate = Corporate::create($this->payload($request->validated()));
+        $this->guardarSnapshotConfiguracao($corporate, $request->validated('configuracao_ativa_desde') ?: now()->toDateString());
 
         return redirect()->route('corporates.index')->with('status', 'Empresa criada com sucesso.');
     }
@@ -199,13 +216,14 @@ class CorporateController extends Controller
 
     public function relatorioMensal(Request $request, Corporate $corporate): View
     {
+        $corporate->load('configSnapshots');
+
         $validated = $request->validate([
             'mes' => ['nullable', 'date_format:Y-m'],
         ]);
         $mes = $validated['mes'] ?? now()->format('Y-m');
         $inicio = Carbon::createFromFormat('Y-m-d', "{$mes}-01")->startOfDay();
         $fim = $inicio->copy()->endOfMonth();
-        $diasEntrega = $corporate->dias_entrega ?? [];
 
         $registos = RegistoEntrega::query()
             ->where('corporate_id', $corporate->id)
@@ -229,8 +247,10 @@ class CorporateController extends Controller
 
         while ($data->lessThanOrEqualTo($fim)) {
             $diaSemana = self::DIAS_SEMANA[$data->dayOfWeek] ?? null;
+            $configuracaoDia = $this->configuracaoCorporateParaData($corporate, $data);
+            $diasEntregaDia = $configuracaoDia['dias_entrega'] ?? [];
 
-            if ($diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data)) {
+            if ($diaSemana !== null && in_array($diaSemana, $diasEntregaDia, true) && $this->configuracaoTemEntregaNaData($configuracaoDia, $data)) {
                 $dataKey = $data->toDateString();
                 $registo = $registos->get($dataKey);
                 $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
@@ -275,13 +295,14 @@ class CorporateController extends Controller
 
     public function mapaMensal(Request $request, Corporate $corporate): View
     {
+        $corporate->load('configSnapshots');
+
         $validated = $request->validate([
             'mes' => ['nullable', 'date_format:Y-m'],
         ]);
         $mes = $validated['mes'] ?? now()->format('Y-m');
         $inicio = Carbon::createFromFormat('Y-m-d', "{$mes}-01")->startOfDay();
         $fim = $inicio->copy()->endOfMonth();
-        $diasEntrega = $corporate->dias_entrega ?? [];
 
         $registos = RegistoEntrega::query()
             ->where('corporate_id', $corporate->id)
@@ -313,13 +334,21 @@ class CorporateController extends Controller
             $diaSemana = self::DIAS_SEMANA[$data->dayOfWeek] ?? null;
             $dataKey = $data->toDateString();
             $historicosExtraDoDia = $historicosEntregaExtra->get($dataKey, collect());
+            $configuracaoDia = $this->configuracaoCorporateParaData($corporate, $data);
+            $diasEntregaDia = $configuracaoDia['dias_entrega'] ?? [];
+            $temEntregaRegular = $diaSemana !== null
+                && in_array($diaSemana, $diasEntregaDia, true)
+                && $this->configuracaoTemEntregaNaData($configuracaoDia, $data);
 
-            if (($diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data)) || $historicosExtraDoDia->isNotEmpty()) {
+            if ($temEntregaRegular || $historicosExtraDoDia->isNotEmpty()) {
                 $registo = $registos->get($dataKey);
                 $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
                 $historicoEntregaParcial = $historicosEntregaParcial->get($dataKey);
-                $temEntregaRegular = $diaSemana !== null && in_array($diaSemana, $diasEntrega, true) && $corporate->temEntregaNaData($data);
-                $pecasRegular = $temEntregaRegular ? $corporate->totalPecasParaDia($diaSemana) : 0;
+                $pecasRegular = $temEntregaRegular ? (int) ($configuracaoDia['pecas_por_dia'][$diaSemana] ?? 0) : 0;
+                $produtosRegular = $temEntregaRegular ? $this->produtosMapaParaData($corporate, $configuracaoDia, $diaSemana, $data) : [
+                    'kg' => [],
+                    'pastelaria' => [],
+                ];
                 $pecasExtra = $historicosExtraDoDia->sum(fn (CorporateHistorico $historico): int => (int) ($historico->pecas_entregues ?? 0));
                 $notasExtra = $historicosExtraDoDia->pluck('texto')->filter()->values();
                 $status = $historicoNaoEntregamos !== null
@@ -331,11 +360,18 @@ class CorporateController extends Controller
                     'entrega_parcial' => (int) ($historicoEntregaParcial?->pecas_entregues ?? 0),
                     default => $pecasRegular,
                 };
+                $produtosEntregues = in_array($status, ['nao_entregamos', 'falhou'], true)
+                    ? ['kg' => [], 'pastelaria' => []]
+                    : $produtosRegular;
 
                 $linhas->push([
                     'data' => $data->copy(),
                     'dia_semana' => $diaSemana,
                     'pecas' => $pecasEntregues + $pecasExtra,
+                    'produtos_kg' => $produtosEntregues['kg'],
+                    'pastelaria' => $produtosEntregues['pastelaria'],
+                    'total_kg' => round(array_sum($produtosEntregues['kg']), 2),
+                    'total_pastelaria' => (int) array_sum($produtosEntregues['pastelaria']),
                     'status' => $status,
                     'nota' => collect([$historicoNaoEntregamos?->texto, $historicoEntregaParcial?->texto, $registo?->nota])
                         ->merge($notasExtra)
@@ -358,7 +394,83 @@ class CorporateController extends Controller
             'linhas' => $linhas,
             'totalDiasEntregues' => $linhasEntregues->count(),
             'totalPecasEntregues' => $linhasEntregues->sum(fn (array $linha): int => (int) $linha['pecas']),
+            'totalKgEntregues' => round($linhasEntregues->sum(fn (array $linha): float => (float) ($linha['total_kg'] ?? 0)), 2),
+            'totalPastelariaEntregue' => $linhasEntregues->sum(fn (array $linha): int => (int) ($linha['total_pastelaria'] ?? 0)),
         ]);
+    }
+
+    private function produtosMapaParaData(Corporate $corporate, array $configuracao, string $diaSemana, Carbon $data): array
+    {
+        $produtosMensais = $configuracao['produtos_mensais'] ?? [];
+        $produtosKg = collect($configuracao['produtos_kg_por_dia'][$diaSemana] ?? [])
+            ->filter(fn (int|float $quantidade): bool => (float) $quantidade > 0)
+            ->reject(fn (int|float $quantidade, string $produto): bool => in_array($produto, $produtosMensais, true)
+                && ! $this->produtoMensalEntregaNestaData($corporate, $produto, $data, 'kg'))
+            ->map(fn (int|float $quantidade): float => round((float) $quantidade, 2))
+            ->all();
+        $pastelaria = collect($configuracao['pastelaria_por_dia'][$diaSemana] ?? [])
+            ->filter(fn (int|float $quantidade): bool => (int) $quantidade > 0)
+            ->reject(fn (int|float $quantidade, string $produto): bool => in_array($produto, $produtosMensais, true)
+                && ! $this->produtoMensalEntregaNestaData($corporate, $produto, $data, 'pastelaria'))
+            ->map(fn (int|float $quantidade): int => (int) $quantidade)
+            ->all();
+
+        return [
+            'kg' => $produtosKg,
+            'pastelaria' => $pastelaria,
+        ];
+    }
+
+    private function produtoMensalEntregaNestaData(Corporate $corporate, string $produto, Carbon $data, string $tipo): bool
+    {
+        $cursor = $data->copy()->startOfMonth();
+
+        while ($cursor->lessThanOrEqualTo($data)) {
+            $diaSemana = self::DIAS_SEMANA[$cursor->dayOfWeek] ?? null;
+
+            if ($diaSemana !== null) {
+                $configuracao = $this->configuracaoCorporateParaData($corporate, $cursor);
+                $diasEntrega = $configuracao['dias_entrega'] ?? [];
+                $quantidade = $tipo === 'kg'
+                    ? (float) ($configuracao['produtos_kg_por_dia'][$diaSemana][$produto] ?? 0)
+                    : (int) ($configuracao['pastelaria_por_dia'][$diaSemana][$produto] ?? 0);
+
+                if (
+                    $quantidade > 0
+                    && in_array($produto, $configuracao['produtos_mensais'] ?? [], true)
+                    && in_array($diaSemana, $diasEntrega, true)
+                    && $this->configuracaoTemEntregaNaData($configuracao, $cursor)
+                ) {
+                    return $cursor->isSameDay($data);
+                }
+            }
+
+            $cursor->addDay();
+        }
+
+        return false;
+    }
+
+    private function configuracaoCorporateParaData(Corporate $corporate, Carbon $data): array
+    {
+        $snapshot = $corporate->configSnapshots
+            ->filter(fn ($snapshot): bool => $snapshot->effective_from->lessThanOrEqualTo($data))
+            ->sortByDesc('effective_from')
+            ->first();
+
+        return $snapshot?->dados ?? $corporate->snapshotDados();
+    }
+
+    private function configuracaoTemEntregaNaData(array $configuracao, Carbon $data): bool
+    {
+        if (($configuracao['periodicidade_entrega'] ?? 'semanal') !== 'quinzenal' || blank($configuracao['quinzenal_referencia'] ?? null)) {
+            return true;
+        }
+
+        $semanaReferencia = Carbon::parse($configuracao['quinzenal_referencia'])->startOfWeek();
+        $semanaDaData = $data->copy()->startOfWeek();
+
+        return ((int) $semanaReferencia->diffInWeeks($semanaDaData)) % 2 === 0;
     }
 
     public function edit(Corporate $corporate): View
@@ -368,7 +480,10 @@ class CorporateController extends Controller
 
     public function update(UpdateCorporateRequest $request, Corporate $corporate): RedirectResponse
     {
+        $this->garantirSnapshotInicial($corporate);
+
         $corporate->update($this->payload($request->validated()));
+        $this->guardarSnapshotConfiguracao($corporate->fresh(), $request->validated('configuracao_ativa_desde') ?: now()->toDateString());
 
         return redirect()->route('corporates.index')->with('status', 'Empresa atualizada com sucesso.');
     }
@@ -443,18 +558,39 @@ class CorporateController extends Controller
             ->sum(fn (string $dia) => (int) array_sum(collect($frutasPorDia[$dia] ?? [])->except(self::PRODUTOS_KG)->all()));
 
         return [
-            ...$data,
+            ...Arr::except($data, ['configuracao_ativa_desde']),
             'cabaz_tipo' => filled($data['cabaz_tipo'] ?? null) ? $data['cabaz_tipo'] : null,
             'cabaz_quantidade' => filled($data['cabaz_tipo'] ?? null) ? (int) ($data['cabaz_quantidade'] ?? 1) : null,
             'frutas' => $frutas,
             'frutas_por_dia' => $frutasPorDia,
             'pastelaria' => $pastelaria,
             'pastelaria_por_dia' => $pastelariaPorDia,
+            'produtos_mensais' => array_values(array_intersect($data['produtos_mensais'] ?? [], array_merge(self::PRODUTOS_KG, self::PASTELARIA))),
             'peso_total' => $pesoTotal,
             'ativo' => (bool) ($data['ativo'] ?? false),
             'preco_venda_peca' => filled($data['preco_venda_peca'] ?? null) ? (float) $data['preco_venda_peca'] : null,
             'quinzenal_referencia' => $data['periodicidade_entrega'] === 'quinzenal' ? ($data['quinzenal_referencia'] ?? null) : null,
         ];
+    }
+
+    private function garantirSnapshotInicial(Corporate $corporate): void
+    {
+        if ($corporate->configSnapshots()->exists()) {
+            return;
+        }
+
+        $this->guardarSnapshotConfiguracao(
+            $corporate,
+            $corporate->created_at?->toDateString() ?: '1970-01-01'
+        );
+    }
+
+    private function guardarSnapshotConfiguracao(Corporate $corporate, string $effectiveFrom): void
+    {
+        $corporate->configSnapshots()->updateOrCreate(
+            ['effective_from' => Carbon::parse($effectiveFrom)->toDateString()],
+            ['dados' => $corporate->snapshotDados()]
+        );
     }
 
     private function quantidadeFruta(mixed $value, string $fruta): int|float
