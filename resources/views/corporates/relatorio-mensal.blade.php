@@ -80,12 +80,14 @@
                                     <span class="rounded bg-red-500/15 px-2 py-1 text-xs font-semibold text-red-200">Falhou</span>
                                 @elseif($linha['estado'] === 'nao_entregamos')
                                     <span class="rounded bg-slate-500/20 px-2 py-1 text-xs font-semibold text-slate-200">! Nao entregamos</span>
+                                @elseif($linha['estado'] === 'entrega_parcial')
+                                    <span class="rounded bg-yellow-500/15 px-2 py-1 text-xs font-semibold text-yellow-200">Entrega parcial</span>
                                 @else
                                     <span class="rounded bg-yellow-500/15 px-2 py-1 text-xs font-semibold text-yellow-200">Sem registo</span>
                                 @endif
                             </td>
                             <td class="py-3 pr-4 text-slate-300">{{ $linha['hora_entrega']?->format('H:i') ?: '-' }}</td>
-                            <td class="whitespace-pre-line py-3 text-slate-300">{{ $linha['nota'] ?: '-' }}</td>
+                            <td class="whitespace-pre-line py-3 text-slate-300">{{ $linha['pecas_entregues'] !== null ? $linha['pecas_entregues'].' pecas entregues'.($linha['nota'] ? "\n".$linha['nota'] : '') : ($linha['nota'] ?: '-') }}</td>
                         </tr>
                     @empty
                         <tr>
@@ -98,6 +100,7 @@
                         <td colspan="5" class="py-4">
                             {{ $totais['entregue'] }} entregas feitas,
                             {{ $totais['falhou'] }} falhas,
+                            {{ $totais['entrega_parcial'] }} parciais,
                             {{ $totais['nao_entregamos'] }} nao entregamos,
                             {{ $totais['sem_registo'] }} sem registo
                         </td>

@@ -16,6 +16,7 @@ class CorporateHistorico extends Model
         'user_id',
         'data',
         'tipo',
+        'pecas_entregues',
         'texto',
     ];
 
@@ -23,6 +24,7 @@ class CorporateHistorico extends Model
     {
         return [
             'data' => 'date',
+            'pecas_entregues' => 'integer',
         ];
     }
 

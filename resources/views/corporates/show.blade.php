@@ -49,6 +49,9 @@
                     <option value="entrega_extra" @selected(old('tipo') === 'entrega_extra')>Entrega extra</option>
                 </select>
             </label>
+            <label class="mt-4 block text-sm text-slate-300">Pecas entregues
+                <input name="pecas_entregues" type="number" min="0" step="1" value="{{ old('pecas_entregues') }}" placeholder="Obrigatorio para entrega parcial ou extra" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+            </label>
             <label class="mt-4 block text-sm text-slate-300">Texto
                 <textarea name="texto" rows="5" required placeholder="Ex: Alterado numero de caixas, contacto atualizado, combinada entrega quinzenal..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('texto') }}</textarea>
             </label>
@@ -70,6 +73,9 @@
                                         <span class="rounded bg-yellow-500/15 px-2 py-1 text-xs font-semibold text-yellow-200">Entrega parcial</span>
                                     @elseif($historico->tipo === 'entrega_extra')
                                         <span class="rounded bg-blue-500/15 px-2 py-1 text-xs font-semibold text-blue-200">Entrega extra</span>
+                                    @endif
+                                    @if($historico->pecas_entregues !== null)
+                                        <span class="rounded bg-white/10 px-2 py-1 text-xs font-semibold text-slate-200">{{ $historico->pecas_entregues }} pecas</span>
                                     @endif
                                 </div>
                                 <p class="text-xs text-slate-500">

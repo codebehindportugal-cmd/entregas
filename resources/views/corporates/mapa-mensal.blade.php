@@ -91,6 +91,8 @@
                             <td class="whitespace-pre-line border border-slate-300 px-3 py-2">
                                 @if($linha['status'] === 'nao_entregamos')
                                     Nao entregue{{ $linha['nota'] ? "\n".$linha['nota'] : '' }}
+                                @elseif($linha['status'] === 'entrega_parcial')
+                                    Entrega parcial{{ $linha['nota'] ? "\n".$linha['nota'] : '' }}
                                 @elseif($linha['status'] === 'falhou')
                                     {{ $linha['nota'] ?: 'Nao entregue' }}
                                 @else
