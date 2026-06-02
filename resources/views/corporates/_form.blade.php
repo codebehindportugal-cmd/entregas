@@ -7,6 +7,7 @@
     $diasSelecionados = old('dias_entrega', $corporate->dias_entrega ?? []);
     $frutasPorDiaValores = old('frutas_por_dia', $corporate->frutas_por_dia ?? []);
     $padariaPorDiaValores = old('pastelaria_por_dia', $corporate->pastelaria_por_dia ?? []);
+    $produtosMensais = old('produtos_mensais', $corporate->produtos_mensais ?? []);
 @endphp
 <div class="grid gap-4 lg:grid-cols-2">
     <label class="text-sm text-slate-300">Empresa
@@ -54,6 +55,10 @@
     <label class="text-sm text-slate-300">Preco venda por peca
         <input name="preco_venda_peca" type="number" min="0" step="0.0001" value="{{ old('preco_venda_peca', $corporate->preco_venda_peca) }}" placeholder="Ex: 0.4500" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         <span class="mt-1 block text-xs text-slate-500">Usado para todas as pecas de fruta desta empresa.</span>
+    </label>
+    <label class="text-sm text-slate-300">Alteracoes validas a partir de
+        <input name="configuracao_ativa_desde" type="date" value="{{ old('configuracao_ativa_desde', now()->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        <span class="mt-1 block text-xs text-slate-500">Usado no mapa mensal para manter corretas as quantidades antes e depois da alteracao.</span>
     </label>
 </div>
 <div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>
@@ -137,6 +142,18 @@
                     </div>
                 </div>
             </div>
+        @endforeach
+    </div>
+</div>
+<div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4">
+    <p class="text-sm font-semibold text-white">Produtos entregues apenas uma vez por mes</p>
+    <p class="mt-1 text-xs text-slate-500">Marque produtos como frutos secos ou padaria quando estes devem aparecer no mapa mensal so na primeira entrega elegivel do mes.</p>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        @foreach([...$outrosProdutos, ...$padaria] as $key => $label)
+            <label class="flex items-center gap-2 rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-slate-200">
+                <input name="produtos_mensais[]" type="checkbox" value="{{ $key }}" @checked(in_array($key, $produtosMensais, true)) class="rounded border-white/10 bg-[#0A0F1A]">
+                {{ $label }}
+            </label>
         @endforeach
     </div>
 </div>

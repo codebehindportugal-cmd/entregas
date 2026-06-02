@@ -9,6 +9,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tabela_preco_itens', function (Blueprint $table): void {
+            foreach (['woo_variation_id', 'woo_product_id', 'disponivel_compra', 'em_epoca', 'epoca'] as $column) {
+                if (Schema::hasColumn('tabela_preco_itens', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('tabela_preco_itens', function (Blueprint $table): void {
             if (! Schema::hasColumn('tabela_preco_itens', 'epoca')) {
                 $table->string('epoca')->nullable()->after('calibre');
             }
@@ -27,17 +38,6 @@ return new class extends Migration
 
             if (! Schema::hasColumn('tabela_preco_itens', 'woo_variation_id')) {
                 $table->unsignedBigInteger('woo_variation_id')->nullable()->after('woo_product_id');
-            }
-        });
-    }
-
-    public function down(): void
-    {
-        Schema::table('tabela_preco_itens', function (Blueprint $table): void {
-            foreach (['woo_variation_id', 'woo_product_id', 'disponivel_compra', 'em_epoca', 'epoca'] as $column) {
-                if (Schema::hasColumn('tabela_preco_itens', $column)) {
-                    $table->dropColumn($column);
-                }
             }
         });
     }

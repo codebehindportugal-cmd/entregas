@@ -42,6 +42,7 @@ class Corporate extends Model
         'frutas_por_dia',
         'pastelaria',
         'pastelaria_por_dia',
+        'produtos_mensais',
         'notas',
         'ativo',
     ];
@@ -55,6 +56,7 @@ class Corporate extends Model
             'frutas_por_dia' => 'array',
             'pastelaria' => 'array',
             'pastelaria_por_dia' => 'array',
+            'produtos_mensais' => 'array',
             'ativo' => 'boolean',
             'peso_total' => 'decimal:2',
             'preco_venda_peca' => 'decimal:4',
@@ -100,6 +102,24 @@ class Corporate extends Model
         return $this->hasMany(CorporateHistorico::class);
     }
 
+    public function configSnapshots(): HasMany
+    {
+        return $this->hasMany(CorporateConfigSnapshot::class);
+    }
+
+    public function snapshotDados(): array
+    {
+        return [
+            'dias_entrega' => $this->dias_entrega ?? [],
+            'periodicidade_entrega' => $this->periodicidade_entrega ?? 'semanal',
+            'quinzenal_referencia' => $this->quinzenal_referencia?->toDateString(),
+            'pecas_por_dia' => $this->pecasPorDiaEntrega(),
+            'produtos_kg_por_dia' => $this->produtosKgPorDiaEntrega(),
+            'pastelaria_por_dia' => $this->pastelariaPorDiaEntrega(),
+            'produtos_mensais' => $this->produtos_mensais ?? [],
+        ];
+    }
+
     public function frutasParaDia(string $dia): array
     {
         $frutasBase = $this->frutas ?? [];
@@ -138,6 +158,25 @@ class Corporate extends Model
     public function totalPastelariaPorDia(string $dia): int
     {
         return (int) array_sum($this->pastelariaPorDia($dia));
+    }
+
+    public function produtosKgPorDiaEntrega(): array
+    {
+        return collect($this->dias_entrega ?? [])
+            ->mapWithKeys(fn (string $dia): array => [
+                $dia => collect($this->frutasParaDia($dia))
+                    ->only(self::PRODUTOS_KG)
+                    ->map(fn (int|float $quantidade): float => round((float) $quantidade, 2))
+                    ->all(),
+            ])
+            ->all();
+    }
+
+    public function pastelariaPorDiaEntrega(): array
+    {
+        return collect($this->dias_entrega ?? [])
+            ->mapWithKeys(fn (string $dia): array => [$dia => $this->pastelariaPorDia($dia)])
+            ->all();
     }
 
     public function pecasPorDiaEntrega(): array

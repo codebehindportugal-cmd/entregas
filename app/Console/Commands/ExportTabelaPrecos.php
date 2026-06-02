@@ -38,11 +38,6 @@ class ExportTabelaPrecos extends Command
                     'produto' => $item->produto,
                     'origem' => $item->origem,
                     'calibre' => $item->calibre,
-                    'epoca' => $item->epoca,
-                    'em_epoca' => (bool) $item->em_epoca,
-                    'disponivel_compra' => (bool) $item->disponivel_compra,
-                    'woo_product_id' => $item->woo_product_id,
-                    'woo_variation_id' => $item->woo_variation_id,
                     'preco_kg' => (float) $item->preco_kg,
                     'preco_kg_iva' => (float) $item->preco_kg_iva,
                     'unidade' => $item->unidade,
@@ -63,8 +58,6 @@ class ExportTabelaPrecos extends Command
                     'valida_de' => $mapping->tabelaPrecoItem->tabelaPreco?->valida_de?->toDateString(),
                     'produto' => $mapping->tabelaPrecoItem->produto,
                     'categoria' => $mapping->tabelaPrecoItem->categoria,
-                    'woo_product_id' => $mapping->tabelaPrecoItem->woo_product_id,
-                    'woo_variation_id' => $mapping->tabelaPrecoItem->woo_variation_id,
                 ] : null,
             ])
             ->values()

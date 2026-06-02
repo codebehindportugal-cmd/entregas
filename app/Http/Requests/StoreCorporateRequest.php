@@ -43,8 +43,11 @@ class StoreCorporateRequest extends FormRequest
             'pastelaria_por_dia' => ['nullable', 'array'],
             'pastelaria_por_dia.*' => ['nullable', 'array'],
             'pastelaria_por_dia.*.*' => ['nullable', 'integer', 'min:0'],
+            'produtos_mensais' => ['nullable', 'array'],
+            'produtos_mensais.*' => ['string'],
             'notas' => ['nullable', 'string'],
             'ativo' => ['nullable', 'boolean'],
+            'configuracao_ativa_desde' => ['nullable', 'date'],
         ];
     }
 }

@@ -9,6 +9,7 @@ use App\Http\Controllers\EncomendaController;
 use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
 use App\Http\Controllers\ListaCabazController;
+use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\TabelaPrecoController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -61,6 +62,10 @@ Route::middleware('auth')->group(function (): void {
         Route::delete('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'destroyItem'])->name('lista-cabazes.itens.destroy');
         Route::get('/lista-cabazes/{listaCabaz}/totais', [ListaCabazController::class, 'totais'])->name('lista-cabazes.totais');
         Route::get('/margens-cabazes', ComparacaoCabazController::class)->name('comparacao-cabazes.index');
+        Route::get('/produtos', [ProdutoController::class, 'index'])->name('produtos.index');
+        Route::post('/produtos/sync', [ProdutoController::class, 'sync'])->name('produtos.sync');
+        Route::put('/produtos/{produto}', [ProdutoController::class, 'update'])->name('produtos.update');
+        Route::post('/produtos/{produto}/atualizar-site', [ProdutoController::class, 'updateSite'])->name('produtos.update-site');
         Route::get('/compras', ComprasController::class)->name('compras.index');
         Route::post('/compras/precos', [ComprasController::class, 'updatePrecos'])->name('compras.precos.update');
         Route::resource('/tabelas-precos', TabelaPrecoController::class)
@@ -68,7 +73,6 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/tabelas-precos/manual', [TabelaPrecoController::class, 'manual'])->name('tabelas-precos.manual');
         Route::post('/tabelas-precos/{tabelaPreco}/itens', [TabelaPrecoController::class, 'storeItem'])->name('tabelas-precos.itens.store');
         Route::put('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'updateItem'])->name('tabelas-precos.itens.update');
-        Route::post('/tabelas-precos/itens/{item}/atualizar-site', [TabelaPrecoController::class, 'syncItem'])->name('tabelas-precos.itens.sync');
         Route::delete('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'destroyItem'])->name('tabelas-precos.itens.destroy');
         Route::post('/tabelas-precos/{tabelaPreco}/clonar', [TabelaPrecoController::class, 'clonar'])->name('tabelas-precos.clonar');
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');
