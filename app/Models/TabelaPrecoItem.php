@@ -16,6 +16,11 @@ class TabelaPrecoItem extends Model
         'produto',
         'origem',
         'calibre',
+        'epoca',
+        'em_epoca',
+        'disponivel_compra',
+        'woo_product_id',
+        'woo_variation_id',
         'preco_kg',
         'preco_kg_iva',
         'unidade',
@@ -28,6 +33,10 @@ class TabelaPrecoItem extends Model
         return [
             'preco_kg' => 'decimal:4',
             'preco_kg_iva' => 'decimal:4',
+            'em_epoca' => 'boolean',
+            'disponivel_compra' => 'boolean',
+            'woo_product_id' => 'integer',
+            'woo_variation_id' => 'integer',
         ];
     }
 

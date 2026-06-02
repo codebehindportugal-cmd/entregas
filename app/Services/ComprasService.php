@@ -222,6 +222,7 @@ class ComprasService
 
                 return $item;
             }))
+            ->filter(fn (TabelaPrecoItem $item): bool => (bool) $item->disponivel_compra && (bool) $item->em_epoca)
             ->values();
     }
 

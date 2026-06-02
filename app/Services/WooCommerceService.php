@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\WooOrder;
+use App\Models\TabelaPrecoItem;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -169,6 +170,40 @@ class WooCommerceService
         $order->update($this->payload($payload, $order->source_type));
 
         return $order->fresh();
+    }
+
+    public function updateProductFromTabelaItem(TabelaPrecoItem $item): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        if (blank($item->woo_product_id)) {
+            throw new RuntimeException('Este produto nao tem ID WooCommerce configurado.');
+        }
+
+        $endpoint = filled($item->woo_variation_id)
+            ? "{$url}/wp-json/wc/v3/products/{$item->woo_product_id}/variations/{$item->woo_variation_id}"
+            : "{$url}/wp-json/wc/v3/products/{$item->woo_product_id}";
+        $disponivel = (bool) $item->disponivel_compra && (bool) $item->em_epoca;
+
+        $response = $this->client()->put($endpoint, [
+            'regular_price' => number_format((float) $item->preco_kg_iva, 2, '.', ''),
+            'stock_status' => $disponivel ? 'instock' : 'outofstock',
+            'meta_data' => [
+                ['key' => '_hdm_epoca', 'value' => $item->epoca],
+                ['key' => '_hdm_em_epoca', 'value' => $item->em_epoca ? '1' : '0'],
+                ['key' => '_hdm_disponivel_compra', 'value' => $item->disponivel_compra ? '1' : '0'],
+            ],
+        ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro ao atualizar produto no WooCommerce: '.$response->status().' - '.$response->body());
+        }
+
+        return $response->json();
     }
 
     private function client(): PendingRequest

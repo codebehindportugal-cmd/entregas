@@ -64,6 +64,11 @@ class ImportTabelaPrecos extends Command
                         'calibre' => $itemData['calibre'] ?? null,
                     ],
                     [
+                        'epoca' => $itemData['epoca'] ?? null,
+                        'em_epoca' => (bool) ($itemData['em_epoca'] ?? true),
+                        'disponivel_compra' => (bool) ($itemData['disponivel_compra'] ?? true),
+                        'woo_product_id' => $itemData['woo_product_id'] ?? null,
+                        'woo_variation_id' => $itemData['woo_variation_id'] ?? null,
                         'preco_kg' => $itemData['preco_kg'],
                         'preco_kg_iva' => $itemData['preco_kg_iva'],
                         'unidade' => $itemData['unidade'] ?? 'kg',

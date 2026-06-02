@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/tabelas-precos/manual', [TabelaPrecoController::class, 'manual'])->name('tabelas-precos.manual');
         Route::post('/tabelas-precos/{tabelaPreco}/itens', [TabelaPrecoController::class, 'storeItem'])->name('tabelas-precos.itens.store');
         Route::put('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'updateItem'])->name('tabelas-precos.itens.update');
+        Route::post('/tabelas-precos/itens/{item}/atualizar-site', [TabelaPrecoController::class, 'syncItem'])->name('tabelas-precos.itens.sync');
         Route::delete('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'destroyItem'])->name('tabelas-precos.itens.destroy');
         Route::post('/tabelas-precos/{tabelaPreco}/clonar', [TabelaPrecoController::class, 'clonar'])->name('tabelas-precos.clonar');
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');

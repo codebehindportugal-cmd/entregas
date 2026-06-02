@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\TabelaPreco;
 use App\Models\TabelaPrecoItem;
+use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use RuntimeException;
 use Illuminate\View\View;
 
 class TabelaPrecoController extends Controller
@@ -21,6 +23,15 @@ class TabelaPrecoController extends Controller
         'Batatas',
         'Cozidos e Embalados',
         'Secos',
+    ];
+
+    public const EPOCAS = [
+        'Todo o ano',
+        'Primavera',
+        'Verao',
+        'Outono',
+        'Inverno',
+        'Natal',
     ];
 
     public function index(): View
@@ -62,6 +73,7 @@ class TabelaPrecoController extends Controller
         return view('tabelas-precos.show', [
             'tabelaPreco' => $tabelaPreco,
             'categorias' => self::CATEGORIAS,
+            'epocas' => self::EPOCAS,
             'itensPorCategoria' => $itens,
             'q' => $q,
         ]);
@@ -111,11 +123,32 @@ class TabelaPrecoController extends Controller
         return back()->with('status', 'Produto adicionado.');
     }
 
-    public function updateItem(Request $request, TabelaPrecoItem $item): RedirectResponse
+    public function updateItem(Request $request, TabelaPrecoItem $item, WooCommerceService $service): RedirectResponse
     {
         $item->update($this->validateItem($request));
 
+        if ($request->boolean('sync_site')) {
+            try {
+                $service->updateProductFromTabelaItem($item->fresh());
+            } catch (RuntimeException $exception) {
+                return back()->withErrors(['woocommerce' => $exception->getMessage()]);
+            }
+
+            return back()->with('status', 'Produto guardado e atualizado no site.');
+        }
+
         return back()->with('status', 'Produto atualizado.');
+    }
+
+    public function syncItem(TabelaPrecoItem $item, WooCommerceService $service): RedirectResponse
+    {
+        try {
+            $service->updateProductFromTabelaItem($item->fresh());
+        } catch (RuntimeException $exception) {
+            return back()->withErrors(['woocommerce' => $exception->getMessage()]);
+        }
+
+        return back()->with('status', 'Produto atualizado no site.');
     }
 
     public function destroyItem(TabelaPrecoItem $item): RedirectResponse
@@ -145,6 +178,11 @@ class TabelaPrecoController extends Controller
             'unidade',
             'notas',
             'ordem',
+            'epoca',
+            'em_epoca',
+            'disponivel_compra',
+            'woo_product_id',
+            'woo_variation_id',
         ])));
 
         return redirect()->route('tabelas-precos.edit', $nova)->with('status', 'Tabela clonada.');
@@ -166,16 +204,30 @@ class TabelaPrecoController extends Controller
 
     private function validateItem(Request $request): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'categoria' => ['required', 'in:'.implode(',', self::CATEGORIAS)],
             'produto' => ['required', 'string', 'max:255'],
             'origem' => ['nullable', 'string', 'max:255'],
             'calibre' => ['nullable', 'string', 'max:255'],
+            'epoca' => ['nullable', 'string', 'max:255'],
+            'em_epoca' => ['nullable', 'boolean'],
+            'disponivel_compra' => ['nullable', 'boolean'],
+            'woo_product_id' => ['nullable', 'integer', 'min:1'],
+            'woo_variation_id' => ['nullable', 'integer', 'min:1'],
             'preco_kg' => ['required', 'numeric', 'min:0'],
             'preco_kg_iva' => ['required', 'numeric', 'min:0'],
             'unidade' => ['required', 'string', 'max:20'],
             'notas' => ['nullable', 'string'],
             'ordem' => ['nullable', 'integer', 'min:0'],
         ]);
+
+        return [
+            ...$data,
+            'epoca' => filled($data['epoca'] ?? null) ? $data['epoca'] : null,
+            'em_epoca' => $request->boolean('em_epoca'),
+            'disponivel_compra' => $request->boolean('disponivel_compra'),
+            'woo_product_id' => filled($data['woo_product_id'] ?? null) ? (int) $data['woo_product_id'] : null,
+            'woo_variation_id' => filled($data['woo_variation_id'] ?? null) ? (int) $data['woo_variation_id'] : null,
+        ];
     }
 }
