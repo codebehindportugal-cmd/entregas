@@ -2,7 +2,8 @@
     <x-page-title title="Produtos" subtitle="Produtos do site WooCommerce, disponibilidade e margens">
         <form method="post" action="{{ route('produtos.sync') }}">
             @csrf
-            <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Sincronizar site</button>
+            <input type="hidden" name="sync_page" value="{{ $syncPage }}">
+            <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Sincronizar site{{ $syncPage > 1 ? ' - pagina '.$syncPage : '' }}</button>
         </form>
     </x-page-title>
 
