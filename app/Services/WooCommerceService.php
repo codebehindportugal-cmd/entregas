@@ -100,7 +100,14 @@ class WooCommerceService
 
     public function syncProducts(): array
     {
-        $products = collect($this->fetchProducts());
+        return $this->syncProductsPage(1);
+    }
+
+    public function syncProductsPage(int $page = 1, int $perPage = 20): array
+    {
+        $page = max(1, $page);
+        $perPage = min(50, max(5, $perPage));
+        $products = collect($this->fetchProductsPage($page, $perPage));
         $created = 0;
         $updated = 0;
 
@@ -115,6 +122,8 @@ class WooCommerceService
             'fetched' => $products->count(),
             'created' => $created,
             'updated' => $updated,
+            'page' => $page,
+            'next_page' => $products->count() === $perPage ? $page + 1 : null,
         ];
     }
 
@@ -153,6 +162,32 @@ class WooCommerceService
         return $all;
     }
 
+    public function fetchProductsPage(int $page = 1, int $perPage = 20): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $response = $this->client()
+            ->get("{$url}/wp-json/wc/v3/products", [
+                'per_page' => min(50, max(5, $perPage)),
+                'page' => max(1, $page),
+                'orderby' => 'title',
+                'order' => 'asc',
+                'status' => 'any',
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro WooCommerce Produtos: '.$response->status().' - '.$response->body());
+        }
+
+        $items = $response->json();
+
+        return is_array($items) ? $items : [];
+    }
+
     public function updateProductFromLocal(WooProduct $product): array
     {
         $url = rtrim((string) config('woocommerce.url'), '/');
@@ -161,20 +196,18 @@ class WooCommerceService
             throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
         }
 
-        $disponivel = (bool) $product->disponivel_compra && (bool) $product->em_epoca;
         $response = $this->client()
-            ->put("{$url}/wp-json/wc/v3/products/{$product->woo_id}", [
+            ->put("{$url}/wp-json/wc/v3/products/{$product->woo_id}", array_merge([
                 'name' => $product->name,
                 'regular_price' => $product->regular_price !== null ? number_format((float) $product->regular_price, 2, '.', '') : '',
                 'sale_price' => $product->sale_price !== null ? number_format((float) $product->sale_price, 2, '.', '') : '',
-                'stock_status' => $disponivel ? 'instock' : 'outofstock',
                 'status' => $product->status ?: 'publish',
                 'meta_data' => [
                     ['key' => '_hdm_epoca', 'value' => $product->epoca],
                     ['key' => '_hdm_em_epoca', 'value' => $product->em_epoca ? '1' : '0'],
                     ['key' => '_hdm_disponivel_compra', 'value' => $product->disponivel_compra ? '1' : '0'],
                 ],
-            ]);
+            ], $this->productStockPayload($product)));
 
         if ($response->failed()) {
             throw new RuntimeException('Erro ao atualizar produto no WooCommerce: '.$response->status().' - '.$response->body());
@@ -183,6 +216,16 @@ class WooCommerceService
         $product->update($this->productPayload($response->json()));
 
         return $response->json();
+    }
+
+    private function productStockPayload(WooProduct $product): array
+    {
+        $disponivel = (bool) $product->disponivel_compra && (bool) $product->em_epoca;
+
+        return [
+            'manage_stock' => false,
+            'stock_status' => $disponivel ? 'instock' : 'outofstock',
+        ];
     }
 
     public function createPendingOrderFrom(WooOrder $order): array

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\WooProduct;
 use App\Services\WooCommerceService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -130,6 +131,44 @@ class WooCommerceServiceTest extends TestCase
         ]);
 
         $this->assertSame('2026-06-03', $payload['first_delivery_at']);
+    }
+
+    public function test_update_product_from_local_disables_quantity_stock_management_for_manual_availability(): void
+    {
+        config([
+            'woocommerce.url' => 'https://example.test',
+            'woocommerce.key' => 'ck_test',
+            'woocommerce.secret' => 'cs_test',
+        ]);
+
+        Http::fake([
+            'example.test/*' => Http::response([
+                'id' => 321,
+                'name' => 'Cabaz Teste',
+                'regular_price' => '12.00',
+                'sale_price' => '',
+                'status' => 'publish',
+                'stock_status' => 'instock',
+            ], 200),
+        ]);
+
+        $product = new WooProduct([
+            'woo_id' => 321,
+            'name' => 'Cabaz Teste',
+            'regular_price' => 12,
+            'status' => 'publish',
+            'em_epoca' => true,
+            'disponivel_compra' => true,
+        ]);
+
+        app(WooCommerceService::class)->updateProductFromLocal($product);
+
+        Http::assertSent(function ($request): bool {
+            return $request->method() === 'PUT'
+                && $request->url() === 'https://example.test/wp-json/wc/v3/products/321'
+                && $request['manage_stock'] === false
+                && $request['stock_status'] === 'instock';
+        });
     }
 
     private function payloadFromWooOrder(array $order): array

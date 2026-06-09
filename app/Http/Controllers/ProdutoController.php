@@ -25,6 +25,7 @@ class ProdutoController extends Controller
     {
         $q = $request->string('q')->toString();
         $estado = $request->string('estado')->toString();
+        $syncPage = max(1, $request->integer('sync_page', 1));
 
         $produtos = WooProduct::query()
             ->with('tabelaPrecoItem.tabelaPreco')
@@ -44,6 +45,7 @@ class ProdutoController extends Controller
             'produtos' => $produtos,
             'q' => $q,
             'estado' => $estado,
+            'syncPage' => $syncPage,
             'epocas' => self::EPOCAS,
             'itensFornecedor' => TabelaPrecoItem::with('tabelaPreco')
                 ->whereHas('tabelaPreco', fn ($query) => $query->where('ativa', true))
@@ -52,15 +54,27 @@ class ProdutoController extends Controller
         ]);
     }
 
-    public function sync(WooCommerceService $service): RedirectResponse
+    public function sync(Request $request, WooCommerceService $service): RedirectResponse
     {
+        $page = max(1, $request->integer('sync_page', 1));
+
         try {
-            $result = $service->syncProducts();
+            $result = $service->syncProductsPage($page, 20);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['woocommerce' => $exception->getMessage()]);
         }
 
-        return back()->with('status', "Produtos sincronizados: {$result['fetched']} lidos, {$result['created']} criados, {$result['updated']} atualizados.");
+        $message = "Produtos sincronizados: pagina {$result['page']}, {$result['fetched']} lidos, {$result['created']} criados, {$result['updated']} atualizados.";
+
+        if ($result['next_page'] !== null) {
+            return redirect()
+                ->route('produtos.index', ['sync_page' => $result['next_page']])
+                ->with('status', $message.' Clica novamente em sincronizar para continuar.');
+        }
+
+        return redirect()
+            ->route('produtos.index')
+            ->with('status', $message.' Sincronizacao concluida.');
     }
 
     public function update(Request $request, WooProduct $produto, WooCommerceService $service): RedirectResponse
