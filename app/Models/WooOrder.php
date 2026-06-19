@@ -183,10 +183,7 @@ class WooOrder extends Model
             ->map(fn (string $data) => Carbon::parse($data)->toDateString())
             ->all();
 
-        $preparadas = $this->preparacaoItems
-            ->where('feito', true)
-            ->map(fn (PreparacaoItem $item) => $item->data_preparacao->toDateString())
-            ->all();
+        $concluidas = $this->datasConcluidasSubscricao();
 
         $hoje = now()->toDateString();
         $postponedUntil = $this->postponed_until?->toDateString();
@@ -194,32 +191,27 @@ class WooOrder extends Model
         $dataAdiada = $postponedUntil === null || $adiamentoJaAplicadoNoCalendario
             ? null
             : $datas
-                ->reject(fn (string $data) => in_array($data, $preparadas, true))
+                ->reject(fn (string $data) => in_array($data, $concluidas, true))
                 ->reject(fn (string $data) => in_array($data, $canceladas, true))
                 ->filter(fn (string $data) => $data < $postponedUntil)
                 ->last();
 
         $feitas = $datas->filter(fn (string $data): bool => $this->entregaContaComoFeita(
             $data,
-            $hoje,
-            $postponedUntil,
-            $adiamentoJaAplicadoNoCalendario,
             $dataAdiada,
-            $preparadas,
+            $concluidas,
             $canceladas,
         ));
         $porRealizar = $datas->reject(fn (string $data): bool => in_array($data, $canceladas, true) || $this->entregaContaComoFeita(
             $data,
-            $hoje,
-            $postponedUntil,
-            $adiamentoJaAplicadoNoCalendario,
             $dataAdiada,
-            $preparadas,
+            $concluidas,
             $canceladas,
         ));
+        $referenciaProxima = $postponedUntil !== null && $postponedUntil > $hoje ? $postponedUntil : $hoje;
         $proxima = $dataAdiada !== null
             ? $postponedUntil
-            : ($porRealizar->first(fn (string $data) => $postponedUntil === null || $data >= $postponedUntil)
+            : ($porRealizar->first(fn (string $data) => $data >= $referenciaProxima)
                 ?? $porRealizar->first());
 
         return [
@@ -230,24 +222,58 @@ class WooOrder extends Model
         ];
     }
 
+    public function calendarioSubscricao(): Collection
+    {
+        $datas = $this->datasSubscricao();
+        $canceladas = collect($this->cancelled_delivery_dates ?? [])
+            ->filter()
+            ->map(fn (string $data) => Carbon::parse($data)->toDateString())
+            ->all();
+        $concluidas = $this->datasConcluidasSubscricao();
+        $postponedUntil = $this->postponed_until?->toDateString();
+
+        if ($postponedUntil !== null && ! $datas->contains($postponedUntil)) {
+            $datas = $datas->push($postponedUntil)->sort()->values();
+        }
+
+        return $datas
+            ->map(function (string $data) use ($canceladas, $concluidas, $postponedUntil): array {
+                $date = Carbon::parse($data);
+                $status = match (true) {
+                    in_array($data, $canceladas, true) => 'cancelada',
+                    in_array($data, $concluidas, true) => 'entregue',
+                    $postponedUntil === $data => 'adiada',
+                    $date->isPast() && ! $date->isToday() => 'em_atraso',
+                    default => 'por_realizar',
+                };
+
+                return [
+                    'data' => $date,
+                    'data_key' => $data,
+                    'status' => $status,
+                    'label' => match ($status) {
+                        'cancelada' => 'Cancelada',
+                        'entregue' => 'Entregue',
+                        'adiada' => 'Adiada',
+                        'em_atraso' => 'Em atraso',
+                        default => 'Por realizar',
+                    },
+                ];
+            })
+            ->values();
+    }
+
     private function entregaContaComoFeita(
         string $data,
-        string $hoje,
-        ?string $postponedUntil,
-        bool $adiamentoJaAplicadoNoCalendario,
         ?string $dataAdiada,
-        array $preparadas,
+        array $concluidas,
         array $canceladas,
     ): bool {
         if (in_array($data, $canceladas, true) || $data === $dataAdiada) {
             return false;
         }
 
-        if (in_array($data, $preparadas, true)) {
-            return true;
-        }
-
-        return $data < $hoje;
+        return in_array($data, $concluidas, true);
     }
 
     public function fimCicloSubscricao(): ?Carbon
@@ -368,12 +394,19 @@ class WooOrder extends Model
             return $datas;
         }
 
-        return $this->gerarDatasDoCiclo(max(1, $datas->count()));
+        return $this->gerarDatasDoCiclo(max(1, $datas->count()), false);
     }
 
-    private function gerarDatasDoCiclo(int $total = 4): Collection
+    private function gerarDatasDoCiclo(?int $total = null, bool $respeitarFim = true): Collection
     {
         if ($this->first_delivery_at === null) {
+            return collect();
+        }
+
+        $total ??= $this->subscription_ends_at === null ? 4 : 120;
+        $fim = $respeitarFim ? $this->subscription_ends_at?->copy()->startOfDay() : null;
+
+        if ($fim !== null && $this->first_delivery_at->greaterThan($fim)) {
             return collect();
         }
 
@@ -386,6 +419,10 @@ class WooOrder extends Model
 
             while ($data->dayOfWeek !== $diaSemana) {
                 $data->addDay();
+            }
+
+            if ($fim !== null && $data->greaterThan($fim)) {
+                break;
             }
 
             $datas->push($data->toDateString());
@@ -414,6 +451,23 @@ class WooOrder extends Model
         }
 
         return $this->preparacaoItems()->get();
+    }
+
+    private function datasConcluidasSubscricao(): array
+    {
+        $preparadas = $this->preparacaoItemsParaAdiamento()
+            ->where('feito', true)
+            ->map(fn (PreparacaoItem $item) => Carbon::parse($item->data_preparacao)->toDateString());
+
+        $entregues = $this->registosEntregaParaConclusao()
+            ->where('status', 'entregue')
+            ->map(fn (RegistoEntrega $registo) => Carbon::parse($registo->data_entrega)->toDateString());
+
+        return $preparadas
+            ->merge($entregues)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function datasSubscricao(): Collection

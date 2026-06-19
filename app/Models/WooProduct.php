@@ -66,6 +66,15 @@ class WooProduct extends Model
         return $this->price !== null ? (float) $this->price : null;
     }
 
+    public function compraAtiva(): bool
+    {
+        return $this->status === 'publish'
+            && $this->stock_status === 'instock'
+            && $this->purchasable
+            && $this->em_epoca
+            && $this->disponivel_compra;
+    }
+
     public function custoCompra(): ?float
     {
         if ($this->tabelaPrecoItem === null || $this->tabelaPrecoItem->preco_kg === null) {

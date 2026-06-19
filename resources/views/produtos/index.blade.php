@@ -83,9 +83,10 @@
                                         <option value="{{ $status }}" @selected(($produto->status ?: 'publish') === $status)>{{ $label }}</option>
                                     @endforeach
                                 </select>
-                                <span class="mt-2 inline-block rounded px-2 py-1 text-xs font-semibold {{ $produto->disponivel_compra && $produto->em_epoca ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900' }}">
-                                    {{ $produto->disponivel_compra && $produto->em_epoca ? 'Compra ativa' : 'Compra inativa' }}
+                                <span class="mt-2 inline-block rounded px-2 py-1 text-xs font-semibold {{ $produto->compraAtiva() ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900' }}">
+                                    {{ $produto->compraAtiva() ? 'Compra ativa' : 'Compra inativa' }}
                                 </span>
+                                <p class="mt-1 text-xs text-slate-500">{{ $produto->stock_status ?: 'sem stock status' }}{{ $produto->purchasable ? ' / compravel' : ' / nao compravel' }}</p>
                             </td>
                             <td class="p-3">
                                 <select name="tabela_preco_item_id" class="w-72 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
