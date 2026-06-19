@@ -134,6 +134,18 @@ class WooCommerceServiceTest extends TestCase
         $this->assertSame('2026-06-03', $payload['first_delivery_at']);
     }
 
+    public function test_subscription_first_delivery_uses_next_delivery_day_without_noon_cutoff(): void
+    {
+        $payload = $this->fillMissingSubscriptionFirstDelivery([
+            'source_type' => 'subscription',
+            'ordered_at' => Carbon::parse('2026-06-02 12:01:00'),
+            'first_delivery_at' => null,
+            'dia_entrega' => 'quarta',
+        ]);
+
+        $this->assertSame('2026-06-03', $payload['first_delivery_at']);
+    }
+
     public function test_payload_reads_subscription_start_end_and_next_payment_from_woocommerce_fields(): void
     {
         $payload = $this->payloadFromWooOrder([
@@ -155,6 +167,27 @@ class WooCommerceServiceTest extends TestCase
         $this->assertSame('2026-05-06', $payload['first_delivery_at']);
         $this->assertSame('2026-06-03', $payload['next_payment_at']);
         $this->assertSame('2026-05-27', $payload['subscription_ends_at']);
+    }
+
+    public function test_payload_overrides_subscription_start_date_with_next_delivery_day_after_order_creation(): void
+    {
+        $payload = $this->payloadFromWooOrder([
+            'id' => 127,
+            'status' => 'active',
+            'date_created' => '2026-06-02T12:01:00',
+            'start_date' => '2026-06-10T00:00:00',
+            'billing' => [],
+            'total' => '80.00',
+            'line_items' => [
+                ['name' => 'Subscricao Cabaz Pequeno', 'quantity' => 1],
+            ],
+            'meta_data' => [
+                ['key' => '_hdm_dia_entrega', 'value' => 'quarta'],
+            ],
+        ]);
+
+        $this->assertSame('subscription', $payload['source_type']);
+        $this->assertSame('2026-06-03', $payload['first_delivery_at']);
     }
 
     public function test_update_product_from_local_disables_quantity_stock_management_for_manual_availability(): void

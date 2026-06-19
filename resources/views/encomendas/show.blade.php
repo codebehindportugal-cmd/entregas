@@ -90,6 +90,22 @@
                 @endif
                 @if($calendarioSubscricao->isNotEmpty())
                     <div class="mt-5 border-t border-white/10 pt-5">
+                        <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-400">Datas da subscricao</h3>
+                        <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                            @foreach($calendarioSubscricao as $entregaCalendario)
+                                @php($classesListaEntrega = match ($entregaCalendario['status']) {
+                                    'entregue' => 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100',
+                                    'adiada' => 'border-amber-400/30 bg-[#F59E0B]/10 text-amber-100',
+                                    'cancelada' => 'border-red-400/30 bg-red-500/10 text-red-100',
+                                    'em_atraso' => 'border-white/20 bg-white/10 text-slate-200',
+                                    default => 'border-blue-400/30 bg-[#3B82F6]/10 text-blue-100',
+                                })
+                                <div class="flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm {{ $classesListaEntrega }}">
+                                    <span class="font-semibold">{{ $entregaCalendario['data']->format('d/m/Y') }}</span>
+                                    <span class="text-xs">{{ $entregaCalendario['label'] }}</span>
+                                </div>
+                            @endforeach
+                        </div>
                         <div class="mb-4 flex flex-wrap gap-2 text-xs">
                             <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-200">Entregue</span>
                             <span class="rounded bg-[#F59E0B]/15 px-2 py-1 text-amber-200">Adiada</span>
@@ -97,7 +113,7 @@
                             <span class="rounded bg-red-500/15 px-2 py-1 text-red-200">Cancelada</span>
                             <span class="rounded bg-white/10 px-2 py-1 text-slate-300">Em atraso</span>
                         </div>
-                        <div class="space-y-5">
+                        <div class="mt-5 space-y-5">
                             @foreach($calendarioSubscricao->groupBy(fn ($item) => $item['data']->format('Y-m')) as $mesCalendario => $diasCalendario)
                                 @php($inicioMesCalendario = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $mesCalendario.'-01'))
                                 @php($diasPorData = $diasCalendario->keyBy('data_key'))
