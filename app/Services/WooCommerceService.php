@@ -469,7 +469,7 @@ class WooCommerceService
             && blank($payload['first_delivery_at'] ?? null)
             && filled($payload['dia_entrega'] ?? null)
         ) {
-            $payload['first_delivery_at'] = $this->scheduledDeliveryDate(
+            $payload['first_delivery_at'] = $this->nextDeliveryDateAfterOrderDate(
                 $payload['ordered_at'] ?? null,
                 $payload['dia_entrega']
             );
@@ -682,7 +682,7 @@ class WooCommerceService
         );
         $deliveryDates = $this->deliveryDates($metadata->get('_hdm_datas_entrega'));
         $cancelledDeliveryDates = $this->deliveryDates($metadata->get('_hdm_datas_canceladas'));
-        $firstDeliveryAt = $this->firstDateFrom([
+        $syncedFirstDeliveryAt = $this->firstDateFrom([
             $metadata->get('_hdm_data_primeira_entrega'),
             $metadata->get('_schedule_start'),
             $metadata->get('_subscription_start_date'),
@@ -718,6 +718,9 @@ class WooCommerceService
             collect(Arr::get($order, 'line_items', []))->pluck('name')->implode(' '),
             $this->cycleFromDeliveryDates($deliveryDates),
         ]);
+        $firstDeliveryAt = $sourceType === 'subscription'
+            ? ($this->nextDeliveryDateAfterOrderDate($orderedAt, $diaEntrega) ?? $syncedFirstDeliveryAt)
+            : $syncedFirstDeliveryAt;
 
         return [
             'source_type' => $sourceType,
@@ -1080,6 +1083,34 @@ class WooCommerceService
             $cutoff = $candidate->copy()->subDay()->setTime(12, 0);
 
             if ($orderedAt->lessThanOrEqualTo($cutoff)) {
+                return $candidate->toDateString();
+            }
+        }
+
+        return null;
+    }
+
+    private function nextDeliveryDateAfterOrderDate(?Carbon $orderedAt, ?string $diaEntrega): ?string
+    {
+        if ($orderedAt === null) {
+            return null;
+        }
+
+        $preferredDay = match ($diaEntrega) {
+            'segunda' => 1,
+            'quarta' => 3,
+            'sabado' => 6,
+            default => null,
+        };
+
+        if ($preferredDay === null) {
+            return null;
+        }
+
+        for ($offset = 1; $offset <= 21; $offset++) {
+            $candidate = $orderedAt->copy()->startOfDay()->addDays($offset);
+
+            if ($candidate->dayOfWeek === $preferredDay) {
                 return $candidate->toDateString();
             }
         }
