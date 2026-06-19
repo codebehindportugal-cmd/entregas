@@ -19,6 +19,18 @@ Route::get('/faturas/{encomenda}', [EncomendaController::class, 'publicInvoice']
     ->middleware('signed')
     ->name('encomendas.invoice.public');
 
+Route::get('/relatorios/download', function (Illuminate\Http\Request $request) {
+    abort_unless($request->hasValidSignature(), 403);
+    $path = (string) $request->query('path', '');
+    abort_unless(str_starts_with($path, 'relatorios/') && ! str_contains($path, '..'), 403);
+    abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($path), 404);
+
+    return response()->file(
+        \Illuminate\Support\Facades\Storage::disk('local')->path($path),
+        ['Content-Type' => 'application/pdf'],
+    );
+})->name('relatorio.download');
+
 Route::post('/webhooks/woocommerce', [WebhookController::class, 'woocommerce'])
     ->withoutMiddleware([ValidateCsrfToken::class])
     ->name('webhooks.woocommerce');

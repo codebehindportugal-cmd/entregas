@@ -70,6 +70,7 @@
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Entregas</h2>
                 @php($entregas = $encomenda->entregasSubscricao())
+                @php($calendarioSubscricao = $encomenda->isSubscricao() ? $encomenda->calendarioSubscricao() : collect())
                 <div class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded bg-white/5 p-3">
                         <p class="text-slate-400">No ciclo</p>
@@ -86,6 +87,54 @@
                 </div>
                 @if($entregas['proxima'])
                     <p class="mt-3 text-sm text-slate-300">Proxima: {{ \Illuminate\Support\Carbon::parse($entregas['proxima'])->format('d/m/Y') }}</p>
+                @endif
+                @if($calendarioSubscricao->isNotEmpty())
+                    <div class="mt-5 border-t border-white/10 pt-5">
+                        <div class="mb-4 flex flex-wrap gap-2 text-xs">
+                            <span class="rounded bg-emerald-500/15 px-2 py-1 text-emerald-200">Entregue</span>
+                            <span class="rounded bg-[#F59E0B]/15 px-2 py-1 text-amber-200">Adiada</span>
+                            <span class="rounded bg-[#3B82F6]/15 px-2 py-1 text-blue-200">Por realizar</span>
+                            <span class="rounded bg-red-500/15 px-2 py-1 text-red-200">Cancelada</span>
+                            <span class="rounded bg-white/10 px-2 py-1 text-slate-300">Em atraso</span>
+                        </div>
+                        <div class="space-y-5">
+                            @foreach($calendarioSubscricao->groupBy(fn ($item) => $item['data']->format('Y-m')) as $mesCalendario => $diasCalendario)
+                                @php($inicioMesCalendario = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $mesCalendario.'-01'))
+                                @php($diasPorData = $diasCalendario->keyBy('data_key'))
+                                <div>
+                                    <h3 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">{{ $inicioMesCalendario->translatedFormat('F Y') }}</h3>
+                                    <div class="grid grid-cols-7 gap-1 text-center text-[11px] text-slate-500">
+                                        @foreach(['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'] as $diaSemana)
+                                            <span>{{ $diaSemana }}</span>
+                                        @endforeach
+                                    </div>
+                                    <div class="mt-1 grid grid-cols-7 gap-1 text-sm">
+                                        @for($i = 1; $i < $inicioMesCalendario->dayOfWeekIso; $i++)
+                                            <span class="min-h-12 rounded border border-transparent"></span>
+                                        @endfor
+                                        @for($dia = 1; $dia <= $inicioMesCalendario->daysInMonth; $dia++)
+                                            @php($dataCalendario = $inicioMesCalendario->copy()->day($dia))
+                                            @php($itemCalendario = $diasPorData->get($dataCalendario->toDateString()))
+                                            @php($classesCalendario = match ($itemCalendario['status'] ?? null) {
+                                                'entregue' => 'border-emerald-400/40 bg-emerald-500/15 text-emerald-100',
+                                                'adiada' => 'border-amber-400/40 bg-[#F59E0B]/15 text-amber-100',
+                                                'cancelada' => 'border-red-400/40 bg-red-500/15 text-red-100',
+                                                'em_atraso' => 'border-white/20 bg-white/10 text-slate-200',
+                                                'por_realizar' => 'border-blue-400/40 bg-[#3B82F6]/15 text-blue-100',
+                                                default => 'border-white/5 bg-[#0A0F1A]/60 text-slate-600',
+                                            })
+                                            <div class="min-h-12 rounded border p-1 {{ $classesCalendario }}">
+                                                <p class="font-semibold">{{ $dia }}</p>
+                                                @if($itemCalendario)
+                                                    <p class="mt-1 truncate text-[10px] leading-tight">{{ $itemCalendario['label'] }}</p>
+                                                @endif
+                                            </div>
+                                        @endfor
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
                 @endif
             </div>
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\WooOrder;
 use App\Models\WooProduct;
 use App\Services\WooCommerceService;
 use Illuminate\Support\Carbon;
@@ -133,6 +134,29 @@ class WooCommerceServiceTest extends TestCase
         $this->assertSame('2026-06-03', $payload['first_delivery_at']);
     }
 
+    public function test_payload_reads_subscription_start_end_and_next_payment_from_woocommerce_fields(): void
+    {
+        $payload = $this->payloadFromWooOrder([
+            'id' => 126,
+            'status' => 'active',
+            'date_created' => '2026-05-01T10:00:00',
+            'start_date' => '2026-05-06T00:00:00',
+            'next_payment_date' => '2026-06-03T00:00:00',
+            'end_date' => '2026-05-27T00:00:00',
+            'billing' => [],
+            'total' => '80.00',
+            'line_items' => [
+                ['name' => 'Subscricao Cabaz Pequeno', 'quantity' => 1],
+            ],
+            'meta_data' => [],
+        ]);
+
+        $this->assertSame('subscription', $payload['source_type']);
+        $this->assertSame('2026-05-06', $payload['first_delivery_at']);
+        $this->assertSame('2026-06-03', $payload['next_payment_at']);
+        $this->assertSame('2026-05-27', $payload['subscription_ends_at']);
+    }
+
     public function test_update_product_from_local_disables_quantity_stock_management_for_manual_availability(): void
     {
         config([
@@ -149,6 +173,7 @@ class WooCommerceServiceTest extends TestCase
                 'sale_price' => '',
                 'status' => 'publish',
                 'stock_status' => 'instock',
+                'purchasable' => true,
             ], 200),
         ]);
 
@@ -169,6 +194,90 @@ class WooCommerceServiceTest extends TestCase
                 && $request['manage_stock'] === false
                 && $request['stock_status'] === 'instock';
         });
+    }
+
+    public function test_product_payload_reads_availability_from_woocommerce_metadata(): void
+    {
+        $payload = $this->productPayloadFromWooProduct([
+            'id' => 321,
+            'name' => 'Cabaz Teste',
+            'status' => 'publish',
+            'stock_status' => 'instock',
+            'purchasable' => true,
+            'meta_data' => [
+                ['key' => '_hdm_em_epoca', 'value' => '0'],
+                ['key' => '_hdm_disponivel_compra', 'value' => '1'],
+                ['key' => '_hdm_epoca', 'value' => 'Verao'],
+            ],
+        ]);
+
+        $this->assertFalse($payload['em_epoca']);
+        $this->assertTrue($payload['disponivel_compra']);
+        $this->assertSame('Verao', $payload['epoca']);
+    }
+
+    public function test_product_payload_falls_back_to_woocommerce_status_when_metadata_is_missing(): void
+    {
+        $payload = $this->productPayloadFromWooProduct([
+            'id' => 322,
+            'name' => 'Produto Rascunho',
+            'status' => 'draft',
+            'stock_status' => 'instock',
+            'purchasable' => true,
+            'meta_data' => [],
+        ]);
+
+        $this->assertFalse($payload['em_epoca']);
+        $this->assertFalse($payload['disponivel_compra']);
+    }
+
+    public function test_sync_preserves_local_customer_information_when_woocommerce_payload_is_blank(): void
+    {
+        $order = new WooOrder([
+            'billing_name' => 'Cliente Guardado',
+            'billing_phone' => '912345678',
+            'billing_email' => 'cliente@example.test',
+        ]);
+        $order->exists = true;
+
+        $payload = $this->preserveLocalScheduling($order, [
+            'billing_name' => null,
+            'billing_phone' => null,
+            'billing_email' => null,
+            'status' => 'processing',
+        ]);
+
+        $this->assertSame('Cliente Guardado', $payload['billing_name']);
+        $this->assertSame('912345678', $payload['billing_phone']);
+        $this->assertSame('cliente@example.test', $payload['billing_email']);
+    }
+
+    public function test_sync_preserves_local_subscription_dates_when_woocommerce_payload_is_blank(): void
+    {
+        $order = new WooOrder([
+            'source_type' => 'subscription',
+            'first_delivery_at' => '2026-06-03',
+            'next_payment_at' => '2026-07-01',
+            'subscription_ends_at' => '2026-06-24',
+            'delivery_dates' => ['2026-06-03', '2026-06-10', '2026-06-17', '2026-06-24'],
+            'cancelled_delivery_dates' => ['2026-06-10'],
+        ]);
+        $order->exists = true;
+
+        $payload = $this->preserveLocalScheduling($order, [
+            'source_type' => 'subscription',
+            'first_delivery_at' => null,
+            'next_payment_at' => null,
+            'subscription_ends_at' => null,
+            'delivery_dates' => [],
+            'cancelled_delivery_dates' => [],
+        ]);
+
+        $this->assertSame('2026-06-03', $payload['first_delivery_at']);
+        $this->assertSame('2026-07-01', $payload['next_payment_at']);
+        $this->assertSame('2026-06-24', $payload['subscription_ends_at']);
+        $this->assertSame(['2026-06-03', '2026-06-10', '2026-06-17', '2026-06-24'], $payload['delivery_dates']);
+        $this->assertSame(['2026-06-10'], $payload['cancelled_delivery_dates']);
     }
 
     private function payloadFromWooOrder(array $order): array
@@ -193,5 +302,21 @@ class WooCommerceServiceTest extends TestCase
         $method->setAccessible(true);
 
         return $method->invoke(app(WooCommerceService::class), $payload);
+    }
+
+    private function productPayloadFromWooProduct(array $product): array
+    {
+        $method = new ReflectionMethod(WooCommerceService::class, 'productPayload');
+        $method->setAccessible(true);
+
+        return $method->invoke(app(WooCommerceService::class), $product);
+    }
+
+    private function preserveLocalScheduling(WooOrder $order, array $payload): array
+    {
+        $method = new ReflectionMethod(WooCommerceService::class, 'preserveLocalScheduling');
+        $method->setAccessible(true);
+
+        return $method->invoke(app(WooCommerceService::class), $order, $payload);
     }
 }

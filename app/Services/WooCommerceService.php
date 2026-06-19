@@ -328,6 +328,9 @@ class WooCommerceService
 
     private function productPayload(array $product): array
     {
+        $metadata = collect(Arr::get($product, 'meta_data', []))->mapWithKeys(function (array $item): array {
+            return [$item['key'] ?? '' => $item['value'] ?? null];
+        });
         $categories = collect(Arr::get($product, 'categories', []))
             ->pluck('name')
             ->filter()
@@ -335,6 +338,13 @@ class WooCommerceService
             ->all();
         $images = Arr::get($product, 'images', []);
         $firstImage = is_array($images) ? ($images[0]['src'] ?? null) : null;
+        $status = Arr::get($product, 'status');
+        $stockStatus = Arr::get($product, 'stock_status');
+        $purchasable = (bool) Arr::get($product, 'purchasable', false);
+        $published = $status === 'publish';
+        $inStock = $stockStatus === null || $stockStatus === 'instock';
+        $emEpoca = $this->boolOrNull($metadata->get('_hdm_em_epoca'));
+        $disponivelCompra = $this->boolOrNull($metadata->get('_hdm_disponivel_compra'));
 
         return [
             'woo_id' => (int) Arr::get($product, 'id'),
@@ -342,18 +352,30 @@ class WooCommerceService
             'slug' => Arr::get($product, 'slug'),
             'sku' => Arr::get($product, 'sku'),
             'type' => Arr::get($product, 'type'),
-            'status' => Arr::get($product, 'status'),
+            'status' => $status,
             'permalink' => Arr::get($product, 'permalink'),
             'image_url' => $firstImage,
             'price' => $this->decimalOrNull(Arr::get($product, 'price')),
             'regular_price' => $this->decimalOrNull(Arr::get($product, 'regular_price')),
             'sale_price' => $this->decimalOrNull(Arr::get($product, 'sale_price')),
-            'stock_status' => Arr::get($product, 'stock_status'),
-            'purchasable' => (bool) Arr::get($product, 'purchasable', false),
+            'stock_status' => $stockStatus,
+            'purchasable' => $purchasable,
+            'em_epoca' => $emEpoca ?? ($published && $inStock),
+            'disponivel_compra' => $disponivelCompra ?? ($published && $purchasable && $inStock),
+            'epoca' => $metadata->get('_hdm_epoca'),
             'categories' => $categories,
             'raw_payload' => $product,
             'synced_at' => now(),
         ];
+    }
+
+    private function boolOrNull(mixed $value): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
     }
 
     private function decimalOrNull(mixed $value): ?float
@@ -367,16 +389,31 @@ class WooCommerceService
 
     private function preserveLocalScheduling(WooOrder $model, array $payload): array
     {
-        if (! $model->exists || $model->postponed_until === null || filled($payload['postponed_until'] ?? null)) {
-            if ($model->exists && filled($model->customer_language)) {
-                $payload['customer_language'] = $model->customer_language;
-            }
-
+        if (! $model->exists) {
             return $payload;
         }
 
-        if (filled($model->customer_language)) {
-            $payload['customer_language'] = $model->customer_language;
+        $payload = $this->preserveFilledLocalValues($model, $payload, [
+            'billing_name',
+            'billing_phone',
+            'billing_email',
+            'customer_language',
+            'dia_entrega',
+            'cabaz_tipo',
+            'ciclo_entrega',
+            'scheduled_delivery_at',
+            'first_delivery_at',
+            'next_payment_at',
+            'subscription_ends_at',
+        ]);
+        $payload = $this->preserveFilledLocalArrays($model, $payload, [
+            'delivery_dates',
+            'cancelled_delivery_dates',
+            'excluded_products',
+        ]);
+
+        if ($model->postponed_until === null || filled($payload['postponed_until'] ?? null)) {
+            return $payload;
         }
 
         $payload['postponed_until'] = $model->postponed_until->toDateString();
@@ -389,6 +426,38 @@ class WooCommerceService
         }
 
         $payload['scheduled_delivery_at'] = $model->scheduled_delivery_at?->toDateString();
+
+        return $payload;
+    }
+
+    private function preserveFilledLocalValues(WooOrder $model, array $payload, array $fields): array
+    {
+        foreach ($fields as $field) {
+            $localValue = $model->{$field};
+
+            if (blank($localValue) || filled($payload[$field] ?? null)) {
+                continue;
+            }
+
+            $payload[$field] = $localValue instanceof Carbon
+                ? $localValue->toDateString()
+                : $localValue;
+        }
+
+        return $payload;
+    }
+
+    private function preserveFilledLocalArrays(WooOrder $model, array $payload, array $fields): array
+    {
+        foreach ($fields as $field) {
+            $localValue = $model->{$field};
+
+            if (! is_array($localValue) || $localValue === [] || ($payload[$field] ?? []) !== []) {
+                continue;
+            }
+
+            $payload[$field] = $localValue;
+        }
 
         return $payload;
     }
@@ -613,7 +682,28 @@ class WooCommerceService
         );
         $deliveryDates = $this->deliveryDates($metadata->get('_hdm_datas_entrega'));
         $cancelledDeliveryDates = $this->deliveryDates($metadata->get('_hdm_datas_canceladas'));
-        $subscriptionEndsAt = $this->dateOrNull($metadata->get('_hdm_fim_subscricao'));
+        $firstDeliveryAt = $this->firstDateFrom([
+            $metadata->get('_hdm_data_primeira_entrega'),
+            $metadata->get('_schedule_start'),
+            $metadata->get('_subscription_start_date'),
+            $metadata->get('_start_date'),
+            Arr::get($order, 'start_date'),
+            Arr::get($order, 'date_start'),
+        ]);
+        $nextPaymentAt = $this->firstDateFrom([
+            Arr::get($order, 'next_payment_date'),
+            Arr::get($order, 'date_next_payment'),
+            $metadata->get('_schedule_next_payment'),
+            $metadata->get('_subscription_next_payment'),
+        ]);
+        $subscriptionEndsAt = $this->firstDateFrom([
+            $metadata->get('_hdm_fim_subscricao'),
+            $metadata->get('_schedule_end'),
+            $metadata->get('_subscription_end_date'),
+            $metadata->get('_end_date'),
+            Arr::get($order, 'end_date'),
+            Arr::get($order, 'date_end'),
+        ]);
         $rawPreferences = $metadata->get('_excluded_products') ?: $metadata->get('_hdm_produtos_excluidos');
         $preferencesText = $this->preferencesText($rawPreferences);
         $excludedProducts = $this->excludedProducts($rawPreferences);
@@ -643,8 +733,8 @@ class WooCommerceService
                 'quantity' => (int) Arr::get($item, 'quantity', 0),
             ])->values()->all(),
             'postponed_until' => $this->dateOrNull($metadata->get('_postponed_until')),
-            'next_payment_at' => $this->dateOrNull(Arr::get($order, 'next_payment_date') ?: Arr::get($order, 'date_next_payment')),
-            'first_delivery_at' => $this->dateOrNull($metadata->get('_hdm_data_primeira_entrega')),
+            'next_payment_at' => $nextPaymentAt,
+            'first_delivery_at' => $firstDeliveryAt,
             'delivery_dates' => $deliveryDates,
             'cancelled_delivery_dates' => $cancelledDeliveryDates,
             'subscription_ends_at' => $subscriptionEndsAt,
@@ -770,6 +860,19 @@ class WooCommerceService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function firstDateFrom(array $values): ?string
+    {
+        foreach ($values as $value) {
+            $date = $this->dateOrNull($value);
+
+            if ($date !== null) {
+                return $date;
+            }
+        }
+
+        return null;
     }
 
     private function dateTimeOrNull(mixed $value): ?Carbon

@@ -34,8 +34,20 @@ class ProdutoController extends Controller
                     ->orWhere('sku', 'like', "%{$q}%")
                     ->orWhere('woo_id', 'like', "%{$q}%");
             }))
-            ->when($estado === 'ativo', fn ($query) => $query->where('disponivel_compra', true)->where('em_epoca', true))
-            ->when($estado === 'inativo', fn ($query) => $query->where(fn ($query) => $query->where('disponivel_compra', false)->orWhere('em_epoca', false)))
+            ->when($estado === 'ativo', fn ($query) => $query
+                ->where('status', 'publish')
+                ->where('stock_status', 'instock')
+                ->where('purchasable', true)
+                ->where('disponivel_compra', true)
+                ->where('em_epoca', true))
+            ->when($estado === 'inativo', fn ($query) => $query->where(fn ($query) => $query
+                ->where('status', '!=', 'publish')
+                ->orWhereNull('status')
+                ->orWhere('stock_status', '!=', 'instock')
+                ->orWhereNull('stock_status')
+                ->orWhere('purchasable', false)
+                ->orWhere('disponivel_compra', false)
+                ->orWhere('em_epoca', false)))
             ->when($estado === 'sem_fornecedor', fn ($query) => $query->whereNull('tabela_preco_item_id'))
             ->orderBy('name')
             ->paginate(25)

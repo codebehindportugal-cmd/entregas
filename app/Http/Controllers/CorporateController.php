@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateCorporateRequest;
 use App\Models\Corporate;
 use App\Models\CorporateHistorico;
 use App\Models\RegistoEntrega;
+use App\Services\CorporateMonthlyMapService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -143,7 +144,7 @@ class CorporateController extends Controller
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         return response()->streamDownload(
-            fn () => print($payload),
+            fn () => print ($payload),
             'empresas-'.now()->format('Y-m-d-His').'.json',
             ['Content-Type' => 'application/json']
         );
@@ -293,110 +294,13 @@ class CorporateController extends Controller
         ]);
     }
 
-    public function mapaMensal(Request $request, Corporate $corporate): View
+    public function mapaMensal(Request $request, Corporate $corporate, CorporateMonthlyMapService $mapService): View
     {
-        $corporate->load('configSnapshots');
-
         $validated = $request->validate([
             'mes' => ['nullable', 'date_format:Y-m'],
         ]);
-        $mes = $validated['mes'] ?? now()->format('Y-m');
-        $inicio = Carbon::createFromFormat('Y-m-d', "{$mes}-01")->startOfDay();
-        $fim = $inicio->copy()->endOfMonth();
 
-        $registos = RegistoEntrega::query()
-            ->where('corporate_id', $corporate->id)
-            ->whereBetween('data_entrega', [$inicio->toDateString(), $fim->toDateString()])
-            ->whereIn('status', ['entregue', 'falhou'])
-            ->get()
-            ->keyBy(fn (RegistoEntrega $registo): string => $registo->data_entrega->toDateString());
-
-        $historicosNaoEntregamos = $corporate->historicos()
-            ->where('tipo', 'nao_entregamos')
-            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
-            ->get()
-            ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
-        $historicosEntregaParcial = $corporate->historicos()
-            ->where('tipo', 'entrega_parcial')
-            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
-            ->get()
-            ->keyBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
-        $historicosEntregaExtra = $corporate->historicos()
-            ->where('tipo', 'entrega_extra')
-            ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
-            ->get()
-            ->groupBy(fn (CorporateHistorico $historico): string => $historico->data->toDateString());
-
-        $linhas = collect();
-        $data = $inicio->copy();
-
-        while ($data->lessThanOrEqualTo($fim)) {
-            $diaSemana = self::DIAS_SEMANA[$data->dayOfWeek] ?? null;
-            $dataKey = $data->toDateString();
-            $historicosExtraDoDia = $historicosEntregaExtra->get($dataKey, collect());
-            $configuracaoDia = $this->configuracaoCorporateParaData($corporate, $data);
-            $diasEntregaDia = $configuracaoDia['dias_entrega'] ?? [];
-            $temEntregaRegular = $diaSemana !== null
-                && in_array($diaSemana, $diasEntregaDia, true)
-                && $this->configuracaoTemEntregaNaData($configuracaoDia, $data);
-
-            if ($temEntregaRegular || $historicosExtraDoDia->isNotEmpty()) {
-                $registo = $registos->get($dataKey);
-                $historicoNaoEntregamos = $historicosNaoEntregamos->get($dataKey);
-                $historicoEntregaParcial = $historicosEntregaParcial->get($dataKey);
-                $pecasRegular = $temEntregaRegular ? (int) ($configuracaoDia['pecas_por_dia'][$diaSemana] ?? 0) : 0;
-                $produtosRegular = $temEntregaRegular ? $this->produtosMapaParaData($corporate, $configuracaoDia, $diaSemana, $data) : [
-                    'kg' => [],
-                    'pastelaria' => [],
-                ];
-                $pecasExtra = $historicosExtraDoDia->sum(fn (CorporateHistorico $historico): int => (int) ($historico->pecas_entregues ?? 0));
-                $notasExtra = $historicosExtraDoDia->pluck('texto')->filter()->values();
-                $status = $historicoNaoEntregamos !== null
-                    ? 'nao_entregamos'
-                    : ($historicoEntregaParcial !== null ? 'entrega_parcial'
-                    : ($registo?->status ?? 'sem_registo'));
-                $pecasEntregues = match ($status) {
-                    'nao_entregamos', 'falhou' => 0,
-                    'entrega_parcial' => (int) ($historicoEntregaParcial?->pecas_entregues ?? 0),
-                    default => $pecasRegular,
-                };
-                $produtosEntregues = in_array($status, ['nao_entregamos', 'falhou'], true)
-                    ? ['kg' => [], 'pastelaria' => []]
-                    : $produtosRegular;
-
-                $linhas->push([
-                    'data' => $data->copy(),
-                    'dia_semana' => $diaSemana,
-                    'pecas' => $pecasEntregues + $pecasExtra,
-                    'produtos_kg' => $produtosEntregues['kg'],
-                    'pastelaria' => $produtosEntregues['pastelaria'],
-                    'total_kg' => round(array_sum($produtosEntregues['kg']), 2),
-                    'total_pastelaria' => (int) array_sum($produtosEntregues['pastelaria']),
-                    'status' => $status,
-                    'nota' => collect([$historicoNaoEntregamos?->texto, $historicoEntregaParcial?->texto, $registo?->nota])
-                        ->merge($notasExtra)
-                        ->filter()
-                        ->implode("\n"),
-                ]);
-            }
-
-            $data->addDay();
-        }
-
-        $linhasEntregues = $linhas->reject(fn (array $linha): bool => in_array($linha['status'], ['falhou', 'nao_entregamos'], true));
-
-        return view('corporates.mapa-mensal', [
-            'corporate' => $corporate,
-            'mes' => $mes,
-            'inicio' => $inicio,
-            'mesAnterior' => $inicio->copy()->subMonthNoOverflow()->format('Y-m'),
-            'mesSeguinte' => $inicio->copy()->addMonthNoOverflow()->format('Y-m'),
-            'linhas' => $linhas,
-            'totalDiasEntregues' => $linhasEntregues->count(),
-            'totalPecasEntregues' => $linhasEntregues->sum(fn (array $linha): int => (int) $linha['pecas']),
-            'totalKgEntregues' => round($linhasEntregues->sum(fn (array $linha): float => (float) ($linha['total_kg'] ?? 0)), 2),
-            'totalPastelariaEntregue' => $linhasEntregues->sum(fn (array $linha): int => (int) ($linha['total_pastelaria'] ?? 0)),
-        ]);
+        return view('corporates.mapa-mensal', $mapService->build($corporate, $validated['mes'] ?? null));
     }
 
     private function produtosMapaParaData(Corporate $corporate, array $configuracao, string $diaSemana, Carbon $data): array
