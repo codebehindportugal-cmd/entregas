@@ -47,7 +47,7 @@ tfoot td { font-weight: bold; padding-top: 10px; border-top: 2px solid #ccc; bor
       @else<span class="badge sem_registo">Sem registo</span>@endif
     </td>
     <td>{{ $linha['hora_entrega']?->format('H:i') ?: '-' }}</td>
-    <td>{{ $linha['pecas_entregues'] !== null ? $linha['pecas_entregues'].' pecas'.($linha['nota'] ? ' &middot; '.$linha['nota'] : '') : ($linha['nota'] ?: '-') }}</td>
+    <td>{{ $linha['pecas_entregues'] !== null ? $linha['pecas_entregues'].' pecas'.($linha['nota'] ? ' · '.$linha['nota'] : '') : ($linha['nota'] ?: '-') }}</td>
   </tr>
 @empty
   <tr><td colspan="5" style="text-align:center;color:#888;padding:16px">Nao existem dias de entrega previstos neste mes.</td></tr>
