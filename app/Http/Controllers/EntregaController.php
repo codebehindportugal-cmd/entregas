@@ -17,6 +17,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -129,7 +130,7 @@ class EntregaController extends Controller
                 ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
                 ->pluck('id');
 
-            AtribuicaoEntrega::with('corporate')
+            $atribuicoesCorporate = AtribuicaoEntrega::with('corporate')
                 ->where('dia_semana', $dia)
                 ->where('tipo', 'corporate')
                 ->whereIn('corporate_id', $corporateIdsComEntrega)
@@ -137,8 +138,18 @@ class EntregaController extends Controller
                     ->where('ativo', true)
                     ->whereJsonContains('dias_entrega', $dia)
                 )
-                ->get()
-                ->each(function (AtribuicaoEntrega $atribuicao) use ($data): void {
+                ->get();
+
+            $b2cOrderIdsComEntrega = $this->b2cOrdersParaDia($dia, $dataSelecionada)->pluck('id');
+
+            $atribuicoesB2c = AtribuicaoEntrega::with('wooOrder')
+                ->where('dia_semana', $dia)
+                ->where('tipo', 'b2c')
+                ->whereIn('woo_order_id', $b2cOrderIdsComEntrega)
+                ->get();
+
+            DB::transaction(function () use ($atribuicoesCorporate, $atribuicoesB2c, $data): void {
+                $atribuicoesCorporate->each(function (AtribuicaoEntrega $atribuicao) use ($data): void {
                     RegistoEntrega::firstOrCreate([
                         'tipo' => 'corporate',
                         'corporate_id' => $atribuicao->corporate_id,
@@ -147,14 +158,8 @@ class EntregaController extends Controller
                     ]);
                 });
 
-            $b2cOrderIdsComEntrega = $this->b2cOrdersParaDia($dia, $dataSelecionada)->pluck('id');
-
-            AtribuicaoEntrega::with('wooOrder')
-                ->where('dia_semana', $dia)
-                ->where('tipo', 'b2c')
-                ->whereIn('woo_order_id', $b2cOrderIdsComEntrega)
-                ->get()
-                ->each(fn (AtribuicaoEntrega $atribuicao) => $this->firstOrCreateRegistoB2c($atribuicao, $data));
+                $atribuicoesB2c->each(fn (AtribuicaoEntrega $atribuicao) => $this->firstOrCreateRegistoB2c($atribuicao, $data));
+            });
         }
 
         $corporateIdsComEntrega ??= collect();
@@ -746,16 +751,20 @@ class EntregaController extends Controller
     {
         abort_unless(auth()->user()->isAdmin() || $registoEntrega->user_id === auth()->id(), 403);
 
-        $fotos = $registoEntrega->fotos ?? [];
+        $path = DB::transaction(function () use ($registoEntrega, $index): string {
+            $fotos = $registoEntrega->fresh()->fotos ?? [];
 
-        abort_unless(array_key_exists($index, $fotos), 404);
+            abort_unless(array_key_exists($index, $fotos), 404);
 
-        Storage::disk('public')->delete($this->relativePublicDiskPath((string) $fotos[$index]));
-        unset($fotos[$index]);
+            $path = (string) $fotos[$index];
+            unset($fotos[$index]);
 
-        $registoEntrega->forceFill([
-            'fotos' => array_values($fotos),
-        ])->save();
+            $registoEntrega->forceFill(['fotos' => array_values($fotos)])->save();
+
+            return $path;
+        });
+
+        Storage::disk('public')->delete($this->relativePublicDiskPath($path));
 
         return redirect()->route('minhas-entregas.show', $registoEntrega)->with('status', 'Foto removida.');
     }

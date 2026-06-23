@@ -160,7 +160,7 @@ class ClaudeApiController extends Controller
 
         $entregas = RegistoEntrega::query()
             ->with('corporate')
-            ->whereNotNull('corporate_id')
+            ->whereHas('corporate')
             ->whereBetween('data_entrega', [$inicio->toDateString(), $fim->toDateString()])
             ->when(isset($validated['corporate_id']), fn ($q) => $q->where('corporate_id', $validated['corporate_id']))
             ->orderBy('data_entrega')

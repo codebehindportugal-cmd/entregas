@@ -42,8 +42,16 @@ class UpdateRegistoEntregaRequest extends FormRequest
             return $this->isHeicOrHeif($file);
         }
 
-        if (! in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
-            return $this->isHeicOrHeif($file);
+        if (in_array($mime, ['image/jpeg', 'image/jpg', 'image/pjpeg', 'image/png', 'image/webp'], true)) {
+            return @getimagesize($file->getRealPath()) !== false;
+        }
+
+        // MIME type desconhecido ou inesperado (acontece em alguns servidores onde o finfo
+        // reporta application/octet-stream para fotos tiradas em Android/iOS).
+        // Tenta primeiro a assinatura HEIC/HEIF; se não corresponder, usa getimagesize
+        // como fallback para aceitar qualquer formato de imagem válido.
+        if ($this->isHeicOrHeif($file)) {
+            return true;
         }
 
         return @getimagesize($file->getRealPath()) !== false;

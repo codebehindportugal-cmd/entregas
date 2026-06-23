@@ -53,7 +53,7 @@
             <div class="mt-2 grid gap-3 sm:grid-cols-2">
                 <label class="cursor-pointer rounded bg-[#3B82F6] px-4 py-3 text-center text-sm font-semibold text-white">
                     Tirar Foto
-                    <input data-photo-input name="fotos[]" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" class="sr-only">
+                    <input data-photo-input name="fotos[]" type="file" accept="image/*" capture="environment" class="sr-only">
                 </label>
                 <label class="cursor-pointer rounded bg-white/10 px-4 py-3 text-center text-sm font-semibold text-slate-200">
                     Escolher da Galeria

@@ -243,7 +243,9 @@ class WooOrder extends Model
                     in_array($data, $canceladas, true) => 'cancelada',
                     in_array($data, $concluidas, true) => 'entregue',
                     $postponedUntil === $data => 'adiada',
-                    $date->isPast() && ! $date->isToday() => 'em_atraso',
+                    // Enquanto o módulo de rotas/colaboradores não está operacional,
+                    // tratamos entregas passadas sem status definido como "entregue".
+                    $date->isPast() && ! $date->isToday() => 'entregue',
                     default => 'por_realizar',
                 };
 
@@ -410,9 +412,17 @@ class WooOrder extends Model
             return collect();
         }
 
-        $datas = collect([$this->first_delivery_at->toDateString()]);
         $data = $this->first_delivery_at->copy()->startOfDay();
         $diaSemana = $this->diaSemanaSubscricao($data);
+
+        // Avança até ao primeiro dia de entrega correto (a partir da data de início).
+        // Se a data de início já cair nesse dia da semana, mantém-na; caso contrário,
+        // avança para o próximo occurrence desse dia da semana.
+        while ($data->dayOfWeek !== $diaSemana) {
+            $data->addDay();
+        }
+
+        $datas = collect([$data->toDateString()]);
 
         while ($datas->count() < $total) {
             $data = $data->copy()->addWeeks($this->semanasPorCiclo());
