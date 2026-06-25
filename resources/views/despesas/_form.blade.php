@@ -367,19 +367,24 @@
             return;
         }
 
-        var formData = new FormData();
-        formData.append('ficheiro', file);
         button.disabled = true;
-        button.textContent = 'A extrair...';
+        button.textContent = 'A preparar foto...';
 
-        fetch(@json(route('despesas.extrair-ia')), {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-                'Accept': 'application/json'
-            },
-            body: formData
-        })
+        reduzirImagemParaIa(file)
+            .then(function (ficheiroIa) {
+                var formData = new FormData();
+                formData.append('ficheiro', ficheiroIa, 'fatura-ia.jpg');
+                button.textContent = 'A extrair...';
+
+                return fetch(@json(route('despesas.extrair-ia')), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+            })
             .then(function (response) {
                 return response.text().then(function (text) {
                     var body = {};
@@ -412,6 +417,48 @@
                 button.textContent = 'Extrair com IA';
             });
     });
+
+    function reduzirImagemParaIa(file) {
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+
+            reader.onerror = function () {
+                reject(new Error('Nao foi possivel ler a imagem.'));
+            };
+
+            reader.onload = function (event) {
+                var img = new Image();
+
+                img.onerror = function () {
+                    reject(new Error('Nao foi possivel preparar a imagem.'));
+                };
+
+                img.onload = function () {
+                    var maxSide = 1600;
+                    var scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    var canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(img.width * scale));
+                    canvas.height = Math.max(1, Math.round(img.height * scale));
+
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob(function (blob) {
+                        if (!blob) {
+                            reject(new Error('Nao foi possivel comprimir a imagem.'));
+                            return;
+                        }
+
+                        resolve(blob);
+                    }, 'image/jpeg', 0.82);
+                };
+
+                img.src = event.target.result;
+            };
+
+            reader.readAsDataURL(file);
+        });
+    }
 
     function preencherComIa(data) {
         setIfPresent('campo-titulo', data.titulo);
