@@ -14,10 +14,9 @@ td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; font-
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 .bold { font-weight: bold; }
-.marca-bar { display: flex; gap: 20px; background: #f7f7f7; padding: 8px 10px; border-radius: 4px; margin-bottom: 14px; border: 1px solid #ddd; }
-.marca-item { }
-.marca-label { font-size: 8px; color: #666; text-transform: uppercase; font-weight: bold; }
-.marca-valor { font-size: 13px; font-weight: bold; color: #111; }
+.total-bar { display: flex; gap: 20px; background: #f7f7f7; padding: 8px 10px; border-radius: 4px; margin-bottom: 14px; border: 1px solid #ddd; }
+.total-label { font-size: 8px; color: #666; text-transform: uppercase; font-weight: bold; }
+.total-valor { font-size: 13px; font-weight: bold; color: #111; }
 .total-bar { background: #1a3a1a; color: white; padding: 6px 10px; margin-left: auto; text-align: right; border-radius: 3px; display: inline-block; font-size: 13px; font-weight: bold; }
 .despesa-header { background: #f5f5f5; font-weight: bold; font-size: 9.5px; }
 .sub-item td { background: #fafafa; font-size: 9px; color: #444; padding: 3px 6px 3px 18px; }
@@ -29,49 +28,12 @@ tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; f
 <h1>Despesas e Faturas &mdash; Grupo Ateneya</h1>
 <p class="meta">{{ $inicio->translatedFormat('F Y') }} &nbsp;&middot;&nbsp; Gerado em {{ now()->format('d/m/Y H:i') }}</p>
 
-{{-- Barra por marca --}}
-<div class="marca-bar">
-    @foreach($marcas as $marcaKey => $marcaLabel)
-        <div class="marca-item">
-            <div class="marca-label">{{ $marcaLabel }}</div>
-            <div class="marca-valor">{{ number_format($porMarca[$marcaKey] ?? 0, 2, ',', ' ') }} EUR</div>
-        </div>
-    @endforeach
-    <div style="margin-left:auto; text-align:right;">
-        <div class="marca-label">Total</div>
-        <div class="marca-valor" style="color:#166534;">{{ number_format($total, 2, ',', ' ') }} EUR</div>
+<div class="total-bar">
+    <div>
+        <div class="total-label">Total</div>
+        <div class="total-valor" style="color:#166534;">{{ number_format($total, 2, ',', ' ') }} EUR</div>
     </div>
 </div>
-
-{{-- Por categoria --}}
-@if(count($porCategoria) > 0)
-<p class="section-title">Por categoria</p>
-<table>
-<thead>
-  <tr>
-    <th>Categoria</th>
-    <th class="text-right">Total</th>
-    <th class="text-right">% do total</th>
-  </tr>
-</thead>
-<tbody>
-@foreach($porCategoria as $cat => $valor)
-  <tr>
-    <td>{{ ucfirst(str_replace('_', ' ', $cat)) }}</td>
-    <td class="text-right">{{ number_format($valor, 2, ',', ' ') }} EUR</td>
-    <td class="text-right">{{ $total > 0 ? number_format($valor / $total * 100, 1, ',', '') : '0,0' }}%</td>
-  </tr>
-@endforeach
-</tbody>
-<tfoot>
-  <tr>
-    <td>Total</td>
-    <td class="text-right">{{ number_format($total, 2, ',', ' ') }} EUR</td>
-    <td></td>
-  </tr>
-</tfoot>
-</table>
-@endif
 
 {{-- Detalhe por despesa --}}
 <p class="section-title">Detalhe de faturas</p>
@@ -80,8 +42,7 @@ tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; f
   <tr>
     <th>Data</th>
     <th>Titulo / Fornecedor</th>
-    <th>Marca</th>
-    <th>Categoria</th>
+    <th>Linhas</th>
     <th class="text-right">Valor</th>
   </tr>
 </thead>
@@ -94,8 +55,7 @@ tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; f
       @if($despesa->numero_fatura) <span style="color:#666;font-size:8px;"> N.{{ $despesa->numero_fatura }}</span>@endif
       @if($despesa->fornecedor) <br><span style="color:#666;font-size:8.5px;">{{ $despesa->fornecedor }}</span>@endif
     </td>
-    <td>{{ $marcas[$despesa->marca] ?? $despesa->marca }}</td>
-    <td>{{ ucfirst(str_replace('_', ' ', $despesa->categoria)) }}</td>
+    <td></td>
     <td class="text-right bold">{{ number_format($despesa->total_fatura, 2, ',', ' ') }} EUR</td>
   </tr>
   @if($despesa->items->isNotEmpty())
@@ -103,15 +63,21 @@ tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; f
     <tr class="sub-item">
       <td></td>
       <td>{{ $item->descricao }}</td>
-      <td colspan="2" style="color:#888;font-size:8px;">
-        {{ number_format((float)$item->quantidade, 3, ',', '') }} x {{ number_format((float)$item->preco_unitario, 4, ',', '') }} EUR
+      <td style="color:#888;font-size:8px;">
+        {{ number_format((float)$item->quantidade, 3, ',', '') }} {{ $item->unidade_compra ?? 'un' }} x {{ number_format((float)$item->preco_unitario, 4, ',', '') }} EUR
+        @if((float) $item->quantidade_unidades > 0)
+          &nbsp; | &nbsp; {{ number_format((float)$item->quantidade_unidades, 3, ',', '') }} un
+          @if($item->custo_unitario !== null)
+            ({{ number_format($item->custo_unitario, 4, ',', '') }} EUR/un s/ IVA)
+          @endif
+        @endif
         + IVA {{ number_format((float)$item->iva_percentagem, 0) }}%
       </td>
       <td class="text-right">{{ number_format($item->total_com_iva, 2, ',', '') }} EUR</td>
     </tr>
     @endforeach
     <tr class="sub-item">
-      <td colspan="4" class="text-right" style="color:#555;">
+      <td colspan="3" class="text-right" style="color:#555;">
         Subtotal s/ IVA: {{ number_format($despesa->subtotal_calculado, 2, ',', '') }} EUR
         &nbsp; IVA: {{ number_format($despesa->iva_calculado, 2, ',', '') }} EUR
       </td>
@@ -119,12 +85,12 @@ tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; f
     </tr>
   @endif
 @empty
-  <tr><td colspan="5" style="text-align:center;color:#888;padding:14px;">Sem despesas neste periodo.</td></tr>
+  <tr><td colspan="4" style="text-align:center;color:#888;padding:14px;">Sem despesas neste periodo.</td></tr>
 @endforelse
 </tbody>
 <tfoot>
   <tr>
-    <td colspan="3">
+    <td colspan="2">
       Subtotal s/ IVA: {{ number_format($subtotal, 2, ',', ' ') }} EUR
       &nbsp;&middot;&nbsp; IVA total: {{ number_format($ivaTotal, 2, ',', ' ') }} EUR
     </td>

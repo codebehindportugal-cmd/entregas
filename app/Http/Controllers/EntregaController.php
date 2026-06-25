@@ -53,7 +53,7 @@ class EntregaController extends Controller
             ->orderBy('empresa')
             ->get();
 
-        $b2cOrders = $this->b2cOrdersParaDia($dia, $dataB2c, $q)->get();
+        $b2cOrders = $this->b2cOrdersParaDia($dia, $dataB2c, $q);
 
         return view('entregas.index', [
             'dia' => $dia,
@@ -341,7 +341,6 @@ class EntregaController extends Controller
                 });
 
             $this->b2cOrdersParaDia($diaData, $dataSelecionada, $q)
-                ->get()
                 ->each(function (WooOrder $order) use ($b2cPreparacoes, $dataSelecionada, $diaData): void {
                     $b2cPreparacoes->push([
                         'data' => $dataSelecionada->toDateString(),
@@ -904,7 +903,7 @@ class EntregaController extends Controller
         return ltrim($path, '/');
     }
 
-    private function b2cOrdersParaDia(string $dia, Carbon $dataSelecionada, string $q = '')
+    private function b2cOrdersParaDia(string $dia, Carbon $dataSelecionada, string $q = ''): \Illuminate\Support\Collection
     {
         $data = $dataSelecionada->toDateString();
         $diaB2c = match ($dia) {
@@ -914,13 +913,17 @@ class EntregaController extends Controller
             default => null,
         };
 
+        if ($diaB2c === null) {
+            return collect();
+        }
+
         return WooOrder::query()
             ->where(function ($query): void {
                 $query->whereIn('status', ['processing', 'on-hold', 'pending'])
                     ->orWhereIn('status', ['subscricao', 'wc-subscricao', 'active'])
                     ->orWhere('source_type', 'subscription');
             })
-            ->when($diaB2c !== null, fn ($query) => $query->where(function ($query) use ($diaB2c, $data): void {
+            ->where(function ($query) use ($diaB2c, $data): void {
                 $query->whereDate('postponed_until', $data)
                     ->orWhere(function ($query) use ($diaB2c, $data): void {
                         $query->where(function ($query) use ($data): void {
@@ -929,36 +932,32 @@ class EntregaController extends Controller
                         })->where(function ($query) use ($diaB2c, $data): void {
                             $query->whereJsonContains('delivery_dates', $data)
                                 ->orWhereDate('scheduled_delivery_at', $data)
-                                ->orWhere(function ($query) use ($diaB2c, $data): void {
+                                ->orWhere(function ($query) use ($diaB2c): void {
                                     $query->where('source_type', 'order')
                                         ->where('status', '!=', 'subscricao')
                                         ->where('dia_entrega', $diaB2c)
-                                        ->where(function ($query) use ($data): void {
-                                            $query->whereNull('scheduled_delivery_at')
-                                                ->orWhereDate('scheduled_delivery_at', '<=', $data)
-                                                ->orWhereDate('first_delivery_at', '<=', $data);
-                                        });
+                                        ->whereNull('scheduled_delivery_at');
                                 })
                                 ->orWhere(function ($query) use ($diaB2c): void {
                                     $query->where(function ($query): void {
                                         $query->whereNull('delivery_dates')
                                             ->orWhereJsonLength('delivery_dates', 0);
                                     })->whereNull('scheduled_delivery_at')
-                                        ->where(function ($query) use ($diaB2c): void {
-                                            $query->where('dia_entrega', $diaB2c)
-                                                ->orWhereNull('dia_entrega');
-                                        });
+                                        ->where('dia_entrega', $diaB2c);
                                 });
                         });
                     });
-            }), fn ($query) => $query->whereRaw('1 = 0'))
+            })
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('billing_name', 'like', "%{$q}%")
                     ->orWhere('billing_phone', 'like', "%{$q}%")
                     ->orWhere('billing_email', 'like', "%{$q}%")
                     ->orWhere('woo_id', 'like', "%{$q}%");
             }))
-            ->orderBy('billing_name');
+            ->orderBy('billing_name')
+            ->get()
+            ->filter(fn (WooOrder $order): bool => $order->temEntregaB2cNaData($dataSelecionada))
+            ->values();
     }
 
     private function dataReferenciaParaDia(string $dia): Carbon

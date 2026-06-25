@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Despesa;
 use App\Models\FaturaItem;
+use App\Services\FaturaAiExtractor;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -31,8 +33,6 @@ class DespesaController extends Controller
 
         $ano = (int) ($request->query('ano') ?: now()->year);
         $mes = (int) ($request->query('mes') ?: now()->month);
-        $categoria = $request->query('categoria', '');
-        $marca = $request->query('marca', '');
         $search = $request->query('search', '');
 
         $inicio = Carbon::createFromDate($ano, $mes, 1)->startOfMonth();
@@ -41,8 +41,6 @@ class DespesaController extends Controller
         $query = Despesa::query()
             ->with('items')
             ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
-            ->when(filled($categoria) && in_array($categoria, self::CATEGORIAS, true), fn ($q) => $q->where('categoria', $categoria))
-            ->when(filled($marca) && array_key_exists($marca, self::MARCAS), fn ($q) => $q->where('marca', $marca))
             ->when(filled($search), fn ($q) => $q->where(function ($q) use ($search): void {
                 $q->where('titulo', 'like', "%{$search}%")
                     ->orWhere('fornecedor', 'like', "%{$search}%")
@@ -63,14 +61,6 @@ class DespesaController extends Controller
         $total = $todasDespesas->sum(fn (Despesa $d) => $d->total_fatura);
         $count = $todasDespesas->count();
 
-        $porCategoria = collect(self::CATEGORIAS)->mapWithKeys(function (string $cat) use ($todasDespesas): array {
-            return [$cat => $todasDespesas->where('categoria', $cat)->sum(fn (Despesa $d) => $d->total_fatura)];
-        })->filter(fn (float $v) => $v > 0)->all();
-
-        $porMarca = collect(array_keys(self::MARCAS))->mapWithKeys(function (string $m) use ($todasDespesas): array {
-            return [$m => $todasDespesas->where('marca', $m)->sum(fn (Despesa $d) => $d->total_fatura)];
-        })->filter(fn (float $v) => $v > 0)->all();
-
         $ivaTotal = $todasDespesas->sum(fn (Despesa $d) => $d->iva_calculado);
         $subtotal = $todasDespesas->sum(fn (Despesa $d) => $d->subtotal_calculado);
 
@@ -80,7 +70,7 @@ class DespesaController extends Controller
             ->sortByDesc(fn ($v) => $v)
             ->take(5);
 
-        $resumo = compact('total', 'count', 'porCategoria', 'porMarca');
+        $resumo = compact('total', 'count');
         $analytics = ['iva_total' => $ivaTotal, 'subtotal' => $subtotal, 'por_fornecedor' => $fornecedores];
 
         return view('despesas.index', [
@@ -88,11 +78,7 @@ class DespesaController extends Controller
             'ano' => $ano,
             'mes' => $mes,
             'inicio' => $inicio,
-            'categoria' => $categoria,
-            'marca' => $marca,
             'search' => $search,
-            'categorias' => self::CATEGORIAS,
-            'marcas' => self::MARCAS,
             'taxasIva' => self::TAXAS_IVA,
             'resumo' => $resumo,
             'analytics' => $analytics,
@@ -109,6 +95,17 @@ class DespesaController extends Controller
             'marcas' => self::MARCAS,
             'taxasIva' => self::TAXAS_IVA,
         ]);
+    }
+
+    public function extrairIa(Request $request, FaturaAiExtractor $extractor): JsonResponse
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $data = $request->validate([
+            'ficheiro' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,webp'],
+        ]);
+
+        return response()->json($extractor->extract($data['ficheiro']));
     }
 
     public function store(Request $request): RedirectResponse
@@ -128,6 +125,9 @@ class DespesaController extends Controller
             'items' => ['nullable', 'array'],
             'items.*.descricao' => ['required_with:items', 'string', 'max:255'],
             'items.*.quantidade' => ['required_with:items', 'numeric', 'min:0.001'],
+            'items.*.unidade_compra' => ['nullable', 'string', 'max:20'],
+            'items.*.unidades_por_quantidade' => ['nullable', 'numeric', 'min:0'],
+            'items.*.quantidade_unidades' => ['nullable', 'numeric', 'min:0'],
             'items.*.preco_unitario' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.iva_percentagem' => ['required_with:items', 'numeric', 'in:0,6,13,23'],
             'items.*.notas' => ['nullable', 'string'],
@@ -160,6 +160,9 @@ class DespesaController extends Controller
                 $despesa->items()->create([
                     'descricao' => $item['descricao'],
                     'quantidade' => $item['quantidade'],
+                    'unidade_compra' => $item['unidade_compra'] ?? 'un',
+                    'unidades_por_quantidade' => $item['unidades_por_quantidade'] ?? 1,
+                    'quantidade_unidades' => $item['quantidade_unidades'] ?? ((float) $item['quantidade'] * (float) ($item['unidades_por_quantidade'] ?? 1)),
                     'preco_unitario' => $item['preco_unitario'],
                     'iva_percentagem' => $item['iva_percentagem'],
                     'notas' => $item['notas'] ?? null,
@@ -201,6 +204,9 @@ class DespesaController extends Controller
             'items' => ['nullable', 'array'],
             'items.*.descricao' => ['required_with:items', 'string', 'max:255'],
             'items.*.quantidade' => ['required_with:items', 'numeric', 'min:0.001'],
+            'items.*.unidade_compra' => ['nullable', 'string', 'max:20'],
+            'items.*.unidades_por_quantidade' => ['nullable', 'numeric', 'min:0'],
+            'items.*.quantidade_unidades' => ['nullable', 'numeric', 'min:0'],
             'items.*.preco_unitario' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.iva_percentagem' => ['required_with:items', 'numeric', 'in:0,6,13,23'],
             'items.*.notas' => ['nullable', 'string'],
@@ -238,6 +244,9 @@ class DespesaController extends Controller
                 $despesa->items()->create([
                     'descricao' => $item['descricao'],
                     'quantidade' => $item['quantidade'],
+                    'unidade_compra' => $item['unidade_compra'] ?? 'un',
+                    'unidades_por_quantidade' => $item['unidades_por_quantidade'] ?? 1,
+                    'quantidade_unidades' => $item['quantidade_unidades'] ?? ((float) $item['quantidade'] * (float) ($item['unidades_por_quantidade'] ?? 1)),
                     'preco_unitario' => $item['preco_unitario'],
                     'iva_percentagem' => $item['iva_percentagem'],
                     'notas' => $item['notas'] ?? null,
@@ -280,23 +289,12 @@ class DespesaController extends Controller
         $subtotal = $despesas->sum(fn (Despesa $d) => $d->subtotal_calculado);
         $ivaTotal = $despesas->sum(fn (Despesa $d) => $d->iva_calculado);
 
-        $porCategoria = collect(self::CATEGORIAS)->mapWithKeys(function (string $cat) use ($despesas): array {
-            return [$cat => $despesas->where('categoria', $cat)->sum(fn (Despesa $d) => $d->total_fatura)];
-        })->filter(fn (float $v) => $v > 0)->all();
-
-        $porMarca = collect(array_keys(self::MARCAS))->mapWithKeys(function (string $m) use ($despesas): array {
-            return [$m => $despesas->where('marca', $m)->sum(fn (Despesa $d) => $d->total_fatura)];
-        })->filter(fn (float $v) => $v > 0)->all();
-
         $pdf = Pdf::loadView('despesas.pdf', [
             'despesas' => $despesas,
             'inicio' => $inicio,
             'total' => $total,
             'subtotal' => $subtotal,
             'ivaTotal' => $ivaTotal,
-            'porCategoria' => $porCategoria,
-            'porMarca' => $porMarca,
-            'marcas' => self::MARCAS,
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download('despesas-'.$inicio->format('Y-m').'.pdf');
@@ -324,7 +322,7 @@ class DespesaController extends Controller
             // BOM para Excel reconhecer UTF-8
             fwrite($out, "\xEF\xBB\xBF");
 
-            fputcsv($out, ['Data', 'Titulo', 'N. Fatura', 'Fornecedor', 'Marca', 'Categoria', 'Valor Total', 'Descricao Item', 'Qtd', 'Preco Unit.', 'IVA %', 'Total s/ IVA', 'IVA', 'Total c/ IVA'], ';');
+            fputcsv($out, ['Data', 'Titulo', 'N. Fatura', 'Fornecedor', 'Valor Total', 'Descricao Item', 'Qtd compra', 'Unidade compra', 'Unid./qtd.', 'Qtd unidades', 'Custo/unid. s/ IVA', 'Preco Unit.', 'IVA %', 'Total s/ IVA', 'IVA', 'Total c/ IVA'], ';');
 
             foreach ($despesas as $despesa) {
                 if ($despesa->items->isEmpty()) {
@@ -333,9 +331,11 @@ class DespesaController extends Controller
                         $despesa->titulo,
                         $despesa->numero_fatura ?? '',
                         $despesa->fornecedor ?? '',
-                        self::MARCAS[$despesa->marca] ?? $despesa->marca,
-                        $despesa->categoria,
                         number_format((float) $despesa->valor, 2, ',', ''),
+                        '',
+                        '',
+                        '',
+                        '',
                         '',
                         '',
                         '',
@@ -352,11 +352,13 @@ class DespesaController extends Controller
                             $first ? $despesa->titulo : '',
                             $first ? ($despesa->numero_fatura ?? '') : '',
                             $first ? ($despesa->fornecedor ?? '') : '',
-                            $first ? (self::MARCAS[$despesa->marca] ?? $despesa->marca) : '',
-                            $first ? $despesa->categoria : '',
                             $first ? number_format($despesa->total_fatura, 2, ',', '') : '',
                             $item->descricao,
                             number_format((float) $item->quantidade, 3, ',', ''),
+                            $item->unidade_compra,
+                            number_format((float) $item->unidades_por_quantidade, 3, ',', ''),
+                            number_format((float) $item->quantidade_unidades, 3, ',', ''),
+                            $item->custo_unitario !== null ? number_format($item->custo_unitario, 4, ',', '') : '',
                             number_format((float) $item->preco_unitario, 4, ',', ''),
                             number_format((float) $item->iva_percentagem, 2, ',', '').'%',
                             number_format($item->total_sem_iva, 2, ',', ''),

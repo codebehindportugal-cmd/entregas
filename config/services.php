@@ -39,4 +39,9 @@ return [
         'api_token' => env('CLAUDE_API_TOKEN'),
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-5.5'),
+    ],
+
 ];

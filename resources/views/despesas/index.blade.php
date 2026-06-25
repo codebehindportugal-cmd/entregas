@@ -2,30 +2,7 @@
     @php
         $mesAnterior = \Illuminate\Support\Carbon::createFromDate($ano, $mes, 1)->subMonth();
         $mesSeguinte = \Illuminate\Support\Carbon::createFromDate($ano, $mes, 1)->addMonth();
-        $labelCategorias = [
-            'combustivel' => 'Combustivel',
-            'sementes' => 'Sementes',
-            'fertilizantes' => 'Fertilizantes',
-            'fitofarmaceuticos' => 'Fitofarmaceuticos',
-            'equipamento' => 'Equipamento',
-            'mao_obra' => 'Mao de obra',
-            'outro' => 'Outro',
-        ];
-        $corCategoria = [
-            'combustivel' => 'bg-orange-500/20 text-orange-300',
-            'sementes' => 'bg-lime-500/20 text-lime-300',
-            'fertilizantes' => 'bg-teal-500/20 text-teal-300',
-            'fitofarmaceuticos' => 'bg-red-500/20 text-red-300',
-            'equipamento' => 'bg-blue-500/20 text-blue-300',
-            'mao_obra' => 'bg-purple-500/20 text-purple-300',
-            'outro' => 'bg-slate-500/20 text-slate-300',
-        ];
-        $corMarca = [
-            'horta_da_maria' => 'bg-emerald-500/20 text-emerald-300',
-            'extravaganty' => 'bg-pink-500/20 text-pink-300',
-            'ateneya_geral' => 'bg-amber-500/20 text-amber-300',
-        ];
-        $baseParams = array_filter(['search' => $search, 'categoria' => $categoria, 'marca' => $marca]);
+        $baseParams = array_filter(['search' => $search]);
     @endphp
 
     <x-page-title title="Despesas e Faturas" subtitle="Gestao de despesas e faturas do grupo Ateneya">
@@ -48,18 +25,11 @@
            class="rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-sm text-slate-300 hover:bg-white/10">&#8594;</a>
     </div>
 
-    {{-- Barra Grupo Ateneya --}}
+    {{-- Barra de resumo --}}
     <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
-        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Grupo Ateneya — {{ $inicio->translatedFormat('F Y') }}</p>
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Faturas — {{ $inicio->translatedFormat('F Y') }}</p>
         <div class="flex flex-wrap gap-6">
-            @foreach($marcas as $marcaKey => $marcaLabel)
-                @php $valMarca = $resumo['porMarca'][$marcaKey] ?? 0; @endphp
-                <div>
-                    <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold {{ $corMarca[$marcaKey] ?? 'bg-slate-500/20 text-slate-300' }}">{{ $marcaLabel }}</span>
-                    <p class="mt-1 text-base font-semibold text-white">{{ number_format($valMarca, 2, ',', ' ') }} EUR</p>
-                </div>
-            @endforeach
-            <div class="ml-auto text-right">
+            <div>
                 <p class="text-xs text-slate-400">Total do mes</p>
                 <p class="text-xl font-bold text-emerald-400">{{ number_format($resumo['total'], 2, ',', ' ') }} EUR</p>
                 <p class="text-xs text-slate-500">{{ $resumo['count'] }} faturas</p>
@@ -68,7 +38,7 @@
     </div>
 
     {{-- KPI Cards --}}
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
             <p class="text-xs text-slate-400">Total do mes</p>
             <p class="text-2xl font-bold text-white">{{ number_format($resumo['total'], 2, ',', ' ') }} EUR</p>
@@ -76,16 +46,6 @@
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
             <p class="text-xs text-slate-400">Numero de faturas</p>
             <p class="text-2xl font-bold text-white">{{ $resumo['count'] }}</p>
-        </div>
-        <div class="rounded border border-white/10 bg-[#151E2D] p-4">
-            <p class="text-xs text-slate-400">Top categoria</p>
-            @php
-                $topCat = collect($resumo['porCategoria'])->sortByDesc(fn ($v) => $v)->keys()->first();
-            @endphp
-            <p class="text-lg font-bold text-white">{{ $topCat ? ($labelCategorias[$topCat] ?? $topCat) : '-' }}</p>
-            @if($topCat)
-                <p class="text-sm text-slate-400">{{ number_format($resumo['porCategoria'][$topCat], 2, ',', ' ') }} EUR</p>
-            @endif
         </div>
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
             <p class="text-xs text-slate-400">IVA total (linhas)</p>
@@ -98,25 +58,9 @@
     <form method="get" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
         <input type="hidden" name="ano" value="{{ $ano }}">
         <input type="hidden" name="mes" value="{{ $mes }}">
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto]">
+        <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
             <label class="text-sm text-slate-300">Pesquisar
                 <input name="search" value="{{ $search }}" placeholder="Titulo, fornecedor, n. fatura..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white placeholder-slate-500">
-            </label>
-            <label class="text-sm text-slate-300">Categoria
-                <select name="categoria" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                    <option value="">Todas</option>
-                    @foreach($categorias as $cat)
-                        <option value="{{ $cat }}" @selected($categoria === $cat)>{{ $labelCategorias[$cat] ?? $cat }}</option>
-                    @endforeach
-                </select>
-            </label>
-            <label class="text-sm text-slate-300">Marca
-                <select name="marca" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                    <option value="">Todas</option>
-                    @foreach($marcas as $marcaKey => $marcaLabel)
-                        <option value="{{ $marcaKey }}" @selected($marca === $marcaKey)>{{ $marcaLabel }}</option>
-                    @endforeach
-                </select>
             </label>
             <div class="flex items-end gap-2">
                 <button class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Filtrar</button>
@@ -132,8 +76,6 @@
                 <tr>
                     <th class="p-3">Data</th>
                     <th class="p-3">Titulo / Fornecedor</th>
-                    <th class="p-3">Marca</th>
-                    <th class="p-3">Categoria</th>
                     <th class="p-3 text-right">Valor</th>
                     <th class="p-3 text-center">Linhas</th>
                     <th class="p-3"></th>
@@ -151,12 +93,6 @@
                             @if($despesa->numero_fatura)
                                 <p class="text-xs text-slate-500">N. {{ $despesa->numero_fatura }}</p>
                             @endif
-                        </td>
-                        <td class="p-3">
-                            <span class="rounded px-2 py-0.5 text-xs font-semibold {{ $corMarca[$despesa->marca] ?? 'bg-slate-500/20 text-slate-300' }}">{{ $marcas[$despesa->marca] ?? $despesa->marca }}</span>
-                        </td>
-                        <td class="p-3">
-                            <span class="rounded px-2 py-0.5 text-xs font-semibold {{ $corCategoria[$despesa->categoria] ?? 'bg-slate-500/20 text-slate-300' }}">{{ $labelCategorias[$despesa->categoria] ?? $despesa->categoria }}</span>
                         </td>
                         <td class="p-3 text-right font-semibold text-white">{{ number_format($despesa->total_fatura, 2, ',', ' ') }} EUR</td>
                         <td class="p-3 text-center">
@@ -185,12 +121,14 @@
                     </tr>
                     @if($despesa->items->isNotEmpty())
                         <tr id="despesa-{{ $despesa->id }}" class="hidden border-t border-white/5 bg-[#0A0F1A]">
-                            <td colspan="7" class="px-6 py-3">
+                            <td colspan="5" class="px-6 py-3">
                                 <table class="w-full text-xs">
                                     <thead class="text-slate-500">
                                         <tr>
                                             <th class="pb-1 text-left">Descricao</th>
-                                            <th class="pb-1 text-right">Qtd</th>
+                                            <th class="pb-1 text-right">Qtd compra</th>
+                                            <th class="pb-1 text-right">Qtd unidades</th>
+                                            <th class="pb-1 text-right">Custo/unid.</th>
                                             <th class="pb-1 text-right">Preco unit.</th>
                                             <th class="pb-1 text-right">IVA</th>
                                             <th class="pb-1 text-right">Total s/ IVA</th>
@@ -201,7 +139,9 @@
                                         @foreach($despesa->items as $item)
                                             <tr class="border-t border-white/5">
                                                 <td class="py-1 text-slate-300">{{ $item->descricao }}</td>
-                                                <td class="py-1 text-right text-slate-400">{{ number_format((float) $item->quantidade, 3, ',', '') }}</td>
+                                                <td class="py-1 text-right text-slate-400">{{ number_format((float) $item->quantidade, 3, ',', '') }} {{ $item->unidade_compra ?? 'un' }}</td>
+                                                <td class="py-1 text-right text-slate-400">{{ number_format((float) $item->quantidade_unidades, 3, ',', '') }} un</td>
+                                                <td class="py-1 text-right font-semibold text-emerald-300">{{ $item->custo_unitario !== null ? number_format($item->custo_unitario, 4, ',', '').' EUR' : '-' }}</td>
                                                 <td class="py-1 text-right text-slate-400">{{ number_format((float) $item->preco_unitario, 4, ',', '') }} EUR</td>
                                                 <td class="py-1 text-right text-slate-400">{{ number_format((float) $item->iva_percentagem, 0, ',', '') }}%</td>
                                                 <td class="py-1 text-right text-slate-300">{{ number_format($item->total_sem_iva, 2, ',', '') }} EUR</td>
@@ -209,8 +149,7 @@
                                             </tr>
                                         @endforeach
                                         <tr class="border-t border-white/10">
-                                            <td colspan="4" class="py-1 text-right text-xs text-slate-500">Subtotal s/ IVA: {{ number_format($despesa->subtotal_calculado, 2, ',', '') }} EUR &nbsp; IVA: {{ number_format($despesa->iva_calculado, 2, ',', '') }} EUR</td>
-                                            <td></td>
+                                            <td colspan="7" class="py-1 text-right text-xs text-slate-500">Subtotal s/ IVA: {{ number_format($despesa->subtotal_calculado, 2, ',', '') }} EUR &nbsp; IVA: {{ number_format($despesa->iva_calculado, 2, ',', '') }} EUR</td>
                                             <td class="py-1 text-right font-bold text-emerald-400">{{ number_format($despesa->total_fatura, 2, ',', '') }} EUR</td>
                                         </tr>
                                     </tbody>
@@ -220,7 +159,7 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="7" class="p-6 text-center text-slate-400">Sem despesas para este periodo.</td>
+                        <td colspan="5" class="p-6 text-center text-slate-400">Sem despesas para este periodo.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -242,8 +181,6 @@
                     <p class="shrink-0 text-base font-bold text-white">{{ number_format($despesa->total_fatura, 2, ',', ' ') }} EUR</p>
                 </div>
                 <div class="mt-2 flex flex-wrap gap-2">
-                    <span class="rounded px-2 py-0.5 text-xs font-semibold {{ $corMarca[$despesa->marca] ?? 'bg-slate-500/20 text-slate-300' }}">{{ $marcas[$despesa->marca] ?? $despesa->marca }}</span>
-                    <span class="rounded px-2 py-0.5 text-xs font-semibold {{ $corCategoria[$despesa->categoria] ?? 'bg-slate-500/20 text-slate-300' }}">{{ $labelCategorias[$despesa->categoria] ?? $despesa->categoria }}</span>
                     @if($despesa->items->isNotEmpty())
                         <span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">{{ $despesa->items->count() }} linhas</span>
                     @endif

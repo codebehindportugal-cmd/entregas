@@ -11,17 +11,22 @@ class FaturaItem extends Model
         'despesa_id',
         'descricao',
         'quantidade',
+        'unidade_compra',
+        'unidades_por_quantidade',
+        'quantidade_unidades',
         'preco_unitario',
         'iva_percentagem',
         'notas',
     ];
 
-    protected $appends = ['total_sem_iva', 'total_iva_valor', 'total_com_iva'];
+    protected $appends = ['total_sem_iva', 'total_iva_valor', 'total_com_iva', 'custo_unitario'];
 
     protected function casts(): array
     {
         return [
             'quantidade' => 'decimal:3',
+            'unidades_por_quantidade' => 'decimal:3',
+            'quantidade_unidades' => 'decimal:3',
             'preco_unitario' => 'decimal:4',
             'iva_percentagem' => 'decimal:2',
         ];
@@ -45,5 +50,16 @@ class FaturaItem extends Model
     public function getTotalComIvaAttribute(): float
     {
         return round($this->total_sem_iva + $this->total_iva_valor, 4);
+    }
+
+    public function getCustoUnitarioAttribute(): ?float
+    {
+        $unidades = (float) $this->quantidade_unidades;
+
+        if ($unidades <= 0) {
+            return null;
+        }
+
+        return round($this->total_sem_iva / $unidades, 4);
     }
 }
