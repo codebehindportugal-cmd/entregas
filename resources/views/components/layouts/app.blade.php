@@ -21,6 +21,7 @@
                         ['label' => 'Produtos', 'route' => 'produtos.index', 'active' => 'produtos.*'],
                         ['label' => 'Precos', 'route' => 'tabelas-precos.index', 'active' => 'tabelas-precos.*'],
                         ['label' => 'Compras', 'route' => 'compras.index', 'active' => 'compras.*'],
+                        ['label' => 'Despesas', 'route' => 'despesas.index', 'active' => 'despesas.*'],
                         ['label' => 'Clientes B2C', 'route' => 'encomendas.index', 'active' => 'encomendas.*'],
                         ['label' => 'Empresas', 'route' => 'corporates.index', 'active' => 'corporates.*'],
                         ['label' => 'Equipa', 'route' => 'equipa.index', 'active' => 'equipa.*'],
