@@ -5,6 +5,7 @@ use App\Http\Controllers\ComparacaoCabazController;
 use App\Http\Controllers\ComprasController;
 use App\Http\Controllers\CorporateController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DespesaController;
 use App\Http\Controllers\EncomendaController;
 use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
@@ -80,6 +81,14 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/produtos/{produto}/atualizar-site', [ProdutoController::class, 'updateSite'])->name('produtos.update-site');
         Route::get('/compras', ComprasController::class)->name('compras.index');
         Route::post('/compras/precos', [ComprasController::class, 'updatePrecos'])->name('compras.precos.update');
+        Route::get('/despesas/pdf', [DespesaController::class, 'exportarPdf'])->name('despesas.pdf');
+        Route::get('/despesas/csv', [DespesaController::class, 'exportarCsv'])->name('despesas.csv');
+        Route::get('/despesas/create', [DespesaController::class, 'create'])->name('despesas.create');
+        Route::post('/despesas', [DespesaController::class, 'store'])->name('despesas.store');
+        Route::get('/despesas/{despesa}/edit', [DespesaController::class, 'edit'])->name('despesas.edit');
+        Route::patch('/despesas/{despesa}', [DespesaController::class, 'update'])->name('despesas.update');
+        Route::delete('/despesas/{despesa}', [DespesaController::class, 'destroy'])->name('despesas.destroy');
+        Route::get('/despesas', [DespesaController::class, 'index'])->name('despesas.index');
         Route::resource('/tabelas-precos', TabelaPrecoController::class)
             ->parameters(['tabelas-precos' => 'tabelaPreco']);
         Route::post('/tabelas-precos/manual', [TabelaPrecoController::class, 'manual'])->name('tabelas-precos.manual');
