@@ -11,9 +11,12 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class DespesaController extends Controller
 {
@@ -105,7 +108,21 @@ class DespesaController extends Controller
             'ficheiro' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,webp'],
         ]);
 
-        return response()->json($extractor->extract($data['ficheiro']));
+        try {
+            return response()->json($extractor->extract($data['ficheiro']));
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        } catch (Throwable $exception) {
+            Log::error('Erro ao extrair fatura com IA', [
+                'message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Nao foi possivel extrair a fatura com IA. Verifique a chave da OpenAI e tente novamente.',
+            ], 500);
+        }
     }
 
     public function store(Request $request): RedirectResponse
