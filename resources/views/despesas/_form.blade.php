@@ -381,8 +381,25 @@
             body: formData
         })
             .then(function (response) {
-                return response.json().then(function (body) {
-                    if (!response.ok) throw new Error(body.message || 'Nao foi possivel extrair a fatura.');
+                return response.text().then(function (text) {
+                    var body = {};
+
+                    try {
+                        body = text ? JSON.parse(text) : {};
+                    } catch (e) {
+                        if (!response.ok) {
+                            throw new Error('O servidor nao devolveu uma resposta valida. Confirme que iniciou sessao e tente novamente.');
+                        }
+                    }
+
+                    if (!response.ok) {
+                        var validationMessage = body.errors
+                            ? Object.values(body.errors).flat().join('\n')
+                            : null;
+
+                        throw new Error(body.message || validationMessage || 'Nao foi possivel extrair a fatura.');
+                    }
+
                     return body;
                 });
             })
