@@ -106,6 +106,11 @@ class DespesaController extends Controller
 
         $data = $request->validate([
             'ficheiro' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,webp'],
+        ], [
+            'ficheiro.required' => 'Escolha ou tire uma foto da fatura.',
+            'ficheiro.uploaded' => 'A foto nao conseguiu chegar ao servidor. No prod, confirme upload_max_filesize, post_max_size e client_max_body_size.',
+            'ficheiro.max' => 'A foto e demasiado grande. Tente novamente com uma foto mais leve.',
+            'ficheiro.mimes' => 'A extracao por IA aceita JPG, PNG ou WEBP.',
         ]);
 
         try {
