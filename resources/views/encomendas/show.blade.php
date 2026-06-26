@@ -169,6 +169,20 @@
                         <button class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">Remover adiamento</button>
                     </form>
                 @endif
+                @if(! $encomenda->isSubscricao() && filled($encomenda->postponement_history))
+                    <div class="mt-4 border-t border-white/10 pt-4">
+                        <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Historico de adiamentos</h3>
+                        <div class="mt-2 space-y-1 text-sm text-slate-300">
+                            @foreach($encomenda->postponement_history as $adiamento)
+                                <p>
+                                    {{ \Illuminate\Support\Carbon::parse($adiamento['from'])->format('d/m/Y') }}
+                                    &rarr;
+                                    {{ \Illuminate\Support\Carbon::parse($adiamento['to'])->format('d/m/Y') }}
+                                </p>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </div>
         </section>
 

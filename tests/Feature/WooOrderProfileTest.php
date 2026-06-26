@@ -90,6 +90,44 @@ class WooOrderProfileTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_postpone_regular_b2c_order_more_than_once_and_restore_original_date(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = WooOrder::factory()->create([
+            'source_type' => 'order',
+            'status' => 'processing',
+            'scheduled_delivery_at' => '2026-05-27',
+        ]);
+
+        $this->actingAs($admin)->put(route('encomendas.postpone', $order), [
+            'postponed_until' => '2026-05-30',
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->put(route('encomendas.postpone', $order), [
+            'postponed_until' => '2026-06-03',
+        ])->assertRedirect();
+
+        $order->refresh();
+
+        $this->assertSame('2026-06-03', $order->postponed_until->toDateString());
+        $this->assertSame('2026-06-03', $order->scheduled_delivery_at->toDateString());
+        $this->assertSame([
+            ['from' => '2026-05-27', 'to' => '2026-05-30'],
+            ['from' => '2026-05-30', 'to' => '2026-06-03'],
+        ], collect($order->postponement_history)->map(fn (array $item): array => [
+            'from' => $item['from'],
+            'to' => $item['to'],
+        ])->all());
+
+        $this->actingAs($admin)->delete(route('encomendas.postpone.clear', $order))->assertRedirect();
+
+        $order->refresh();
+
+        $this->assertNull($order->postponed_until);
+        $this->assertSame('2026-05-27', $order->scheduled_delivery_at->toDateString());
+        $this->assertSame([], $order->postponement_history);
+    }
+
     public function test_updating_subscription_schedule_clears_delivery_dates_for_regeneration(): void
     {
         $admin = User::factory()->admin()->create();

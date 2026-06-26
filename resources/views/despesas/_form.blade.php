@@ -154,6 +154,10 @@
 <script>
 (function () {
     var qrData = null;
+    var maxQrSide = 1800;
+    var maxUploadSide = 1800;
+    var jpegQuality = 0.82;
+    var compressibleTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
     // -- QR Scanner --
     function tryDecodeQr(file) {
@@ -165,11 +169,12 @@
         reader.onload = function (e) {
             var img = new Image();
             img.onload = function () {
+                var scale = Math.min(1, maxQrSide / Math.max(img.width, img.height));
                 var canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
+                canvas.width = Math.max(1, Math.round(img.width * scale));
+                canvas.height = Math.max(1, Math.round(img.height * scale));
                 var ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 var code = jsQR(imageData.data, imageData.width, imageData.height);
                 if (code && code.data && code.data.startsWith('A:')) {
@@ -180,6 +185,19 @@
                     if (status) {
                         status.textContent = 'QR AT detetado e campos preenchidos. Reveja os dados e guarde a entrada.';
                     }
+                } else {
+                    var status = document.getElementById('ficheiro-status');
+                    if (status) {
+                        status.textContent = 'Foto preparada. Nao consegui ler o QR automaticamente; pode preencher os campos manualmente e guardar.';
+                        status.classList.remove('hidden');
+                    }
+                }
+            };
+            img.onerror = function () {
+                var status = document.getElementById('ficheiro-status');
+                if (status) {
+                    status.textContent = 'Foto selecionada. Nao consegui preparar a leitura do QR, mas pode guardar a entrada.';
+                    status.classList.remove('hidden');
                 }
             };
             img.src = e.target.result;
@@ -246,20 +264,136 @@
             var status = document.getElementById('ficheiro-status');
 
             if (status) {
-                status.classList.add('hidden');
-                status.textContent = '';
-            }
-
-            if (this.files && this.files[0] && status) {
-                status.textContent = this.files[0].type.startsWith('image/')
-                    ? 'Foto selecionada. Se existir QR AT legivel, os campos sao preenchidos automaticamente. Ao guardar, a IA local recebe o job.'
-                    : 'Ficheiro selecionado. Ao guardar, fica anexado a esta entrada.';
                 status.classList.remove('hidden');
+                status.textContent = 'A preparar ficheiro...';
             }
 
-            if (this.files && this.files[0] && this.files[0].type.startsWith('image/')) {
-                tryDecodeQr(this.files[0]);
+            if (!this.files || !this.files[0]) {
+                if (status) {
+                    status.classList.add('hidden');
+                    status.textContent = '';
+                }
+                return;
             }
+
+            var input = this;
+            var file = input.files[0];
+
+            prepareInvoiceImage(file).then(function (preparedFile) {
+                if (preparedFile !== file && typeof DataTransfer !== 'undefined') {
+                    var dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(preparedFile);
+                    input.files = dataTransfer.files;
+                }
+
+                if (status) {
+                    status.textContent = preparedFile.type.startsWith('image/')
+                        ? 'Foto preparada. A tentar ler o QR AT...'
+                        : 'Ficheiro selecionado. Ao guardar, fica anexado a esta entrada.';
+                    status.classList.remove('hidden');
+                }
+
+                if (preparedFile.type.startsWith('image/')) {
+                    tryDecodeQr(preparedFile);
+                }
+            }).catch(function () {
+                if (status) {
+                    status.textContent = 'Ficheiro selecionado. Se o upload falhar, tente uma foto mais leve.';
+                    status.classList.remove('hidden');
+                }
+                if (file.type.startsWith('image/')) {
+                    tryDecodeQr(file);
+                }
+            });
+        });
+
+        var form = ficheiroInput.closest('form');
+        if (form) {
+            form.addEventListener('submit', function (event) {
+                if (form.dataset.ficheiroPrepared === '1') {
+                    return;
+                }
+
+                if (!ficheiroInput.files || !ficheiroInput.files[0] || !ficheiroInput.files[0].type.startsWith('image/')) {
+                    form.dataset.ficheiroPrepared = '1';
+                    return;
+                }
+
+                event.preventDefault();
+                var button = form.querySelector('button[type="submit"]');
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = 'A preparar foto...';
+                }
+
+                prepareInvoiceImage(ficheiroInput.files[0]).then(function (preparedFile) {
+                    if (preparedFile && typeof DataTransfer !== 'undefined') {
+                        var dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(preparedFile);
+                        ficheiroInput.files = dataTransfer.files;
+                    }
+                }).finally(function () {
+                    form.dataset.ficheiroPrepared = '1';
+                    if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit(button || undefined);
+                    } else {
+                        form.submit();
+                    }
+                });
+            });
+        }
+    }
+
+    function prepareInvoiceImage(file) {
+        if (!compressibleTypes.includes(file.type) || file.size < 1024 * 1024) {
+            return Promise.resolve(file);
+        }
+
+        return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+
+            reader.onerror = function () {
+                reject(new Error('Nao foi possivel ler a imagem.'));
+            };
+
+            reader.onload = function (event) {
+                var img = new Image();
+
+                img.onerror = function () {
+                    reject(new Error('Nao foi possivel preparar a imagem.'));
+                };
+
+                img.onload = function () {
+                    var scale = Math.min(1, maxUploadSide / Math.max(img.width, img.height));
+                    var canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, Math.round(img.width * scale));
+                    canvas.height = Math.max(1, Math.round(img.height * scale));
+
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob(function (blob) {
+                        if (!blob) {
+                            reject(new Error('Nao foi possivel comprimir a imagem.'));
+                            return;
+                        }
+
+                        if (blob.size >= file.size) {
+                            resolve(file);
+                            return;
+                        }
+
+                        resolve(new File([blob], file.name.replace(/\.(png|webp)$/i, '.jpg'), {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        }));
+                    }, 'image/jpeg', jpegQuality);
+                };
+
+                img.src = event.target.result;
+            };
+
+            reader.readAsDataURL(file);
         });
     }
 

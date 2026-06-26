@@ -150,10 +150,7 @@ class EncomendaController extends Controller
         if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {
             $encomenda->adiarProximaEntregaPara($data['postponed_until']);
         } else {
-            $encomenda->update([
-                'postponed_until' => $data['postponed_until'],
-                'scheduled_delivery_at' => $data['postponed_until'],
-            ]);
+            $encomenda->adiarEncomendaNormalPara($data['postponed_until']);
         }
 
         return back()->with('status', 'Encomenda adiada ate '.$encomenda->fresh()->postponed_until->format('d/m/Y').'.');
@@ -161,9 +158,13 @@ class EncomendaController extends Controller
 
     public function clearPostpone(WooOrder $encomenda): RedirectResponse
     {
-        $encomenda->update([
-            'postponed_until' => null,
-        ]);
+        if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {
+            $encomenda->update([
+                'postponed_until' => null,
+            ]);
+        } else {
+            $encomenda->removerAdiamentoEncomendaNormal();
+        }
 
         return back()->with('status', 'Adiamento removido.');
     }
