@@ -18,8 +18,11 @@ class UpdateRegistoEntregaRequest extends FormRequest
             'status' => ['required', 'in:pendente,entregue,falhou'],
             'nota' => ['nullable', 'string'],
             'fotos' => ['nullable', 'array', 'max:6'],
-            'fotos.*' => ['file', 'max:6144', function (string $attribute, mixed $value, \Closure $fail): void {
-                if (! $value instanceof UploadedFile || ! $this->validDeliveryPhoto($value)) {
+            'fotos.*' => ['nullable', 'file', 'max:10240', function (string $attribute, mixed $value, \Closure $fail): void {
+                if ($value === null) {
+                    return;
+                }
+                if (! $value instanceof UploadedFile || ! $value->isValid() || ! $this->validDeliveryPhoto($value)) {
                     $fail('As fotos devem ser imagens validas em JPG, PNG, WEBP, HEIC ou HEIF.');
                 }
             }],
@@ -30,7 +33,7 @@ class UpdateRegistoEntregaRequest extends FormRequest
     {
         return [
             'fotos.max' => 'Pode enviar no maximo 6 fotos de cada vez.',
-            'fotos.*.max' => 'Cada foto pode ter no maximo 6 MB.',
+            'fotos.*.max' => 'Cada foto pode ter no maximo 10 MB.',
         ];
     }
 
