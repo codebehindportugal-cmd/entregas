@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiJob;
 use App\Models\Despesa;
 use App\Models\FaturaItem;
 use App\Services\FaturaAiExtractor;
@@ -20,15 +21,17 @@ use Throwable;
 
 class DespesaController extends Controller
 {
-    const CATEGORIAS = ['combustivel', 'sementes', 'fertilizantes', 'fitofarmaceuticos', 'equipamento', 'mao_obra', 'outro'];
+    const CATEGORIAS = [
+        'sementes'          => 'Sementes',
+        'fertilizantes'     => 'Fertilizantes',
+        'fitofarmaceuticos' => 'Fitofarmacêuticos',
+        'combustivel'       => 'Combustível',
+        'mao_obra'          => 'Mão de obra',
+        'equipamento'       => 'Equipamento',
+        'outro'             => 'Outro',
+    ];
 
     const TAXAS_IVA = [0, 6, 13, 23];
-
-    const MARCAS = [
-        'horta_da_maria' => 'Horta da Maria',
-        'extravaganty' => 'Extravaganty',
-        'ateneya_geral' => 'Ateneya (geral)',
-    ];
 
     public function index(Request $request): View
     {
@@ -95,7 +98,6 @@ class DespesaController extends Controller
         return view('despesas.create', [
             'despesa' => new Despesa,
             'categorias' => self::CATEGORIAS,
-            'marcas' => self::MARCAS,
             'taxasIva' => self::TAXAS_IVA,
         ]);
     }
@@ -140,8 +142,7 @@ class DespesaController extends Controller
             'fornecedor' => ['nullable', 'string', 'max:255'],
             'valor' => ['nullable', 'numeric', 'min:0'],
             'data' => ['required', 'date'],
-            'categoria' => ['required', 'in:'.implode(',', self::CATEGORIAS)],
-            'marca' => ['required', 'in:'.implode(',', array_keys(self::MARCAS))],
+            'categoria' => ['required', 'in:'.implode(',', array_keys(self::CATEGORIAS))],
             'notas' => ['nullable', 'string'],
             'ficheiro' => ['nullable', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
             'items' => ['nullable', 'array'],
@@ -156,11 +157,14 @@ class DespesaController extends Controller
         ]);
 
         $ficheiroPath = null;
+        $ficheiroIsImage = false;
         if ($request->hasFile('ficheiro')) {
-            $ficheiroPath = $request->file('ficheiro')->store('despesas', 'public');
+            $file = $request->file('ficheiro');
+            $ficheiroPath = $file->store('despesas', 'public');
+            $ficheiroIsImage = str_starts_with($file->getMimeType() ?? '', 'image/');
         }
 
-        DB::transaction(function () use ($data, $ficheiroPath): void {
+        $despesa = DB::transaction(function () use ($data, $ficheiroPath): Despesa {
             $items = collect($data['items'] ?? []);
             $valorCalculado = $items->isNotEmpty()
                 ? $items->sum(fn (array $item) => round((float) $item['quantidade'] * (float) $item['preco_unitario'] * (1 + (float) $item['iva_percentagem'] / 100), 4))
@@ -173,7 +177,6 @@ class DespesaController extends Controller
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
                 'categoria' => $data['categoria'],
-                'marca' => $data['marca'],
                 'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);
@@ -190,7 +193,17 @@ class DespesaController extends Controller
                     'notas' => $item['notas'] ?? null,
                 ]);
             }
+
+            return $despesa;
         });
+
+        if ($ficheiroPath && $ficheiroIsImage) {
+            AiJob::create([
+                'despesa_id' => $despesa->id,
+                'status' => 'pending',
+                'image_path' => $ficheiroPath,
+            ]);
+        }
 
         return redirect()->route('despesas.index')->with('status', 'Despesa registada com sucesso.');
     }
@@ -204,7 +217,6 @@ class DespesaController extends Controller
         return view('despesas.edit', [
             'despesa' => $despesa,
             'categorias' => self::CATEGORIAS,
-            'marcas' => self::MARCAS,
             'taxasIva' => self::TAXAS_IVA,
         ]);
     }
@@ -219,8 +231,7 @@ class DespesaController extends Controller
             'fornecedor' => ['nullable', 'string', 'max:255'],
             'valor' => ['nullable', 'numeric', 'min:0'],
             'data' => ['required', 'date'],
-            'categoria' => ['required', 'in:'.implode(',', self::CATEGORIAS)],
-            'marca' => ['required', 'in:'.implode(',', array_keys(self::MARCAS))],
+            'categoria' => ['required', 'in:'.implode(',', array_keys(self::CATEGORIAS))],
             'notas' => ['nullable', 'string'],
             'ficheiro' => ['nullable', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
             'items' => ['nullable', 'array'],
@@ -255,7 +266,6 @@ class DespesaController extends Controller
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
                 'categoria' => $data['categoria'],
-                'marca' => $data['marca'],
                 'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);

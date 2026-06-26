@@ -63,8 +63,13 @@
             <input type="date" name="data" id="campo-data" value="{{ old('data', $despesa->data?->format('Y-m-d') ?? now()->format('Y-m-d')) }}" required
                 class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
-        <input type="hidden" name="categoria" value="{{ old('categoria', $despesa->categoria ?? 'outro') }}">
-        <input type="hidden" name="marca" value="{{ old('marca', $despesa->marca ?? 'horta_da_maria') }}">
+        <label class="text-sm text-slate-300">Categoria *
+            <select name="categoria" required class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                @foreach($categorias as $val => $label)
+                    <option value="{{ $val }}" @selected(old('categoria', $despesa->categoria ?? 'outro') === $val)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </label>
     </div>
     <div class="mt-4">
         <label class="text-sm text-slate-300">Notas

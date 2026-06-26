@@ -1,7 +1,13 @@
 <?php
 
+use App\Http\Controllers\AiJobController;
 use App\Http\Controllers\ClaudeApiController;
 use Illuminate\Support\Facades\Route;
+
+Route::prefix('ai')->name('api.ai.')->middleware('nas.api_key')->group(function (): void {
+    Route::get('/pending-jobs', [AiJobController::class, 'pendingJobs'])->name('pending-jobs');
+    Route::post('/job-result', [AiJobController::class, 'jobResult'])->name('job-result');
+});
 
 Route::prefix('claude')->name('api.claude.')->group(function (): void {
     Route::get('/subscricoes', [ClaudeApiController::class, 'subscricoes'])->name('subscricoes');

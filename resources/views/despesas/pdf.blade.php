@@ -25,7 +25,7 @@ tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; f
 </style>
 </head>
 <body>
-<h1>Despesas e Faturas &mdash; Grupo Ateneya</h1>
+<h1>Despesas e Faturas &mdash; Horta da Maria</h1>
 <p class="meta">{{ $inicio->translatedFormat('F Y') }} &nbsp;&middot;&nbsp; Gerado em {{ now()->format('d/m/Y H:i') }}</p>
 
 <div class="total-bar">

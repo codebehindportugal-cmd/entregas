@@ -17,7 +17,6 @@ class Despesa extends Model
         'valor',
         'data',
         'categoria',
-        'marca',
         'ficheiro_path',
         'notas',
     ];

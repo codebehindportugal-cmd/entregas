@@ -5,7 +5,7 @@
         $baseParams = array_filter(['search' => $search]);
     @endphp
 
-    <x-page-title title="Despesas e Faturas" subtitle="Gestao de despesas e faturas do grupo Ateneya">
+    <x-page-title title="Despesas e Faturas" subtitle="Gestao de custos e faturas — Horta da Maria">
         <div class="flex flex-wrap items-center gap-2">
             <a href="{{ route('despesas.pdf', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}"
                class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">PDF</a>
