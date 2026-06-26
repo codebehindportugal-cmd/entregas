@@ -7,12 +7,9 @@
 
     <x-page-title title="Despesas e Faturas" subtitle="Gestao de custos e faturas — Horta da Maria">
         <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ route('despesas.pdf', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}"
-               class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">PDF</a>
-            <a href="{{ route('despesas.csv', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}"
-               class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">CSV</a>
-            <a href="{{ route('despesas.create') }}"
-               class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Nova fatura</a>
+            <a href="{{ route('despesas.pdf', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}" class="btn-secondary text-sm">PDF</a>
+            <a href="{{ route('despesas.csv', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}" class="btn-secondary text-sm">CSV</a>
+            <a href="{{ route('despesas.create') }}" class="btn-primary">Nova fatura</a>
         </div>
     </x-page-title>
 
@@ -76,6 +73,7 @@
                 <tr>
                     <th class="p-3">Data</th>
                     <th class="p-3">Titulo / Fornecedor</th>
+                    <th class="p-3">Categoria</th>
                     <th class="p-3 text-right">Valor</th>
                     <th class="p-3 text-center">Linhas</th>
                     <th class="p-3"></th>
@@ -93,6 +91,11 @@
                             @if($despesa->numero_fatura)
                                 <p class="text-xs text-slate-500">N. {{ $despesa->numero_fatura }}</p>
                             @endif
+                        </td>
+                        <td class="p-3">
+                            <span class="badge-cat badge-cat-{{ $despesa->categoria }}">
+                                {{ \App\Http\Controllers\DespesaController::CATEGORIAS[$despesa->categoria] ?? $despesa->categoria }}
+                            </span>
                         </td>
                         <td class="p-3 text-right font-semibold text-white">{{ number_format($despesa->total_fatura, 2, ',', ' ') }} EUR</td>
                         <td class="p-3 text-center">
@@ -121,7 +124,7 @@
                     </tr>
                     @if($despesa->items->isNotEmpty())
                         <tr id="despesa-{{ $despesa->id }}" class="hidden border-t border-white/5 bg-[#0A0F1A]">
-                            <td colspan="5" class="px-6 py-3">
+                            <td colspan="6" class="px-6 py-3">
                                 <table class="w-full text-xs">
                                     <thead class="text-slate-500">
                                         <tr>
@@ -159,7 +162,7 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="5" class="p-6 text-center text-slate-400">Sem despesas para este periodo.</td>
+                        <td colspan="6" class="p-6 text-center text-slate-400">Sem despesas para este periodo.</td>
                     </tr>
                 @endforelse
             </tbody>
