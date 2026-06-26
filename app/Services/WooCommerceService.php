@@ -410,6 +410,7 @@ class WooCommerceService
             'delivery_dates',
             'cancelled_delivery_dates',
             'excluded_products',
+            'postponement_history',
         ]);
 
         if ($model->postponed_until === null || filled($payload['postponed_until'] ?? null)) {

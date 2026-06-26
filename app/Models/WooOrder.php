@@ -27,6 +27,7 @@ class WooOrder extends Model
         'customer_language',
         'line_items',
         'postponed_until',
+        'postponement_history',
         'next_payment_at',
         'first_delivery_at',
         'delivery_dates',
@@ -51,6 +52,7 @@ class WooOrder extends Model
             'excluded_products' => 'array',
             'raw_payload' => 'array',
             'postponed_until' => 'date',
+            'postponement_history' => 'array',
             'next_payment_at' => 'date',
             'first_delivery_at' => 'date',
             'delivery_dates' => 'array',
@@ -356,6 +358,50 @@ class WooOrder extends Model
             'subscription_ends_at' => $dataFim,
             'postponed_until' => $novaData,
         ]);
+    }
+
+    public function adiarEncomendaNormalPara(string|Carbon $data): void
+    {
+        $novaData = Carbon::parse($data)->toDateString();
+        $dataAtual = $this->postponed_until?->toDateString()
+            ?? $this->scheduled_delivery_at?->toDateString()
+            ?? $this->ordered_at?->toDateString();
+
+        $historico = collect($this->postponement_history ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->values();
+
+        if ($dataAtual !== null && $dataAtual !== $novaData) {
+            $historico->push([
+                'from' => $dataAtual,
+                'to' => $novaData,
+                'changed_at' => now()->toDateTimeString(),
+            ]);
+        }
+
+        $this->forceFill([
+            'postponed_until' => $novaData,
+            'scheduled_delivery_at' => $novaData,
+            'postponement_history' => $historico->values()->all(),
+        ])->save();
+    }
+
+    public function removerAdiamentoEncomendaNormal(): void
+    {
+        $historico = collect($this->postponement_history ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->values();
+
+        $primeiraDataOriginal = $historico
+            ->pluck('from')
+            ->filter()
+            ->first();
+
+        $this->forceFill([
+            'postponed_until' => null,
+            'scheduled_delivery_at' => $primeiraDataOriginal ?: $this->scheduled_delivery_at?->toDateString(),
+            'postponement_history' => [],
+        ])->save();
     }
 
     private function substituirDataDaSubscricao(Collection $datas, string $dataOriginal, string $novaData): array

@@ -60,6 +60,7 @@
                     <input data-photo-input name="fotos[]" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple class="sr-only">
                 </label>
             </div>
+            <p id="photo-upload-status" class="mt-3 hidden rounded border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200"></p>
             <div id="photo-preview" class="mt-4 hidden grid-cols-2 gap-3 sm:grid-cols-3"></div>
         </div>
         @if($registoEntrega->fotos)
@@ -85,40 +86,114 @@
         @endforeach
     @endif
     <script>
+        const compressibleTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const maxPhotoSide = 1600;
+        const jpegQuality = 0.82;
+
         document.querySelectorAll('[data-photo-input]').forEach((input) => {
-            input.addEventListener('change', () => {
-                const preview = document.getElementById('photo-preview');
-                const files = Array.from(document.querySelectorAll('[data-photo-input]'))
-                    .flatMap((field) => Array.from(field.files || []));
-
-                preview.innerHTML = '';
-                preview.classList.toggle('hidden', files.length === 0);
-                preview.classList.toggle('grid', files.length > 0);
-
-                files.forEach((file) => {
-                    const item = document.createElement('div');
-                    item.className = 'aspect-square overflow-hidden rounded border border-white/10 bg-[#0A0F1A]';
-
-                    if (!file.type.startsWith('image/')) {
-                        item.className += ' flex items-center justify-center px-3 text-center text-xs text-slate-300';
-                        item.textContent = file.name;
-                        preview.appendChild(item);
-                        return;
-                    }
-
-                    const image = document.createElement('img');
-                    image.className = 'h-full w-full object-cover';
-                    image.alt = file.name;
-                    item.appendChild(image);
-                    preview.appendChild(item);
-
-                    const reader = new FileReader();
-                    reader.addEventListener('load', () => {
-                        image.src = reader.result;
-                    });
-                    reader.readAsDataURL(file);
-                });
+            input.addEventListener('change', async () => {
+                await compressInputFiles(input);
+                renderPhotoPreview();
             });
         });
+
+        async function compressInputFiles(input) {
+            if (typeof DataTransfer === 'undefined' || !input.files || input.files.length === 0) {
+                return;
+            }
+
+            const status = document.getElementById('photo-upload-status');
+            const dataTransfer = new DataTransfer();
+            let compressedCount = 0;
+
+            for (const file of Array.from(input.files)) {
+                const compressed = await compressPhoto(file);
+                if (compressed !== file) {
+                    compressedCount++;
+                }
+                dataTransfer.items.add(compressed);
+            }
+
+            input.files = dataTransfer.files;
+
+            if (status) {
+                status.classList.toggle('hidden', compressedCount === 0);
+                status.textContent = compressedCount > 0
+                    ? 'Foto preparada para upload. Se continuar a falhar, o servidor pode estar sem permissao no temporario PHP ou no storage.'
+                    : '';
+            }
+        }
+
+        function compressPhoto(file) {
+            if (!compressibleTypes.includes(file.type) || file.size < 1024 * 1024) {
+                return Promise.resolve(file);
+            }
+
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onerror = () => resolve(file);
+                reader.onload = () => {
+                    const image = new Image();
+                    image.onerror = () => resolve(file);
+                    image.onload = () => {
+                        const scale = Math.min(1, maxPhotoSide / Math.max(image.width, image.height));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.max(1, Math.round(image.width * scale));
+                        canvas.height = Math.max(1, Math.round(image.height * scale));
+
+                        const context = canvas.getContext('2d');
+                        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+                        canvas.toBlob((blob) => {
+                            if (!blob || blob.size >= file.size) {
+                                resolve(file);
+                                return;
+                            }
+
+                            resolve(new File([blob], file.name.replace(/\.(png|webp)$/i, '.jpg'), {
+                                type: 'image/jpeg',
+                                lastModified: Date.now(),
+                            }));
+                        }, 'image/jpeg', jpegQuality);
+                    };
+                    image.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderPhotoPreview() {
+            const preview = document.getElementById('photo-preview');
+            const files = Array.from(document.querySelectorAll('[data-photo-input]'))
+                .flatMap((field) => Array.from(field.files || []));
+
+            preview.innerHTML = '';
+            preview.classList.toggle('hidden', files.length === 0);
+            preview.classList.toggle('grid', files.length > 0);
+
+            files.forEach((file) => {
+                const item = document.createElement('div');
+                item.className = 'aspect-square overflow-hidden rounded border border-white/10 bg-[#0A0F1A]';
+
+                if (!file.type.startsWith('image/')) {
+                    item.className += ' flex items-center justify-center px-3 text-center text-xs text-slate-300';
+                    item.textContent = file.name;
+                    preview.appendChild(item);
+                    return;
+                }
+
+                const image = document.createElement('img');
+                image.className = 'h-full w-full object-cover';
+                image.alt = file.name;
+                item.appendChild(image);
+                preview.appendChild(item);
+
+                const reader = new FileReader();
+                reader.addEventListener('load', () => {
+                    image.src = reader.result;
+                });
+                reader.readAsDataURL(file);
+            });
+        }
     </script>
 </x-layouts.app>

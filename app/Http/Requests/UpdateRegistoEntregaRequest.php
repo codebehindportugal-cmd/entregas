@@ -33,6 +33,7 @@ class UpdateRegistoEntregaRequest extends FormRequest
     {
         return [
             'fotos.max' => 'Pode enviar no maximo 6 fotos de cada vez.',
+            'fotos.*.uploaded' => 'A foto nao conseguiu chegar ao servidor. Tente uma foto mais leve ou confirme no servidor upload_max_filesize, post_max_size e permissoes do diretorio temporario do PHP.',
             'fotos.*.max' => 'Cada foto pode ter no maximo 10 MB.',
         ];
     }

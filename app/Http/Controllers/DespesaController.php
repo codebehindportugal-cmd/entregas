@@ -116,7 +116,7 @@ class DespesaController extends Controller
             'items.*.preco_unitario' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.iva_percentagem' => ['required_with:items', 'numeric', 'in:0,6,13,23'],
             'items.*.notas' => ['nullable', 'string'],
-        ]);
+        ], $this->validationMessages());
 
         $ficheiroPath = null;
         $ficheiroIsImage = false;
@@ -202,7 +202,7 @@ class DespesaController extends Controller
             'items.*.preco_unitario' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.iva_percentagem' => ['required_with:items', 'numeric', 'in:0,6,13,23'],
             'items.*.notas' => ['nullable', 'string'],
-        ]);
+        ], $this->validationMessages());
 
         $ficheiroPath = $despesa->ficheiro_path;
         $ficheiroIsNewImage = false;
@@ -388,5 +388,14 @@ class DespesaController extends Controller
             'status' => 'pending',
             'image_path' => $ficheiroPath,
         ]);
+    }
+
+    private function validationMessages(): array
+    {
+        return [
+            'ficheiro.uploaded' => 'A foto nao conseguiu chegar ao servidor. Tente novamente com uma foto mais leve ou confirme upload_max_filesize, post_max_size e permissoes do temporario PHP.',
+            'ficheiro.max' => 'A foto e demasiado grande. Tente novamente com uma foto mais leve.',
+            'ficheiro.mimes' => 'O ficheiro deve ser JPG, PNG, GIF, WEBP ou PDF.',
+        ];
     }
 }
