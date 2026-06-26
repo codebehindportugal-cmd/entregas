@@ -49,7 +49,7 @@ class FaturaAiExtractor
             ]);
 
         if ($response->failed()) {
-            throw new RuntimeException('A extracao por IA falhou: '.$response->body());
+            throw new RuntimeException($this->errorMessage($response->json(), $response->status()));
         }
 
         $json = $this->extractOutputText($response->json());
@@ -128,5 +128,25 @@ PROMPT;
         }
 
         throw new RuntimeException('A resposta da IA veio sem texto extraido.');
+    }
+
+    private function errorMessage(?array $body, int $status): string
+    {
+        $code = $body['error']['code'] ?? null;
+        $message = $body['error']['message'] ?? null;
+
+        if ($code === 'insufficient_quota') {
+            return 'A conta OpenAI nao tem quota/credito disponivel para usar a API. Verifique o billing da plataforma OpenAI e tente novamente.';
+        }
+
+        if ($status === 401) {
+            return 'A chave OPENAI_API_KEY nao foi aceite. Confirme se a chave esta correta e ativa.';
+        }
+
+        if ($status === 429) {
+            return 'A OpenAI recusou o pedido por limite de uso. Tente novamente mais tarde ou verifique os limites da conta.';
+        }
+
+        return 'A extracao por IA falhou'.($message ? ': '.$message : '.');
     }
 }
