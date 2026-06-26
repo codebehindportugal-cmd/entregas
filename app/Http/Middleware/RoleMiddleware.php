@@ -10,7 +10,15 @@ class RoleMiddleware
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        abort_unless($request->user() && in_array($request->user()->role, $roles, true), 403);
+        if (! $request->user() || ! in_array($request->user()->role, $roles, true)) {
+            if ($request->expectsJson()) {
+                abort(403);
+            }
+
+            return redirect()
+                ->route('minhas-entregas.index')
+                ->withErrors(['access' => 'A sua conta nao tem permissao para abrir essa area.']);
+        }
 
         return $next($request);
     }

@@ -18,7 +18,7 @@
                             <a class="rounded px-3 py-2 hover:bg-white/10" href="{{ route('entregas.index') }}">Entregas</a>
                             <a class="rounded px-3 py-2 hover:bg-white/10" href="{{ route('corporates.index') }}">Empresas</a>
                             <a class="rounded px-3 py-2 hover:bg-white/10" href="{{ route('equipa.index') }}">Equipa</a>
-                            <a class="rounded px-3 py-2 hover:bg-white/10" href="{{ route('despesas.index') }}">Despesas</a>
+                            <a class="rounded px-3 py-2 hover:bg-white/10" href="{{ route('despesas.index') }}">Entradas</a>
                         @else
                             <a class="rounded px-3 py-2 hover:bg-white/10" href="{{ route('minhas-entregas.index') }}">Minhas entregas</a>
                         @endif

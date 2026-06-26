@@ -2,33 +2,30 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiJob;
 use App\Models\Despesa;
-use App\Models\FaturaItem;
-use App\Services\FaturaAiExtractor;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
-use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Throwable;
 
 class DespesaController extends Controller
 {
-    const CATEGORIAS = ['combustivel', 'sementes', 'fertilizantes', 'fitofarmaceuticos', 'equipamento', 'mao_obra', 'outro'];
+    const CATEGORIAS = [
+        'sementes'          => 'Sementes',
+        'fertilizantes'     => 'Fertilizantes',
+        'fitofarmaceuticos' => 'Fitofarmacêuticos',
+        'combustivel'       => 'Combustível',
+        'mao_obra'          => 'Mão de obra',
+        'equipamento'       => 'Equipamento',
+        'outro'             => 'Outro',
+    ];
 
     const TAXAS_IVA = [0, 6, 13, 23];
-
-    const MARCAS = [
-        'horta_da_maria' => 'Horta da Maria',
-        'extravaganty' => 'Extravaganty',
-        'ateneya_geral' => 'Ateneya (geral)',
-    ];
 
     public function index(Request $request): View
     {
@@ -42,7 +39,7 @@ class DespesaController extends Controller
         $fim = $inicio->copy()->endOfMonth();
 
         $query = Despesa::query()
-            ->with('items')
+            ->with(['items', 'aiJobs' => fn ($query) => $query->latest()])
             ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
             ->when(filled($search), fn ($q) => $q->where(function ($q) use ($search): void {
                 $q->where('titulo', 'like', "%{$search}%")
@@ -94,40 +91,8 @@ class DespesaController extends Controller
 
         return view('despesas.create', [
             'despesa' => new Despesa,
-            'categorias' => self::CATEGORIAS,
-            'marcas' => self::MARCAS,
             'taxasIva' => self::TAXAS_IVA,
         ]);
-    }
-
-    public function extrairIa(Request $request, FaturaAiExtractor $extractor): JsonResponse
-    {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
-        $data = $request->validate([
-            'ficheiro' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,webp'],
-        ], [
-            'ficheiro.required' => 'Escolha ou tire uma foto da fatura.',
-            'ficheiro.uploaded' => 'A foto nao conseguiu chegar ao servidor. No prod, confirme upload_max_filesize, post_max_size e client_max_body_size.',
-            'ficheiro.max' => 'A foto e demasiado grande. Tente novamente com uma foto mais leve.',
-            'ficheiro.mimes' => 'A extracao por IA aceita JPG, PNG ou WEBP.',
-        ]);
-
-        try {
-            return response()->json($extractor->extract($data['ficheiro']));
-        } catch (RuntimeException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], 422);
-        } catch (Throwable $exception) {
-            Log::error('Erro ao extrair fatura com IA', [
-                'message' => $exception->getMessage(),
-            ]);
-
-            return response()->json([
-                'message' => 'Nao foi possivel extrair a fatura com IA. Verifique a chave da OpenAI e tente novamente.',
-            ], 500);
-        }
     }
 
     public function store(Request $request): RedirectResponse
@@ -140,8 +105,6 @@ class DespesaController extends Controller
             'fornecedor' => ['nullable', 'string', 'max:255'],
             'valor' => ['nullable', 'numeric', 'min:0'],
             'data' => ['required', 'date'],
-            'categoria' => ['required', 'in:'.implode(',', self::CATEGORIAS)],
-            'marca' => ['required', 'in:'.implode(',', array_keys(self::MARCAS))],
             'notas' => ['nullable', 'string'],
             'ficheiro' => ['nullable', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
             'items' => ['nullable', 'array'],
@@ -156,11 +119,14 @@ class DespesaController extends Controller
         ]);
 
         $ficheiroPath = null;
+        $ficheiroIsImage = false;
         if ($request->hasFile('ficheiro')) {
-            $ficheiroPath = $request->file('ficheiro')->store('despesas', 'public');
+            $file = $request->file('ficheiro');
+            $ficheiroPath = $file->store('despesas', 'public');
+            $ficheiroIsImage = str_starts_with($file->getMimeType() ?? '', 'image/');
         }
 
-        DB::transaction(function () use ($data, $ficheiroPath): void {
+        $despesa = DB::transaction(function () use ($data, $ficheiroPath): Despesa {
             $items = collect($data['items'] ?? []);
             $valorCalculado = $items->isNotEmpty()
                 ? $items->sum(fn (array $item) => round((float) $item['quantidade'] * (float) $item['preco_unitario'] * (1 + (float) $item['iva_percentagem'] / 100), 4))
@@ -172,8 +138,7 @@ class DespesaController extends Controller
                 'fornecedor' => $data['fornecedor'] ?? null,
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
-                'categoria' => $data['categoria'],
-                'marca' => $data['marca'],
+                'categoria' => 'entrada_produtos',
                 'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);
@@ -190,21 +155,28 @@ class DespesaController extends Controller
                     'notas' => $item['notas'] ?? null,
                 ]);
             }
+
+            return $despesa;
         });
 
-        return redirect()->route('despesas.index')->with('status', 'Despesa registada com sucesso.');
+        $message = 'Entrada registada com sucesso.';
+
+        if ($ficheiroPath && $ficheiroIsImage) {
+            $this->queueAiJob($despesa, $ficheiroPath);
+            $message = 'Foto recebida. A IA em casa vai processar esta fatura dentro de cerca de 1 minuto.';
+        }
+
+        return redirect()->route('despesas.index')->with('status', $message);
     }
 
     public function edit(Despesa $despesa): View
     {
         abort_unless(auth()->user()->isAdmin(), 403);
 
-        $despesa->load('items');
+        $despesa->load('items', 'aiJobs');
 
         return view('despesas.edit', [
             'despesa' => $despesa,
-            'categorias' => self::CATEGORIAS,
-            'marcas' => self::MARCAS,
             'taxasIva' => self::TAXAS_IVA,
         ]);
     }
@@ -219,8 +191,6 @@ class DespesaController extends Controller
             'fornecedor' => ['nullable', 'string', 'max:255'],
             'valor' => ['nullable', 'numeric', 'min:0'],
             'data' => ['required', 'date'],
-            'categoria' => ['required', 'in:'.implode(',', self::CATEGORIAS)],
-            'marca' => ['required', 'in:'.implode(',', array_keys(self::MARCAS))],
             'notas' => ['nullable', 'string'],
             'ficheiro' => ['nullable', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
             'items' => ['nullable', 'array'],
@@ -235,11 +205,14 @@ class DespesaController extends Controller
         ]);
 
         $ficheiroPath = $despesa->ficheiro_path;
+        $ficheiroIsNewImage = false;
         if ($request->hasFile('ficheiro')) {
             if ($ficheiroPath) {
                 Storage::disk('public')->delete($ficheiroPath);
             }
-            $ficheiroPath = $request->file('ficheiro')->store('despesas', 'public');
+            $file = $request->file('ficheiro');
+            $ficheiroPath = $file->store('despesas', 'public');
+            $ficheiroIsNewImage = str_starts_with($file->getMimeType() ?? '', 'image/');
         }
 
         DB::transaction(function () use ($data, $ficheiroPath, $despesa): void {
@@ -254,8 +227,7 @@ class DespesaController extends Controller
                 'fornecedor' => $data['fornecedor'] ?? null,
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
-                'categoria' => $data['categoria'],
-                'marca' => $data['marca'],
+                'categoria' => 'entrada_produtos',
                 'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);
@@ -276,7 +248,14 @@ class DespesaController extends Controller
             }
         });
 
-        return redirect()->route('despesas.index')->with('status', 'Despesa atualizada com sucesso.');
+        $message = 'Entrada atualizada com sucesso.';
+
+        if ($ficheiroPath && $ficheiroIsNewImage) {
+            $this->queueAiJob($despesa, $ficheiroPath);
+            $message = 'Foto recebida. A IA em casa vai voltar a processar esta fatura dentro de cerca de 1 minuto.';
+        }
+
+        return redirect()->route('despesas.index')->with('status', $message);
     }
 
     public function destroy(Despesa $despesa): RedirectResponse
@@ -289,7 +268,7 @@ class DespesaController extends Controller
 
         $despesa->delete();
 
-        return redirect()->route('despesas.index')->with('status', 'Despesa removida.');
+        return redirect()->route('despesas.index')->with('status', 'Entrada removida.');
     }
 
     public function exportarPdf(Request $request)
@@ -395,6 +374,19 @@ class DespesaController extends Controller
             fclose($out);
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function queueAiJob(Despesa $despesa, string $ficheiroPath): void
+    {
+        $despesa->aiJobs()
+            ->where('status', 'pending')
+            ->update(['status' => 'failed']);
+
+        AiJob::create([
+            'despesa_id' => $despesa->id,
+            'status' => 'pending',
+            'image_path' => $ficheiroPath,
         ]);
     }
 }

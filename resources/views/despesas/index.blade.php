@@ -1,18 +1,15 @@
-<x-layouts.app title="Despesas e Faturas">
+<x-layouts.app title="Entradas e Faturas">
     @php
         $mesAnterior = \Illuminate\Support\Carbon::createFromDate($ano, $mes, 1)->subMonth();
         $mesSeguinte = \Illuminate\Support\Carbon::createFromDate($ano, $mes, 1)->addMonth();
         $baseParams = array_filter(['search' => $search]);
     @endphp
 
-    <x-page-title title="Despesas e Faturas" subtitle="Gestao de despesas e faturas do grupo Ateneya">
+    <x-page-title title="Entradas e Faturas" subtitle="Entrada de produtos por fatura">
         <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ route('despesas.pdf', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}"
-               class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">PDF</a>
-            <a href="{{ route('despesas.csv', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}"
-               class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">CSV</a>
-            <a href="{{ route('despesas.create') }}"
-               class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Nova fatura</a>
+            <a href="{{ route('despesas.pdf', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}" class="btn-secondary text-sm">PDF</a>
+            <a href="{{ route('despesas.csv', array_merge($baseParams, ['ano' => $ano, 'mes' => $mes])) }}" class="btn-secondary text-sm">CSV</a>
+            <a href="{{ route('despesas.create') }}" class="btn-primary">Nova entrada</a>
         </div>
     </x-page-title>
 
@@ -76,6 +73,7 @@
                 <tr>
                     <th class="p-3">Data</th>
                     <th class="p-3">Titulo / Fornecedor</th>
+                    <th class="p-3">IA</th>
                     <th class="p-3 text-right">Valor</th>
                     <th class="p-3 text-center">Linhas</th>
                     <th class="p-3"></th>
@@ -92,6 +90,18 @@
                             @endif
                             @if($despesa->numero_fatura)
                                 <p class="text-xs text-slate-500">N. {{ $despesa->numero_fatura }}</p>
+                            @endif
+                        </td>
+                        <td class="p-3">
+                            @php $latestAiJob = $despesa->aiJobs->first(); @endphp
+                            @if($latestAiJob?->status === 'pending')
+                                <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-300">IA pendente</span>
+                            @elseif($latestAiJob?->status === 'done')
+                                <span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">IA concluida</span>
+                            @elseif($latestAiJob?->status === 'failed')
+                                <span class="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-300">IA falhou</span>
+                            @else
+                                <span class="text-slate-600">-</span>
                             @endif
                         </td>
                         <td class="p-3 text-right font-semibold text-white">{{ number_format($despesa->total_fatura, 2, ',', ' ') }} EUR</td>
@@ -111,7 +121,7 @@
                                     </button>
                                 @endif
                                 <a class="text-emerald-400 hover:text-emerald-300" href="{{ route('despesas.edit', $despesa) }}">Editar</a>
-                                <form method="post" action="{{ route('despesas.destroy', $despesa) }}" onsubmit="return confirm('Remover esta despesa?')" onclick="event.stopPropagation()">
+                                <form method="post" action="{{ route('despesas.destroy', $despesa) }}" onsubmit="return confirm('Remover esta entrada?')" onclick="event.stopPropagation()">
                                     @csrf
                                     @method('delete')
                                     <button class="text-red-400 hover:text-red-300" type="submit">Remover</button>
@@ -121,7 +131,7 @@
                     </tr>
                     @if($despesa->items->isNotEmpty())
                         <tr id="despesa-{{ $despesa->id }}" class="hidden border-t border-white/5 bg-[#0A0F1A]">
-                            <td colspan="5" class="px-6 py-3">
+                            <td colspan="6" class="px-6 py-3">
                                 <table class="w-full text-xs">
                                     <thead class="text-slate-500">
                                         <tr>
@@ -159,7 +169,7 @@
                     @endif
                 @empty
                     <tr>
-                        <td colspan="5" class="p-6 text-center text-slate-400">Sem despesas para este periodo.</td>
+                        <td colspan="6" class="p-6 text-center text-slate-400">Sem entradas para este periodo.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -181,6 +191,14 @@
                     <p class="shrink-0 text-base font-bold text-white">{{ number_format($despesa->total_fatura, 2, ',', ' ') }} EUR</p>
                 </div>
                 <div class="mt-2 flex flex-wrap gap-2">
+                    @php $latestAiJob = $despesa->aiJobs->first(); @endphp
+                    @if($latestAiJob?->status === 'pending')
+                        <span class="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-300">IA pendente</span>
+                    @elseif($latestAiJob?->status === 'done')
+                        <span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">IA concluida</span>
+                    @elseif($latestAiJob?->status === 'failed')
+                        <span class="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-300">IA falhou</span>
+                    @endif
                     @if($despesa->items->isNotEmpty())
                         <span class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">{{ $despesa->items->count() }} linhas</span>
                     @endif
@@ -190,14 +208,14 @@
                         <button type="button" class="text-blue-400" onclick="abrirLightbox('{{ Storage::disk('public')->url($despesa->ficheiro_path) }}', '{{ $despesa->titulo }}')">Ver ficheiro</button>
                     @endif
                     <a class="text-emerald-400" href="{{ route('despesas.edit', $despesa) }}">Editar</a>
-                    <form method="post" action="{{ route('despesas.destroy', $despesa) }}" onsubmit="return confirm('Remover esta despesa?')">
+                    <form method="post" action="{{ route('despesas.destroy', $despesa) }}" onsubmit="return confirm('Remover esta entrada?')">
                         @csrf @method('delete')
                         <button class="text-red-400" type="submit">Remover</button>
                     </form>
                 </div>
             </div>
         @empty
-            <p class="rounded border border-white/10 bg-[#151E2D] p-6 text-center text-slate-400">Sem despesas para este periodo.</p>
+            <p class="rounded border border-white/10 bg-[#151E2D] p-6 text-center text-slate-400">Sem entradas para este periodo.</p>
         @endforelse
     </div>
 

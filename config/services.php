@@ -44,4 +44,8 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-5.5'),
     ],
 
+    'nas' => [
+        'ai_api_key' => env('NAS_AI_API_KEY'),
+    ],
+
 ];

@@ -1,5 +1,5 @@
-<x-layouts.app title="Nova despesa">
-    <x-page-title title="Nova despesa" subtitle="Registar nova fatura ou despesa" />
+<x-layouts.app title="Nova entrada">
+    <x-page-title title="Nova entrada" subtitle="Registar fatura de entrada de produtos" />
 
     <form method="post" action="{{ route('despesas.store') }}" enctype="multipart/form-data"
         class="rounded border border-white/10 bg-[#151E2D] p-5">
