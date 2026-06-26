@@ -27,7 +27,11 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route(Auth::user()->isAdmin() ? 'dashboard' : 'minhas-entregas.index'));
+        if (! Auth::user()->isAdmin()) {
+            return redirect()->route('minhas-entregas.index');
+        }
+
+        return redirect()->intended(route('dashboard'));
     }
 
     public function destroy(Request $request): RedirectResponse

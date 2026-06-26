@@ -34,6 +34,11 @@ class Despesa extends Model
         return $this->hasMany(FaturaItem::class);
     }
 
+    public function aiJobs(): HasMany
+    {
+        return $this->hasMany(AiJob::class);
+    }
+
     public function getSubtotalCalculadoAttribute(): float
     {
         if ($this->relationLoaded('items') && $this->items->isNotEmpty()) {

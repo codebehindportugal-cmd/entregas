@@ -20,7 +20,16 @@
             <label class="flex items-center gap-2 text-sm text-slate-300">
                 <input name="remember" type="checkbox" checked class="rounded border-white/10 bg-[#0A0F1A]"> Lembrar
             </label>
-            <button class="w-full rounded bg-[#22C55E] px-4 py-2.5 font-semibold text-[#07110D] shadow-sm shadow-emerald-950/30 hover:bg-emerald-300" type="submit">Entrar</button>
+            <button id="btn-entrar" class="w-full rounded bg-[#22C55E] px-4 py-2.5 font-semibold text-[#07110D] shadow-sm shadow-emerald-950/30 hover:bg-emerald-300" type="submit">Entrar</button>
         </form>
     </div>
+    <script>
+        document.querySelector('form').addEventListener('submit', function () {
+            var btn = document.getElementById('btn-entrar');
+            btn.disabled = true;
+            btn.textContent = 'A entrar…';
+            btn.style.opacity = '0.6';
+            btn.style.cursor = 'not-allowed';
+        });
+    </script>
 </x-layouts.app>
