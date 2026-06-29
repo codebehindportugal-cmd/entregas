@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Despesa extends Model
@@ -35,33 +34,9 @@ class Despesa extends Model
         return $this->hasMany(FaturaItem::class);
     }
 
-    public function fotos(): HasMany
-    {
-        return $this->hasMany(DespesaFoto::class)->orderBy('ordem');
-    }
-
-    public function capa(): HasOne
-    {
-        return $this->hasOne(DespesaFoto::class)->orderBy('ordem');
-    }
-
     public function aiJobs(): HasMany
     {
         return $this->hasMany(AiJob::class);
-    }
-
-    public function getCapaUrlAttribute(): ?string
-    {
-        if ($this->relationLoaded('capa') && $this->capa) {
-            return $this->capa->url;
-        }
-        if ($this->relationLoaded('fotos') && $this->fotos->isNotEmpty()) {
-            return $this->fotos->first()->url;
-        }
-        if ($this->ficheiro_path) {
-            return route('public-files.show', ['path' => $this->ficheiro_path]);
-        }
-        return null;
     }
 
     public function getSubtotalCalculadoAttribute(): float

@@ -2,68 +2,76 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\FaturaItem;
+use App\Models\TabelaPrecoItem;
 use App\Models\WooProduct;
 use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use RuntimeException;
 
 class ProdutoController extends Controller
 {
+    private const EPOCAS = [
+        'Todo o ano',
+        'Primavera',
+        'Verao',
+        'Outono',
+        'Inverno',
+        'Natal',
+    ];
+
     public function index(Request $request): View
     {
         $q = $request->string('q')->toString();
-        $fornecedor = $request->string('fornecedor')->toString();
+        $estado = $request->string('estado')->toString();
+        $syncPage = max(1, $request->integer('sync_page', 1));
 
-        $produtos = FaturaItem::query()
-            ->join('despesas', 'despesas.id', '=', 'fatura_items.despesa_id')
-            ->select([
-                'fatura_items.descricao',
-                'fatura_items.unidade_compra',
-                DB::raw('COUNT(*) as total_linhas'),
-                DB::raw('AVG(fatura_items.preco_unitario) as preco_medio'),
-                DB::raw('MIN(fatura_items.preco_unitario) as preco_min'),
-                DB::raw('MAX(fatura_items.preco_unitario) as preco_max'),
-                DB::raw('SUM(fatura_items.quantidade) as quantidade_total'),
-                DB::raw('MAX(fatura_items.created_at) as ultima_compra'),
-                DB::raw('GROUP_CONCAT(DISTINCT despesas.fornecedor ORDER BY despesas.fornecedor SEPARATOR \', \') as fornecedores'),
-            ])
-            ->when(filled($q), fn ($query) => $query->where('fatura_items.descricao', 'like', "%{$q}%"))
-            ->when(filled($fornecedor), fn ($query) => $query->where('despesas.fornecedor', 'like', "%{$fornecedor}%"))
-            ->groupBy('fatura_items.descricao', 'fatura_items.unidade_compra')
-            ->orderBy('fatura_items.descricao')
-            ->paginate(50)
+        $produtos = WooProduct::query()
+            ->with('tabelaPrecoItem.tabelaPreco')
+            ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                $query->where('name', 'like', "%{$q}%")
+                    ->orWhere('sku', 'like', "%{$q}%")
+                    ->orWhere('woo_id', 'like', "%{$q}%");
+            }))
+            ->when($estado === 'ativo', fn ($query) => $query
+                ->where('status', 'publish')
+                ->where('stock_status', 'instock')
+                ->where('purchasable', true)
+                ->where('disponivel_compra', true)
+                ->where('em_epoca', true))
+            ->when($estado === 'inativo', fn ($query) => $query->where(fn ($query) => $query
+                ->where('status', '!=', 'publish')
+                ->orWhereNull('status')
+                ->orWhere('stock_status', '!=', 'instock')
+                ->orWhereNull('stock_status')
+                ->orWhere('purchasable', false)
+                ->orWhere('disponivel_compra', false)
+                ->orWhere('em_epoca', false)))
+            ->when($estado === 'sem_fornecedor', fn ($query) => $query->whereNull('tabela_preco_item_id'))
+            ->orderBy('name')
+            ->paginate(25)
             ->withQueryString();
-
-        $fornecedores = DB::table('despesas')
-            ->whereNotNull('fornecedor')
-            ->where('fornecedor', '!=', '')
-            ->distinct()
-            ->orderBy('fornecedor')
-            ->pluck('fornecedor');
 
         return view('produtos.index', [
             'produtos' => $produtos,
             'q' => $q,
-            'fornecedor' => $fornecedor,
-            'fornecedores' => $fornecedores,
+            'estado' => $estado,
+            'syncPage' => $syncPage,
+            'epocas' => self::EPOCAS,
+            'itensFornecedor' => TabelaPrecoItem::with('tabelaPreco')
+                ->whereHas('tabelaPreco', fn ($query) => $query->where('ativa', true))
+                ->orderBy('produto')
+                ->get(),
         ]);
     }
 
     public function sync(Request $request, WooCommerceService $service): RedirectResponse
     {
-        $data = $request->validate([
-            'sync_fields' => ['nullable', 'array'],
-            'sync_fields.*' => ['string', 'in:identity,prices,images,description,short_description,availability,metadata'],
-        ]);
         $page = max(1, $request->integer('sync_page', 1));
-        $fields = $data['sync_fields'] ?? [];
 
         try {
-            $result = $service->syncProductsPage($page, 20, $fields);
+            $result = $service->syncProductsPage($page, 20);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['woocommerce' => $exception->getMessage()]);
         }
@@ -72,10 +80,7 @@ class ProdutoController extends Controller
 
         if ($result['next_page'] !== null) {
             return redirect()
-                ->route('produtos.index', [
-                    'sync_page' => $result['next_page'],
-                    'sync_fields' => $fields,
-                ])
+                ->route('produtos.index', ['sync_page' => $result['next_page']])
                 ->with('status', $message.' Clica novamente em sincronizar para continuar.');
         }
 
@@ -111,7 +116,7 @@ class ProdutoController extends Controller
 
         if ($request->boolean('sync_site')) {
             try {
-                $service->updateProductFromLocal($produto->fresh(), $request->input('sync_fields', []));
+                $service->updateProductFromLocal($produto->fresh());
             } catch (RuntimeException $exception) {
                 return back()->withErrors(['woocommerce' => $exception->getMessage()]);
             }
@@ -122,15 +127,10 @@ class ProdutoController extends Controller
         return back()->with('status', 'Produto guardado.');
     }
 
-    public function updateSite(Request $request, WooProduct $produto, WooCommerceService $service): RedirectResponse
+    public function updateSite(WooProduct $produto, WooCommerceService $service): RedirectResponse
     {
-        $data = $request->validate([
-            'sync_fields' => ['nullable', 'array'],
-            'sync_fields.*' => ['string', 'in:identity,prices,images,description,short_description,availability,metadata'],
-        ]);
-
         try {
-            $service->updateProductFromLocal($produto, $data['sync_fields'] ?? []);
+            $service->updateProductFromLocal($produto);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['woocommerce' => $exception->getMessage()]);
         }

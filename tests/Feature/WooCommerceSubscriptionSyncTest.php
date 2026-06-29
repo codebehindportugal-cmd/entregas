@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\WooOrder;
 use App\Services\WooCommerceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -59,8 +58,7 @@ class WooCommerceSubscriptionSyncTest extends TestCase
             'woo_id' => 123,
             'source_type' => 'subscription',
             'dia_entrega' => 'quarta',
+            'first_delivery_at' => '2026-06-03',
         ]);
-
-        $this->assertSame('2026-06-03', WooOrder::where('woo_id', 123)->firstOrFail()->first_delivery_at->toDateString());
     }
 }

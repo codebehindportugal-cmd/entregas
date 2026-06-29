@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Storage;
 
 class AiJob extends Model
 {
@@ -22,6 +22,6 @@ class AiJob extends Model
 
     public function getImageUrlAttribute(): string
     {
-        return URL::temporarySignedRoute('ai-jobs.image', now()->addHours(6), ['job' => $this]);
+        return Storage::disk('public')->url($this->image_path);
     }
 }

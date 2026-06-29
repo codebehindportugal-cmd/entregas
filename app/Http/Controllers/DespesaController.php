@@ -4,9 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AiJob;
 use App\Models\Despesa;
-use App\Models\DespesaFoto;
-use App\Models\FaturaItem;
-use App\Services\PdfProductExtractor;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,7 +39,7 @@ class DespesaController extends Controller
         $fim = $inicio->copy()->endOfMonth();
 
         $query = Despesa::query()
-            ->with(['items', 'aiJobs' => fn ($query) => $query->latest(), 'capa'])
+            ->with(['items', 'aiJobs' => fn ($query) => $query->latest()])
             ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
             ->when(filled($search), fn ($q) => $q->where(function ($q) use ($search): void {
                 $q->where('titulo', 'like', "%{$search}%")
@@ -109,8 +106,7 @@ class DespesaController extends Controller
             'valor' => ['nullable', 'numeric', 'min:0'],
             'data' => ['required', 'date'],
             'notas' => ['nullable', 'string'],
-            'fotos' => ['nullable', 'array'],
-            'fotos.*' => ['file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
+            'ficheiro' => ['nullable', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
             'items' => ['nullable', 'array'],
             'items.*.descricao' => ['required_with:items', 'string', 'max:255'],
             'items.*.quantidade' => ['required_with:items', 'numeric', 'min:0.001'],
@@ -122,7 +118,15 @@ class DespesaController extends Controller
             'items.*.notas' => ['nullable', 'string'],
         ], $this->validationMessages());
 
-        $despesa = DB::transaction(function () use ($data): Despesa {
+        $ficheiroPath = null;
+        $ficheiroIsImage = false;
+        if ($request->hasFile('ficheiro')) {
+            $file = $request->file('ficheiro');
+            $ficheiroPath = $file->store('despesas', 'public');
+            $ficheiroIsImage = str_starts_with($file->getMimeType() ?? '', 'image/');
+        }
+
+        $despesa = DB::transaction(function () use ($data, $ficheiroPath): Despesa {
             $items = collect($data['items'] ?? []);
             $valorCalculado = $items->isNotEmpty()
                 ? $items->sum(fn (array $item) => round((float) $item['quantidade'] * (float) $item['preco_unitario'] * (1 + (float) $item['iva_percentagem'] / 100), 4))
@@ -135,6 +139,7 @@ class DespesaController extends Controller
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
                 'categoria' => 'entrada_produtos',
+                'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);
 
@@ -154,43 +159,21 @@ class DespesaController extends Controller
             return $despesa;
         });
 
-        $imagePaths = [];
-        if ($request->hasFile('fotos')) {
-            foreach ($request->file('fotos') as $index => $foto) {
-                $path = $foto->store('faturas', 'public');
-                $despesa->fotos()->create(['path' => $path, 'ordem' => $index]);
-                if (str_starts_with($foto->getMimeType() ?? '', 'image/')) {
-                    $imagePaths[] = $path;
-                }
-            }
-        }
-
         $message = 'Entrada registada com sucesso.';
-        if (!empty($imagePaths)) {
-            $this->queueAiJobs($despesa, $imagePaths);
-            $count = count($imagePaths);
-            $message = $count === 1
-                ? 'Foto recebida. A IA vai processar esta fatura dentro de cerca de 1 minuto.'
-                : "{$count} fotos recebidas. A IA vai processar dentro de cerca de 1 minuto.";
+
+        if ($ficheiroPath && $ficheiroIsImage) {
+            $this->queueAiJob($despesa, $ficheiroPath);
+            $message = 'Foto recebida. A IA em casa vai processar esta fatura dentro de cerca de 1 minuto.';
         }
 
-        return redirect()->route('despesas.show', $despesa)->with('status', $message);
-    }
-
-    public function show(Despesa $despesa): View
-    {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
-        $despesa->load('items', 'fotos', 'aiJobs');
-
-        return view('despesas.show', ['despesa' => $despesa]);
+        return redirect()->route('despesas.index')->with('status', $message);
     }
 
     public function edit(Despesa $despesa): View
     {
         abort_unless(auth()->user()->isAdmin(), 403);
 
-        $despesa->load('items', 'aiJobs', 'fotos');
+        $despesa->load('items', 'aiJobs');
 
         return view('despesas.edit', [
             'despesa' => $despesa,
@@ -209,8 +192,7 @@ class DespesaController extends Controller
             'valor' => ['nullable', 'numeric', 'min:0'],
             'data' => ['required', 'date'],
             'notas' => ['nullable', 'string'],
-            'fotos' => ['nullable', 'array'],
-            'fotos.*' => ['file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
+            'ficheiro' => ['nullable', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
             'items' => ['nullable', 'array'],
             'items.*.descricao' => ['required_with:items', 'string', 'max:255'],
             'items.*.quantidade' => ['required_with:items', 'numeric', 'min:0.001'],
@@ -222,7 +204,18 @@ class DespesaController extends Controller
             'items.*.notas' => ['nullable', 'string'],
         ], $this->validationMessages());
 
-        DB::transaction(function () use ($data, $despesa): void {
+        $ficheiroPath = $despesa->ficheiro_path;
+        $ficheiroIsNewImage = false;
+        if ($request->hasFile('ficheiro')) {
+            if ($ficheiroPath) {
+                Storage::disk('public')->delete($ficheiroPath);
+            }
+            $file = $request->file('ficheiro');
+            $ficheiroPath = $file->store('despesas', 'public');
+            $ficheiroIsNewImage = str_starts_with($file->getMimeType() ?? '', 'image/');
+        }
+
+        DB::transaction(function () use ($data, $ficheiroPath, $despesa): void {
             $items = collect($data['items'] ?? []);
             $valorCalculado = $items->isNotEmpty()
                 ? $items->sum(fn (array $item) => round((float) $item['quantidade'] * (float) $item['preco_unitario'] * (1 + (float) $item['iva_percentagem'] / 100), 4))
@@ -235,6 +228,7 @@ class DespesaController extends Controller
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
                 'categoria' => 'entrada_produtos',
+                'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);
 
@@ -254,178 +248,20 @@ class DespesaController extends Controller
             }
         });
 
-        $imagePaths = [];
-        if ($request->hasFile('fotos')) {
-            $nextOrdem = $despesa->fotos()->count();
-            foreach ($request->file('fotos') as $index => $foto) {
-                $path = $foto->store('faturas', 'public');
-                $despesa->fotos()->create(['path' => $path, 'ordem' => $nextOrdem + $index]);
-                if (str_starts_with($foto->getMimeType() ?? '', 'image/')) {
-                    $imagePaths[] = $path;
-                }
-            }
-        }
-
         $message = 'Entrada atualizada com sucesso.';
-        if (!empty($imagePaths)) {
-            $this->queueAiJobs($despesa, $imagePaths);
-            $count = count($imagePaths);
-            $message = $count === 1
-                ? 'Nova foto recebida. A IA vai processar dentro de cerca de 1 minuto.'
-                : "{$count} novas fotos recebidas. A IA vai processar dentro de cerca de 1 minuto.";
+
+        if ($ficheiroPath && $ficheiroIsNewImage) {
+            $this->queueAiJob($despesa, $ficheiroPath);
+            $message = 'Foto recebida. A IA em casa vai voltar a processar esta fatura dentro de cerca de 1 minuto.';
         }
 
-        return redirect()->route('despesas.show', $despesa)->with('status', $message);
-    }
-
-    public function addFoto(Request $request, Despesa $despesa): \Illuminate\Http\JsonResponse
-    {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
-        $request->validate([
-            'foto' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,gif,webp,pdf'],
-        ]);
-
-        $file = $request->file('foto');
-        $mime = $file->getMimeType() ?? '';
-        $path = $file->store('faturas', 'public');
-        $foto = $despesa->fotos()->create([
-            'path' => $path,
-            'ordem' => $despesa->fotos()->count(),
-        ]);
-
-        $itemsAdded = 0;
-
-        if ($mime === 'application/pdf') {
-            $absolutePath = Storage::disk('public')->path($path);
-            $extractor = new PdfProductExtractor();
-            $products = $extractor->extractFromPath($absolutePath);
-
-            if (!empty($products)) {
-                DB::transaction(function () use ($despesa, $products, &$itemsAdded): void {
-                    foreach ($products as $product) {
-                        $despesa->items()->create($product);
-                        $itemsAdded++;
-                    }
-                    $despesa->update([
-                        'valor' => $despesa->fresh()->total_fatura,
-                    ]);
-                });
-            }
-        } elseif (str_starts_with($mime, 'image/')) {
-            AiJob::create([
-                'despesa_id' => $despesa->id,
-                'status' => 'pending',
-                'image_path' => $path,
-            ]);
-        }
-
-        return response()->json([
-            'id'          => $foto->id,
-            'url'         => $foto->url,
-            'pdf'         => $mime === 'application/pdf',
-            'items_added' => $itemsAdded,
-        ]);
-    }
-
-    public function sugestoesItems(Request $request): \Illuminate\Http\JsonResponse
-    {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
-        $q = (string) $request->query('q', '');
-        $fornecedor = (string) $request->query('fornecedor', '');
-
-        $query = FaturaItem::query()
-            ->select('descricao', 'unidade_compra', DB::raw('AVG(preco_unitario) as preco_medio'), DB::raw('MAX(id) as last_id'))
-            ->groupBy('descricao', 'unidade_compra')
-            ->orderByDesc('last_id')
-            ->limit(12);
-
-        if ($q !== '') {
-            $query->where('descricao', 'like', "%{$q}%");
-        }
-
-        if ($fornecedor !== '') {
-            $query->whereHas('despesa', fn ($q) => $q->where('fornecedor', $fornecedor));
-        }
-
-        return response()->json(
-            $query->get()->map(fn ($r) => [
-                'descricao'      => $r->descricao,
-                'unidade_compra' => $r->unidade_compra,
-                'preco_medio'    => round((float) $r->preco_medio, 4),
-            ])->values()
-        );
-    }
-
-    public function addItem(Request $request, Despesa $despesa): \Illuminate\Http\JsonResponse
-    {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
-        $data = $request->validate([
-            'descricao'               => ['required', 'string', 'max:255'],
-            'quantidade'              => ['required', 'numeric', 'min:0.001'],
-            'unidade_compra'          => ['nullable', 'string', 'max:20'],
-            'unidades_por_quantidade' => ['nullable', 'numeric', 'min:0'],
-            'preco_unitario'          => ['required', 'numeric', 'min:0'],
-            'iva_percentagem'         => ['required', 'numeric', 'in:0,6,13,23'],
-        ]);
-
-        $item = DB::transaction(function () use ($despesa, $data): FaturaItem {
-            $qtdUnid = (float) $data['quantidade'] * (float) ($data['unidades_por_quantidade'] ?? 1);
-            $item = $despesa->items()->create([
-                'descricao'               => $data['descricao'],
-                'quantidade'              => $data['quantidade'],
-                'unidade_compra'          => $data['unidade_compra'] ?? 'un',
-                'unidades_por_quantidade' => $data['unidades_por_quantidade'] ?? 1,
-                'quantidade_unidades'     => $qtdUnid,
-                'preco_unitario'          => $data['preco_unitario'],
-                'iva_percentagem'         => $data['iva_percentagem'],
-            ]);
-            $despesa->update(['valor' => $despesa->fresh()->total_fatura]);
-
-            return $item;
-        });
-
-        $despesa->refresh();
-
-        return response()->json([
-            'item' => [
-                'id'                      => $item->id,
-                'descricao'               => $item->descricao,
-                'quantidade'              => (float) $item->quantidade,
-                'unidade_compra'          => $item->unidade_compra,
-                'quantidade_unidades'     => (float) $item->quantidade_unidades,
-                'custo_unitario'          => $item->custo_unitario,
-                'preco_unitario'          => (float) $item->preco_unitario,
-                'iva_percentagem'         => (float) $item->iva_percentagem,
-                'total_com_iva'           => $item->total_com_iva,
-            ],
-            'totais' => [
-                'subtotal'    => $despesa->subtotal_calculado,
-                'iva'         => $despesa->iva_calculado,
-                'total'       => $despesa->total_fatura,
-            ],
-        ]);
-    }
-
-    public function deleteFoto(DespesaFoto $foto): \Illuminate\Http\JsonResponse
-    {
-        abort_unless(auth()->user()->isAdmin(), 403);
-
-        Storage::disk('public')->delete($foto->path);
-        $foto->delete();
-
-        return response()->json(['ok' => true]);
+        return redirect()->route('despesas.index')->with('status', $message);
     }
 
     public function destroy(Despesa $despesa): RedirectResponse
     {
         abort_unless(auth()->user()->isAdmin(), 403);
 
-        foreach ($despesa->fotos as $foto) {
-            Storage::disk('public')->delete($foto->path);
-        }
         if ($despesa->ficheiro_path) {
             Storage::disk('public')->delete($despesa->ficheiro_path);
         }
@@ -541,27 +377,25 @@ class DespesaController extends Controller
         ]);
     }
 
-    private function queueAiJobs(Despesa $despesa, array $paths): void
+    private function queueAiJob(Despesa $despesa, string $ficheiroPath): void
     {
         $despesa->aiJobs()
             ->where('status', 'pending')
             ->update(['status' => 'failed']);
 
-        foreach ($paths as $path) {
-            AiJob::create([
-                'despesa_id' => $despesa->id,
-                'status' => 'pending',
-                'image_path' => $path,
-            ]);
-        }
+        AiJob::create([
+            'despesa_id' => $despesa->id,
+            'status' => 'pending',
+            'image_path' => $ficheiroPath,
+        ]);
     }
 
     private function validationMessages(): array
     {
         return [
-            'fotos.*.uploaded' => 'Uma foto nao conseguiu chegar ao servidor. Tente novamente com uma foto mais leve.',
-            'fotos.*.max' => 'Uma foto e demasiado grande. Tente novamente com uma foto mais leve.',
-            'fotos.*.mimes' => 'Os ficheiros devem ser JPG, PNG, GIF, WEBP ou PDF.',
+            'ficheiro.uploaded' => 'A foto nao conseguiu chegar ao servidor. Tente novamente com uma foto mais leve ou confirme upload_max_filesize, post_max_size e permissoes do temporario PHP.',
+            'ficheiro.max' => 'A foto e demasiado grande. Tente novamente com uma foto mais leve.',
+            'ficheiro.mimes' => 'O ficheiro deve ser JPG, PNG, GIF, WEBP ou PDF.',
         ];
     }
 }

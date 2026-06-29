@@ -51,29 +51,6 @@ class ListaCabaz extends Model
             ->get();
     }
 
-    /** Preço mensal por tipo de cabaz (subscrições B2C). */
-    public static function precosMensais(): array
-    {
-        return [
-            'mini'    => 60.00,
-            'pequeno' => 125.00,
-            'medio'   => 175.00,
-            'grande'  => 215.00,
-        ];
-    }
-
-    /** Preço por entrega semanal (mensal ÷ 4). */
-    public static function precosPorCabaz(): array
-    {
-        return array_map(fn (float $p): float => round($p / 4, 2), self::precosMensais());
-    }
-
-    /** Custo máximo por cabaz para atingir 60 % de margem. */
-    public static function custoMaxPorCabaz(): array
-    {
-        return array_map(fn (float $p): float => round($p * 0.40, 2), self::precosPorCabaz());
-    }
-
     public static function meses(): array
     {
         return [

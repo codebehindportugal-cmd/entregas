@@ -229,49 +229,6 @@ class WooCommerceServiceTest extends TestCase
         });
     }
 
-    public function test_update_product_from_local_can_limit_fields_sent_to_woocommerce(): void
-    {
-        config([
-            'woocommerce.url' => 'https://example.test',
-            'woocommerce.key' => 'ck_test',
-            'woocommerce.secret' => 'cs_test',
-        ]);
-
-        Http::fake([
-            'example.test/*' => Http::response([
-                'id' => 321,
-                'name' => 'Cabaz Teste',
-                'regular_price' => '12.00',
-                'status' => 'publish',
-                'stock_status' => 'instock',
-                'purchasable' => true,
-            ], 200),
-        ]);
-
-        $product = new WooProduct([
-            'woo_id' => 321,
-            'name' => 'Cabaz Teste',
-            'regular_price' => 12,
-            'description' => 'Descricao longa',
-            'short_description' => 'Resumo',
-            'status' => 'publish',
-            'em_epoca' => true,
-            'disponivel_compra' => true,
-        ]);
-
-        app(WooCommerceService::class)->updateProductFromLocal($product, ['prices']);
-
-        Http::assertSent(function ($request): bool {
-            $payload = $request->data();
-
-            return array_key_exists('regular_price', $payload)
-                && ! array_key_exists('description', $payload)
-                && ! array_key_exists('short_description', $payload)
-                && ! array_key_exists('images', $payload)
-                && ! array_key_exists('stock_status', $payload);
-        });
-    }
-
     public function test_product_payload_reads_availability_from_woocommerce_metadata(): void
     {
         $payload = $this->productPayloadFromWooProduct([
@@ -305,54 +262,6 @@ class WooCommerceServiceTest extends TestCase
 
         $this->assertFalse($payload['em_epoca']);
         $this->assertFalse($payload['disponivel_compra']);
-    }
-
-    public function test_product_payload_stores_images_and_descriptions(): void
-    {
-        $payload = $this->productPayloadFromWooProduct([
-            'id' => 323,
-            'name' => 'Produto com Conteudo',
-            'description' => '<p>Descricao completa</p>',
-            'short_description' => '<p>Resumo</p>',
-            'images' => [
-                ['id' => 10, 'src' => 'https://example.test/produto.jpg'],
-            ],
-            'meta_data' => [],
-        ]);
-
-        $this->assertSame('https://example.test/produto.jpg', $payload['image_url']);
-        $this->assertSame('<p>Descricao completa</p>', $payload['description']);
-        $this->assertSame('<p>Resumo</p>', $payload['short_description']);
-        $this->assertSame([['id' => 10, 'src' => 'https://example.test/produto.jpg']], $payload['images']);
-    }
-
-    public function test_partial_product_sync_preserves_unselected_local_fields(): void
-    {
-        $model = new WooProduct([
-            'woo_id' => 323,
-            'name' => 'Nome antigo',
-            'regular_price' => 8,
-            'image_url' => 'https://example.test/antiga.jpg',
-            'description' => 'Descricao antiga',
-        ]);
-        $model->exists = true;
-
-        $payload = $this->filterProductPayloadForSync([
-            'woo_id' => 323,
-            'name' => 'Nome novo',
-            'regular_price' => 10,
-            'image_url' => 'https://example.test/nova.jpg',
-            'description' => 'Descricao nova',
-            'synced_at' => now(),
-        ], $model, ['prices']);
-
-        $this->assertSame([
-            'woo_id' => 323,
-            'regular_price' => 10,
-        ], collect($payload)->only(['woo_id', 'regular_price'])->all());
-        $this->assertArrayNotHasKey('name', $payload);
-        $this->assertArrayNotHasKey('image_url', $payload);
-        $this->assertArrayNotHasKey('description', $payload);
     }
 
     public function test_sync_preserves_local_customer_information_when_woocommerce_payload_is_blank(): void
@@ -434,14 +343,6 @@ class WooCommerceServiceTest extends TestCase
         $method->setAccessible(true);
 
         return $method->invoke(app(WooCommerceService::class), $product);
-    }
-
-    private function filterProductPayloadForSync(array $payload, WooProduct $product, array $fields): array
-    {
-        $method = new ReflectionMethod(WooCommerceService::class, 'filterProductPayloadForSync');
-        $method->setAccessible(true);
-
-        return $method->invoke(app(WooCommerceService::class), $payload, $product, $fields);
     }
 
     private function preserveLocalScheduling(WooOrder $order, array $payload): array

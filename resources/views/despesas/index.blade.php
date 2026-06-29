@@ -114,20 +114,13 @@
                         </td>
                         <td class="p-3 text-right">
                             <div class="flex flex-wrap justify-end gap-3">
-                                @if($despesa->capa_url)
+                                @if($despesa->ficheiro_path)
                                     <button type="button" class="text-blue-400 hover:text-blue-300"
-                                        onclick="abrirLightbox('{{ $despesa->capa_url }}', '{{ $despesa->titulo }}'); event.stopPropagation()">
-                                        Ver foto
+                                        onclick="abrirLightbox('{{ Storage::disk('public')->url($despesa->ficheiro_path) }}', '{{ $despesa->titulo }}'); event.stopPropagation()">
+                                        Ver ficheiro
                                     </button>
                                 @endif
-                                <a class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300" href="{{ route('despesas.show', $despesa) }}" onclick="event.stopPropagation()">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z"/>
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                    </svg>
-                                    Ver
-                                </a>
-                                <a class="text-emerald-400 hover:text-emerald-300" href="{{ route('despesas.edit', $despesa) }}" onclick="event.stopPropagation()">Editar</a>
+                                <a class="text-emerald-400 hover:text-emerald-300" href="{{ route('despesas.edit', $despesa) }}">Editar</a>
                                 <form method="post" action="{{ route('despesas.destroy', $despesa) }}" onsubmit="return confirm('Remover esta entrada?')" onclick="event.stopPropagation()">
                                     @csrf
                                     @method('delete')
@@ -211,16 +204,9 @@
                     @endif
                 </div>
                 <div class="mt-3 flex flex-wrap gap-3 text-sm">
-                    @if($despesa->capa_url)
-                        <button type="button" class="text-blue-400" onclick="abrirLightbox('{{ $despesa->capa_url }}', '{{ $despesa->titulo }}')">Ver foto</button>
+                    @if($despesa->ficheiro_path)
+                        <button type="button" class="text-blue-400" onclick="abrirLightbox('{{ Storage::disk('public')->url($despesa->ficheiro_path) }}', '{{ $despesa->titulo }}')">Ver ficheiro</button>
                     @endif
-                    <a class="inline-flex items-center gap-1 text-sky-400" href="{{ route('despesas.show', $despesa) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-4 w-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        </svg>
-                        Ver
-                    </a>
                     <a class="text-emerald-400" href="{{ route('despesas.edit', $despesa) }}">Editar</a>
                     <form method="post" action="{{ route('despesas.destroy', $despesa) }}" onsubmit="return confirm('Remover esta entrada?')">
                         @csrf @method('delete')

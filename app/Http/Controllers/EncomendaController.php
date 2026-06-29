@@ -93,23 +93,10 @@ class EncomendaController extends Controller
         ]);
     }
 
-    public function sync(Request $request, WooCommerceService $service): RedirectResponse
+    public function sync(WooCommerceService $service): RedirectResponse
     {
-        $data = $request->validate([
-            'sync_orders' => ['nullable', 'boolean'],
-            'sync_subscriptions' => ['nullable', 'boolean'],
-        ]);
-        $options = [
-            'orders' => $request->boolean('sync_orders'),
-            'subscriptions' => $request->boolean('sync_subscriptions'),
-        ];
-
-        if (! $options['orders'] && ! $options['subscriptions']) {
-            return back()->withErrors(['sync' => 'Seleciona pelo menos encomendas ou subscricoes para sincronizar.']);
-        }
-
         try {
-            $result = $service->sync($options);
+            $result = $service->sync();
         } catch (Throwable $exception) {
             return back()->withErrors(['sync' => $exception->getMessage()]);
         }

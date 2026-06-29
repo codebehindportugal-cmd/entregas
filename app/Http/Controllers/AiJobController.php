@@ -14,13 +14,13 @@ class AiJobController extends Controller
     public function pendingJobs(): JsonResponse
     {
         $jobs = AiJob::where('status', 'pending')
+            ->with('despesa')
             ->get()
             ->map(fn (AiJob $job) => [
                 'id' => $job->id,
                 'despesa_id' => $job->despesa_id,
                 'image_url' => $job->image_url,
-            ])
-            ->values();
+            ]);
 
         return response()->json($jobs);
     }
@@ -29,7 +29,7 @@ class AiJobController extends Controller
     {
         $data = $request->validate([
             'job_id' => ['required', 'integer', 'exists:ai_jobs,id'],
-            'products' => ['present', 'array'],
+            'products' => ['required', 'array'],
             'products.*.nome' => ['required', 'string', 'max:255'],
             'products.*.quantidade' => ['required', 'numeric', 'min:0'],
             'products.*.preco_unitario' => ['required', 'numeric', 'min:0'],

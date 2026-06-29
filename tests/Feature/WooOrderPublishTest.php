@@ -184,7 +184,7 @@ class WooOrderPublishTest extends TestCase
         ]);
 
         Http::fake([
-            'example.test/wp-json/wc/v3/orders/123*' => Http::response([
+            'example.test/wp-json/wc/v3/orders/123' => Http::response([
                 'id' => 123,
                 'billing' => [
                     'first_name' => 'Maria',
@@ -195,7 +195,7 @@ class WooOrderPublishTest extends TestCase
                     ['name' => 'Cabaz Pequeno', 'quantity' => 1, 'product_id' => 14383],
                 ],
             ], 200),
-            'example.test/wp-json/wc/v3/orders*' => Http::response([
+            'example.test/wp-json/wc/v3/orders' => Http::response([
                 'id' => 456,
                 'status' => 'pending',
                 'total' => '35.50',
@@ -214,10 +214,9 @@ class WooOrderPublishTest extends TestCase
         app(WooCommerceService::class)->createPendingOrderFrom($order);
 
         Http::assertSent(function ($request): bool {
-            $payload = $request->data();
-
             return $request->method() === 'POST'
-                && ($payload['line_items'] ?? []) === [
+                && $request->url() === 'https://example.test/wp-json/wc/v3/orders'
+                && $request->data('line_items') === [
                     ['product_id' => 14383, 'quantity' => 1],
                 ];
         });
