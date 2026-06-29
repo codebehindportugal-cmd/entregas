@@ -442,7 +442,36 @@ class WooOrder extends Model
             return $datas;
         }
 
-        return $this->gerarDatasDoCiclo(max(1, $datas->count()), false);
+        $primeiraData = Carbon::parse($datas->first() ?? $this->first_delivery_at);
+
+        return $this->gerarDatasDoCicloAPartirDe(
+            $primeiraData,
+            $primeiraData->dayOfWeek,
+            max(1, $datas->count()),
+        );
+    }
+
+    private function gerarDatasDoCicloAPartirDe(Carbon $inicio, int $diaSemana, int $total): Collection
+    {
+        $data = $inicio->copy()->startOfDay();
+
+        while ($data->dayOfWeek !== $diaSemana) {
+            $data->addDay();
+        }
+
+        $datas = collect([$data->toDateString()]);
+
+        while ($datas->count() < $total) {
+            $data = $data->copy()->addWeeks($this->semanasPorCiclo());
+
+            while ($data->dayOfWeek !== $diaSemana) {
+                $data->addDay();
+            }
+
+            $datas->push($data->toDateString());
+        }
+
+        return $datas;
     }
 
     private function gerarDatasDoCiclo(?int $total = null, bool $respeitarFim = true): Collection

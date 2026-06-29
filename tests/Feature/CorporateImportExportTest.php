@@ -107,11 +107,11 @@ class CorporateImportExportTest extends TestCase
             'empresa' => 'Empresa Nova',
             'sucursal' => 'Porto',
             'periodicidade_entrega' => 'quinzenal',
-            'quinzenal_referencia' => '2026-05-04',
         ]);
 
         $nova = Corporate::where('empresa', 'Empresa Nova')->firstOrFail();
 
+        $this->assertSame('2026-05-04', $nova->quinzenal_referencia->toDateString());
         $this->assertSame(1.25, $nova->frutas_por_dia['Quinta']['uvas']);
     }
 

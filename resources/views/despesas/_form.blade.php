@@ -15,19 +15,59 @@
 <div class="mb-6">
     <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-400">Cabecalho da fatura</h2>
 
-    {{-- Upload de ficheiro / foto --}}
+    {{-- Upload de multiplas fotos --}}
     <div class="mb-5">
-        <label class="text-sm text-slate-300">Foto ou scan da fatura
-            <div class="mt-1">
-                <input type="file" name="ficheiro" id="ficheiro-input" accept="image/*,application/pdf"
-                    class="w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-slate-200 file:mr-3 file:rounded file:border-0 file:bg-emerald-500/20 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-emerald-300">
-            </div>
-            <p class="mt-1 text-xs text-slate-500">Em telemovel, escolha a camara neste campo. Ao guardar uma imagem, a IA local recebe um job automaticamente.</p>
-            <p id="ficheiro-status" class="mt-2 hidden rounded border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200"></p>
-        </label>
-        @if($despesa->exists && $despesa->ficheiro_path)
-            <p class="mt-1 text-xs text-slate-500">Ficheiro atual: <a href="{{ Storage::disk('public')->url($despesa->ficheiro_path) }}" target="_blank" class="text-blue-400 hover:underline">ver ficheiro</a> (substituir acima para mudar)</p>
-        @endif
+        <p class="mb-2 text-xs text-slate-400">Fotos da fatura — podes adicionar varias folhas</p>
+
+        {{-- Grid de fotos: existentes + novas + botao adicionar --}}
+        <div id="fotos-grid" class="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            @if($despesa->exists)
+                @foreach($despesa->fotos as $foto)
+                <div class="foto-item group relative" data-foto-id="{{ $foto->id }}">
+                    <a href="{{ $foto->url }}" target="_blank">
+                        <img src="{{ $foto->url }}"
+                            class="h-24 w-full rounded-lg border border-white/10 object-cover transition hover:opacity-80"
+                            title="Ver foto">
+                    </a>
+                    <button type="button" class="btn-delete-foto absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-full bg-red-600/80 text-xs font-bold text-white hover:bg-red-600 group-hover:flex">&times;</button>
+                </div>
+                @endforeach
+                @if($despesa->ficheiro_path && $despesa->fotos->isEmpty())
+                @php($legacyUrl = route('public-files.show', ['path' => $despesa->ficheiro_path]))
+                <div class="foto-item group relative" data-legacy="1">
+                    <a href="{{ $legacyUrl }}" target="_blank">
+                        <img src="{{ $legacyUrl }}"
+                            class="h-24 w-full rounded-lg border border-amber-500/30 object-cover opacity-80"
+                            title="Foto anterior">
+                    </a>
+                    <span class="absolute bottom-0 left-0 right-0 rounded-b-lg bg-black/60 py-0.5 text-center text-xs text-amber-300">antigo</span>
+                </div>
+                @endif
+            @endif
+
+            {{-- Botao adicionar --}}
+            <button type="button" id="btn-add-foto"
+                class="flex h-24 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-white/20 bg-[#0A0F1A] text-slate-400 transition hover:border-emerald-500/40 hover:text-emerald-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span class="text-xs">Adicionar</span>
+            </button>
+        </div>
+
+        {{-- Input oculto (multiple) --}}
+        <input type="file" name="fotos[]" id="fotos-input" accept="image/*,application/pdf" multiple class="hidden">
+
+        {{-- Status do scan --}}
+        <p id="ficheiro-status" class="mt-2 hidden rounded border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200"></p>
+
+        {{-- Banner IA --}}
+        <div id="ai-banner" class="mt-3 hidden rounded border border-blue-400/30 bg-blue-500/10 p-3 text-sm text-blue-200">
+            <strong>IA a processar as fotos...</strong> Os produtos serao adicionados automaticamente em breve.
+            <a href="{{ route('despesas.index') }}" class="ml-2 text-xs text-blue-300 underline">Verificar resultados</a>
+        </div>
 
         {{-- Banner QR AT --}}
         <div id="qr-banner" class="mt-3 hidden rounded border border-amber-400/30 bg-amber-500/10 p-3 text-sm text-amber-200">
@@ -94,11 +134,11 @@
                             <option value="molho">molho</option>
                         </select>
                     </label>
-                    <label class="text-xs text-slate-400">Unid./qtd.
+                    <label class="text-xs text-slate-400" title="Quantas unidades individuais tem cada unidade de compra. Ex: 5 bananas por kg → 5">Unid. por kg/cx
                         <input type="number" name="items[__IDX__][unidades_por_quantidade]" value="1" step="0.001" min="0"
                             class="item-fator mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-2 py-1.5 text-sm text-white">
                     </label>
-                    <label class="text-xs text-slate-400">Qtd unidades
+                    <label class="text-xs text-slate-400" title="Calculado automaticamente: Quantidade × Unid. por kg/cx">Qtd unidades
                         <input type="number" name="items[__IDX__][quantidade_unidades]" value="1" step="0.001" min="0"
                             class="item-unidades mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-2 py-1.5 text-sm text-white">
                     </label>
@@ -155,14 +195,95 @@
 (function () {
     var qrData = null;
     var maxQrSide = 1800;
-    var maxUploadSide = 1800;
-    var jpegQuality = 0.82;
+    var maxUploadSide = 1400;
+    var jpegQuality = 0.78;
     var compressibleTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+    // -- Toast system --
+    function showToast(msg, type) {
+        var toast = document.createElement('div');
+        var base = 'fixed right-4 top-4 z-[9999] max-w-xs rounded-lg border px-4 py-3 text-sm font-medium shadow-xl transition-opacity duration-300';
+        var colors = type === 'success'
+            ? 'border-emerald-400/50 bg-emerald-600 text-white'
+            : 'border-amber-400/50 bg-amber-500 text-white';
+        toast.className = base + ' ' + colors;
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(function () {
+            toast.style.opacity = '0';
+            setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 350);
+        }, 3800);
+    }
+
+    // -- Gestao de multiplas fotos --
+    var fotosNovas = new Map();
+    var fotoCounter = 0;
+
+    function adicionarFotoAoGrid(file) {
+        var uuid = 'nova-' + (++fotoCounter);
+        fotosNovas.set(uuid, file);
+
+        var grid = document.getElementById('fotos-grid');
+        var addBtn = document.getElementById('btn-add-foto');
+
+        var div = document.createElement('div');
+        div.className = 'foto-item group relative';
+        div.dataset.uuid = uuid;
+
+        var img = document.createElement('img');
+        img.className = 'h-24 w-full rounded-lg border border-emerald-500/30 object-cover';
+        var reader = new FileReader();
+        reader.onload = function (e) { img.src = e.target.result; };
+        reader.readAsDataURL(file);
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-full bg-red-600/80 text-xs font-bold text-white hover:bg-red-600 group-hover:flex';
+        btn.innerHTML = '&times;';
+        btn.addEventListener('click', function () {
+            fotosNovas.delete(uuid);
+            div.remove();
+            atualizarAiBanner();
+        });
+
+        div.appendChild(img);
+        div.appendChild(btn);
+        grid.insertBefore(div, addBtn);
+
+        atualizarAiBanner();
+    }
+
+    function atualizarAiBanner() {
+        var aiBanner = document.getElementById('ai-banner');
+        if (!aiBanner) return;
+        var temImagens = false;
+        fotosNovas.forEach(function (f) {
+            if (f.type.startsWith('image/')) temImagens = true;
+        });
+        aiBanner.classList.toggle('hidden', !temImagens);
+    }
+
+    function processarFicheiros(files) {
+        var primeiraImagem = true;
+        Array.from(files).forEach(function (file) {
+            adicionarFotoAoGrid(file);
+            if (primeiraImagem && file.type.startsWith('image/')) {
+                tryDecodeQr(file);
+                primeiraImagem = false;
+            }
+        });
+    }
 
     // -- QR Scanner --
     function tryDecodeQr(file) {
         if (typeof jsQR === 'undefined') {
             return;
+        }
+
+        var status = document.getElementById('ficheiro-status');
+        if (status) {
+            status.textContent = 'A ler QR code...';
+            status.classList.remove('hidden');
         }
 
         var reader = new FileReader();
@@ -181,23 +302,25 @@
                     qrData = parseAtQr(code.data);
                     preencherComQr(qrData);
                     document.getElementById('qr-banner').classList.remove('hidden');
-                    var status = document.getElementById('ficheiro-status');
-                    if (status) {
-                        status.textContent = 'QR AT detetado e campos preenchidos. Reveja os dados e guarde a entrada.';
+                    var st = document.getElementById('ficheiro-status');
+                    if (st) {
+                        st.textContent = 'QR AT detetado e campos preenchidos. Reveja os dados e guarde.';
                     }
+                    showToast('QR AT detectado! Campos preenchidos automaticamente.', 'success');
                 } else {
-                    var status = document.getElementById('ficheiro-status');
-                    if (status) {
-                        status.textContent = 'Foto preparada. Nao consegui ler o QR automaticamente; pode preencher os campos manualmente e guardar.';
-                        status.classList.remove('hidden');
+                    var st = document.getElementById('ficheiro-status');
+                    if (st) {
+                        st.textContent = 'Foto preparada. Preenche os campos manualmente e guarda.';
+                        st.classList.remove('hidden');
                     }
+                    showToast('QR nao detectado. Preenche os campos manualmente.', 'warn');
                 }
             };
             img.onerror = function () {
-                var status = document.getElementById('ficheiro-status');
-                if (status) {
-                    status.textContent = 'Foto selecionada. Nao consegui preparar a leitura do QR, mas pode guardar a entrada.';
-                    status.classList.remove('hidden');
+                var st = document.getElementById('ficheiro-status');
+                if (st) {
+                    st.textContent = 'Foto selecionada. Guarda para anexar a esta entrada.';
+                    st.classList.remove('hidden');
                 }
             };
             img.src = e.target.result;
@@ -256,96 +379,74 @@
         return String(valor || '').trim().replace(',', '.');
     }
 
-    var ficheiroInput = document.getElementById('ficheiro-input');
-    if (ficheiroInput) {
-        ficheiroInput.addEventListener('change', function () {
-            document.getElementById('qr-banner').classList.add('hidden');
-            qrData = null;
-            var status = document.getElementById('ficheiro-status');
+    // -- Upload de multiplas fotos --
+    var fotosInput = document.getElementById('fotos-input');
 
-            if (status) {
-                status.classList.remove('hidden');
-                status.textContent = 'A preparar ficheiro...';
-            }
+    if (document.getElementById('btn-add-foto')) {
+        document.getElementById('btn-add-foto').addEventListener('click', function () {
+            if (fotosInput) fotosInput.click();
+        });
+    }
 
-            if (!this.files || !this.files[0]) {
-                if (status) {
-                    status.classList.add('hidden');
-                    status.textContent = '';
-                }
+    if (fotosInput) {
+        fotosInput.addEventListener('change', function () {
+            if (!this.files || !this.files.length) return;
+            processarFicheiros(this.files);
+            this.value = '';
+        });
+    }
+
+    // Delete de foto existente (AJAX)
+    var csrfToken = (document.querySelector('input[name="_token"]') || {}).value || '';
+    document.querySelectorAll('.btn-delete-foto').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var item = btn.closest('.foto-item');
+            var fotoId = item ? item.dataset.fotoId : null;
+            if (!fotoId) return;
+            fetch('/despesas/fotos/' + fotoId, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' }
+            }).then(function (r) {
+                if (r.ok) { if (item) item.remove(); showToast('Foto removida.', 'success'); }
+                else showToast('Erro ao remover foto.', 'warn');
+            }).catch(function () { showToast('Erro ao remover foto.', 'warn'); });
+        });
+    });
+
+    // Submissao: comprime fotos novas e injeta no input
+    var formEl = fotosInput ? fotosInput.closest('form') : null;
+    if (formEl && fotosInput) {
+        formEl.addEventListener('submit', function (event) {
+            if (formEl.dataset.fotosPreparadas === '1') return;
+
+            if (fotosNovas.size === 0) {
+                formEl.dataset.fotosPreparadas = '1';
                 return;
             }
 
-            var input = this;
-            var file = input.files[0];
+            event.preventDefault();
+            var submitBtn = formEl.querySelector('button[type="submit"]');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'A preparar fotos...'; }
 
-            prepareInvoiceImage(file).then(function (preparedFile) {
-                if (preparedFile !== file && typeof DataTransfer !== 'undefined') {
-                    var dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(preparedFile);
-                    input.files = dataTransfer.files;
-                }
-
-                if (status) {
-                    status.textContent = preparedFile.type.startsWith('image/')
-                        ? 'Foto preparada. A tentar ler o QR AT...'
-                        : 'Ficheiro selecionado. Ao guardar, fica anexado a esta entrada.';
-                    status.classList.remove('hidden');
-                }
-
-                if (preparedFile.type.startsWith('image/')) {
-                    tryDecodeQr(preparedFile);
-                }
+            var files = Array.from(fotosNovas.values());
+            Promise.all(files.map(prepareInvoiceImage)).then(function (prepared) {
+                var dt = new DataTransfer();
+                prepared.forEach(function (f) { dt.items.add(f); });
+                fotosInput.files = dt.files;
             }).catch(function () {
-                if (status) {
-                    status.textContent = 'Ficheiro selecionado. Se o upload falhar, tente uma foto mais leve.';
-                    status.classList.remove('hidden');
-                }
-                if (file.type.startsWith('image/')) {
-                    tryDecodeQr(file);
-                }
+                var dt = new DataTransfer();
+                files.forEach(function (f) { dt.items.add(f); });
+                fotosInput.files = dt.files;
+            }).finally(function () {
+                formEl.dataset.fotosPreparadas = '1';
+                if (submitBtn) { submitBtn.disabled = false; }
+                formEl.submit();
             });
         });
-
-        var form = ficheiroInput.closest('form');
-        if (form) {
-            form.addEventListener('submit', function (event) {
-                if (form.dataset.ficheiroPrepared === '1') {
-                    return;
-                }
-
-                if (!ficheiroInput.files || !ficheiroInput.files[0] || !ficheiroInput.files[0].type.startsWith('image/')) {
-                    form.dataset.ficheiroPrepared = '1';
-                    return;
-                }
-
-                event.preventDefault();
-                var button = form.querySelector('button[type="submit"]');
-                if (button) {
-                    button.disabled = true;
-                    button.textContent = 'A preparar foto...';
-                }
-
-                prepareInvoiceImage(ficheiroInput.files[0]).then(function (preparedFile) {
-                    if (preparedFile && typeof DataTransfer !== 'undefined') {
-                        var dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(preparedFile);
-                        ficheiroInput.files = dataTransfer.files;
-                    }
-                }).finally(function () {
-                    form.dataset.ficheiroPrepared = '1';
-                    if (typeof form.requestSubmit === 'function') {
-                        form.requestSubmit(button || undefined);
-                    } else {
-                        form.submit();
-                    }
-                });
-            });
-        }
     }
 
     function prepareInvoiceImage(file) {
-        if (!compressibleTypes.includes(file.type) || file.size < 1024 * 1024) {
+        if (!compressibleTypes.includes(file.type)) {
             return Promise.resolve(file);
         }
 

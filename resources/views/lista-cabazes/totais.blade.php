@@ -11,13 +11,52 @@
         }
     </style>
 
+    @php
+        $precosPorCabaz = \App\Models\ListaCabaz::precosPorCabaz();
+        $custoMaxPorCabaz = \App\Models\ListaCabaz::custoMaxPorCabaz();
+    @endphp
+
+    {{-- Cards por tipo --}}
     <div class="mb-6 grid gap-3 md:grid-cols-4">
         @foreach($tipos as $tipo => $label)
-            @php($totalTipo = ($contagens[$tipo]['subscritores'] ?? 0) + ($contagens[$tipo]['empresas'] ?? 0))
+            @php
+                $totalTipo = ($contagens[$tipo]['subscritores'] ?? 0) + ($contagens[$tipo]['empresas'] ?? 0);
+                $custoTipo = $custoPorTipo[$tipo] ?? 0;
+                $precoTipo = $precosPorCabaz[$tipo] ?? 0;
+                $custoMax  = $custoMaxPorCabaz[$tipo] ?? 0;
+                $margem    = $precoTipo - $custoTipo;
+                $margemPct = $precoTipo > 0 ? round(($margem / $precoTipo) * 100, 1) : null;
+                $ok        = $custoTipo <= $custoMax;
+            @endphp
             <div class="rounded border border-white/10 bg-[#151E2D] p-4">
-                <p class="text-sm text-slate-400">{{ $label }}</p>
-                <p class="mt-2 text-2xl font-semibold text-white">{{ $totalTipo }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ $contagens[$tipo]['subscritores'] ?? 0 }} subscritores + {{ $contagens[$tipo]['empresas'] ?? 0 }} empresas</p>
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-slate-400">{{ $label }}</p>
+                        <p class="mt-1 text-2xl font-semibold text-white">{{ $totalTipo }}</p>
+                        <p class="mt-0.5 text-xs text-slate-500">{{ $contagens[$tipo]['subscritores'] ?? 0 }} sub + {{ $contagens[$tipo]['empresas'] ?? 0 }} emp</p>
+                    </div>
+                    @if($margemPct !== null)
+                        <span class="mt-1 rounded px-2 py-0.5 text-xs font-bold {{ $margemPct >= 60 ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300' }}">
+                            {{ number_format($margemPct, 0) }}%
+                        </span>
+                    @endif
+                </div>
+                @if($precoTipo > 0)
+                    <div class="mt-3 border-t border-white/10 pt-3 text-xs">
+                        <div class="flex justify-between text-slate-400">
+                            <span>Custo/cabaz</span>
+                            <span class="{{ $ok ? 'text-slate-300' : 'text-rose-400 font-semibold' }}">{{ number_format($custoTipo, 2, ',', ' ') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-slate-400">
+                            <span>Max custo (60%)</span>
+                            <span class="text-slate-500">{{ number_format($custoMax, 2, ',', ' ') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-slate-400">
+                            <span>Venda/cabaz</span>
+                            <span class="text-emerald-400">{{ number_format($precoTipo, 2, ',', ' ') }} €</span>
+                        </div>
+                    </div>
+                @endif
             </div>
         @endforeach
     </div>

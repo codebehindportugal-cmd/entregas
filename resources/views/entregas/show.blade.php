@@ -66,9 +66,10 @@
         @if($registoEntrega->fotos)
             <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 @foreach($registoEntrega->fotos as $index => $foto)
+                    @php($fotoUrl = route('public-files.show', ['path' => $foto]))
                     <div class="relative overflow-hidden rounded">
-                        <a href="{{ asset('storage/'.$foto) }}" target="_blank" class="block">
-                            <img src="{{ asset('storage/'.$foto) }}" class="aspect-square rounded object-cover" alt="Foto entrega">
+                        <a href="{{ $fotoUrl }}" target="_blank" class="block">
+                            <img src="{{ $fotoUrl }}" class="aspect-square rounded object-cover" alt="Foto entrega">
                         </a>
                         <button form="delete-photo-{{ $index }}" type="submit" class="absolute right-2 top-2 rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white shadow" onclick="return confirm('Remover esta foto?')">Remover</button>
                     </div>

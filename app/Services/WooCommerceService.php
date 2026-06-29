@@ -13,13 +13,17 @@ use RuntimeException;
 
 class WooCommerceService
 {
-    public function sync(): array
+    public function sync(array $options = []): array
     {
-        $orders = collect($this->fetchOrders())
-            ->reject(fn (array $order) => (string) Arr::get($order, 'status') === 'completed')
-            ->unique(fn (array $order) => (int) $order['id'])
-            ->values()
-            ->all();
+        $syncOrders = (bool) ($options['orders'] ?? true);
+        $syncSubscriptions = (bool) ($options['subscriptions'] ?? config('woocommerce.sync_subscriptions'));
+        $orders = $syncOrders
+            ? collect($this->fetchOrders())
+                ->reject(fn (array $order) => (string) Arr::get($order, 'status') === 'completed')
+                ->unique(fn (array $order) => (int) $order['id'])
+                ->values()
+                ->all()
+            : [];
         $created = 0;
         $updated = 0;
 
@@ -31,7 +35,7 @@ class WooCommerceService
 
         $subscriptions = [];
 
-        if (config('woocommerce.sync_subscriptions')) {
+        if ($syncSubscriptions) {
             $subscriptions = $this->fetchSubscriptions();
 
             foreach ($subscriptions as $subscription) {
@@ -103,10 +107,11 @@ class WooCommerceService
         return $this->syncProductsPage(1);
     }
 
-    public function syncProductsPage(int $page = 1, int $perPage = 20): array
+    public function syncProductsPage(int $page = 1, int $perPage = 20, array $fields = []): array
     {
         $page = max(1, $page);
         $perPage = min(50, max(5, $perPage));
+        $fields = $this->normalizeProductSyncFields($fields);
         $products = collect($this->fetchProductsPage($page, $perPage));
         $created = 0;
         $updated = 0;
@@ -114,7 +119,8 @@ class WooCommerceService
         foreach ($products as $product) {
             $model = WooProduct::firstOrNew(['woo_id' => (int) Arr::get($product, 'id')]);
             $model->exists ? $updated++ : $created++;
-            $model->fill($this->productPayload($product));
+            $payload = $this->filterProductPayloadForSync($this->productPayload($product), $model, $fields);
+            $model->fill($payload);
             $model->save();
         }
 
@@ -188,7 +194,7 @@ class WooCommerceService
         return is_array($items) ? $items : [];
     }
 
-    public function updateProductFromLocal(WooProduct $product): array
+    public function updateProductFromLocal(WooProduct $product, array $fields = []): array
     {
         $url = rtrim((string) config('woocommerce.url'), '/');
 
@@ -196,18 +202,11 @@ class WooCommerceService
             throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
         }
 
+        $fields = $this->normalizeProductSyncFields($fields);
+        $payload = $this->productUpdatePayload($product, $fields);
+
         $response = $this->client()
-            ->put("{$url}/wp-json/wc/v3/products/{$product->woo_id}", array_merge([
-                'name' => $product->name,
-                'regular_price' => $product->regular_price !== null ? number_format((float) $product->regular_price, 2, '.', '') : '',
-                'sale_price' => $product->sale_price !== null ? number_format((float) $product->sale_price, 2, '.', '') : '',
-                'status' => $product->status ?: 'publish',
-                'meta_data' => [
-                    ['key' => '_hdm_epoca', 'value' => $product->epoca],
-                    ['key' => '_hdm_em_epoca', 'value' => $product->em_epoca ? '1' : '0'],
-                    ['key' => '_hdm_disponivel_compra', 'value' => $product->disponivel_compra ? '1' : '0'],
-                ],
-            ], $this->productStockPayload($product)));
+            ->put("{$url}/wp-json/wc/v3/products/{$product->woo_id}", $payload);
 
         if ($response->failed()) {
             throw new RuntimeException('Erro ao atualizar produto no WooCommerce: '.$response->status().' - '.$response->body());
@@ -226,6 +225,56 @@ class WooCommerceService
             'manage_stock' => false,
             'stock_status' => $disponivel ? 'instock' : 'outofstock',
         ];
+    }
+
+    private function productUpdatePayload(WooProduct $product, array $fields): array
+    {
+        $payload = [];
+
+        if (in_array('identity', $fields, true)) {
+            $payload['name'] = $product->name;
+            $payload['status'] = $product->status ?: 'publish';
+        }
+
+        if (in_array('prices', $fields, true)) {
+            $payload['regular_price'] = $product->regular_price !== null ? number_format((float) $product->regular_price, 2, '.', '') : '';
+            $payload['sale_price'] = $product->sale_price !== null ? number_format((float) $product->sale_price, 2, '.', '') : '';
+        }
+
+        if (in_array('availability', $fields, true)) {
+            $payload = array_merge($payload, $this->productStockPayload($product));
+        }
+
+        if (in_array('description', $fields, true)) {
+            $payload['description'] = (string) ($product->description ?? '');
+        }
+
+        if (in_array('short_description', $fields, true)) {
+            $payload['short_description'] = (string) ($product->short_description ?? '');
+        }
+
+        if (in_array('images', $fields, true) && is_array($product->images)) {
+            $payload['images'] = collect($product->images)
+                ->map(fn (array $image): array => array_filter([
+                    'id' => $image['id'] ?? null,
+                    'src' => $image['src'] ?? null,
+                    'name' => $image['name'] ?? null,
+                    'alt' => $image['alt'] ?? null,
+                ], fn (mixed $value): bool => filled($value)))
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        if (in_array('metadata', $fields, true)) {
+            $payload['meta_data'] = [
+                ['key' => '_hdm_epoca', 'value' => $product->epoca],
+                ['key' => '_hdm_em_epoca', 'value' => $product->em_epoca ? '1' : '0'],
+                ['key' => '_hdm_disponivel_compra', 'value' => $product->disponivel_compra ? '1' : '0'],
+            ];
+        }
+
+        return $payload;
     }
 
     public function createPendingOrderFrom(WooOrder $order): array
@@ -337,7 +386,8 @@ class WooCommerceService
             ->values()
             ->all();
         $images = Arr::get($product, 'images', []);
-        $firstImage = is_array($images) ? ($images[0]['src'] ?? null) : null;
+        $images = is_array($images) ? $images : [];
+        $firstImage = $images[0]['src'] ?? null;
         $status = Arr::get($product, 'status');
         $stockStatus = Arr::get($product, 'stock_status');
         $purchasable = (bool) Arr::get($product, 'purchasable', false);
@@ -355,6 +405,9 @@ class WooCommerceService
             'status' => $status,
             'permalink' => Arr::get($product, 'permalink'),
             'image_url' => $firstImage,
+            'images' => $images,
+            'description' => Arr::get($product, 'description'),
+            'short_description' => Arr::get($product, 'short_description'),
             'price' => $this->decimalOrNull(Arr::get($product, 'price')),
             'regular_price' => $this->decimalOrNull(Arr::get($product, 'regular_price')),
             'sale_price' => $this->decimalOrNull(Arr::get($product, 'sale_price')),
@@ -367,6 +420,45 @@ class WooCommerceService
             'raw_payload' => $product,
             'synced_at' => now(),
         ];
+    }
+
+    private function normalizeProductSyncFields(array $fields): array
+    {
+        $allowed = ['identity', 'prices', 'images', 'description', 'short_description', 'availability', 'metadata'];
+        $fields = collect($fields)
+            ->map(fn (mixed $field): string => (string) $field)
+            ->intersect($allowed)
+            ->values()
+            ->all();
+
+        return $fields === [] ? $allowed : $fields;
+    }
+
+    private function filterProductPayloadForSync(array $payload, WooProduct $model, array $fields): array
+    {
+        if (! $model->exists) {
+            return $payload;
+        }
+
+        $fieldAttributes = [
+            'identity' => ['name', 'slug', 'sku', 'type', 'status', 'permalink', 'categories'],
+            'prices' => ['price', 'regular_price', 'sale_price'],
+            'images' => ['image_url', 'images'],
+            'description' => ['description'],
+            'short_description' => ['short_description'],
+            'availability' => ['stock_status', 'purchasable', 'em_epoca', 'disponivel_compra'],
+            'metadata' => ['epoca'],
+        ];
+
+        $syncAttributes = collect($fields)
+            ->flatMap(fn (string $field): array => $fieldAttributes[$field] ?? [])
+            ->push('woo_id', 'raw_payload', 'synced_at')
+            ->unique()
+            ->all();
+
+        return collect($payload)
+            ->only($syncAttributes)
+            ->all();
     }
 
     private function boolOrNull(mixed $value): ?bool

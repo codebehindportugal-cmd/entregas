@@ -58,13 +58,15 @@ class WooOrderProfileTest extends TestCase
             'source_type' => 'subscription',
             'dia_entrega' => 'segunda',
             'ciclo_entrega' => 'quinzenal',
-            'scheduled_delivery_at' => '2026-05-09',
-            'first_delivery_at' => '2026-05-09',
-            'next_payment_at' => '2026-06-09',
-            'subscription_ends_at' => '2026-07-09',
             'profile_preferences' => 'Sem banana.',
             'customer_notes' => 'Cliente prefere contacto por SMS.',
         ]);
+
+        $order->refresh();
+        $this->assertSame('2026-05-09', $order->scheduled_delivery_at->toDateString());
+        $this->assertSame('2026-05-09', $order->first_delivery_at->toDateString());
+        $this->assertSame('2026-06-09', $order->next_payment_at->toDateString());
+        $this->assertSame('2026-07-09', $order->subscription_ends_at->toDateString());
     }
 
     public function test_admin_can_postpone_regular_b2c_order_delivery_date(): void
@@ -85,9 +87,11 @@ class WooOrderProfileTest extends TestCase
 
         $this->assertDatabaseHas('woo_orders', [
             'id' => $order->id,
-            'postponed_until' => '2026-05-30',
-            'scheduled_delivery_at' => '2026-05-30',
         ]);
+
+        $order->refresh();
+        $this->assertSame('2026-05-30', $order->postponed_until->toDateString());
+        $this->assertSame('2026-05-30', $order->scheduled_delivery_at->toDateString());
     }
 
     public function test_admin_can_postpone_regular_b2c_order_more_than_once_and_restore_original_date(): void

@@ -9,8 +9,14 @@ use App\Http\Controllers\DespesaController;
 use App\Http\Controllers\EncomendaController;
 use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceReviewController;
+use App\Http\Controllers\InvoiceUploadController;
 use App\Http\Controllers\ListaCabazController;
 use App\Http\Controllers\ProdutoController;
+use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\PublicFileController;
+use App\Http\Controllers\SazonalidadeController;
 use App\Http\Controllers\TabelaPrecoController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -36,6 +42,10 @@ Route::post('/webhooks/woocommerce', [WebhookController::class, 'woocommerce'])
     ->withoutMiddleware([ValidateCsrfToken::class])
     ->name('webhooks.woocommerce');
 
+Route::get('/ai-job-images/{job}', [PublicFileController::class, 'aiJob'])
+    ->middleware('signed')
+    ->name('ai-jobs.image');
+
 Route::middleware('guest')->group(function (): void {
     Route::get('/', [AuthController::class, 'create'])->name('login');
     Route::get('/login', [AuthController::class, 'create']);
@@ -44,6 +54,9 @@ Route::middleware('guest')->group(function (): void {
 
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
+    Route::get('/ficheiros/{path}', [PublicFileController::class, 'show'])
+        ->where('path', '.*')
+        ->name('public-files.show');
 
     Route::get('/minhas-entregas', [EntregaController::class, 'minhasEntregas'])->name('minhas-entregas.index');
     Route::put('/minhas-entregas/ordem', [EntregaController::class, 'updateOrdemMinhasEntregas'])->name('minhas-entregas.ordem.update');
@@ -66,10 +79,17 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/preparacao', [EntregaController::class, 'preparacao'])->name('preparacao.index');
         Route::put('/preparacao/{item}', [EntregaController::class, 'updatePreparacaoItem'])->name('preparacao.update');
         Route::put('/preparacao/{item}/produtos', [EntregaController::class, 'updatePreparacaoProdutos'])->name('preparacao.produtos.update');
+        Route::get('/lista-cabazes/gerar', [ListaCabazController::class, 'gerarForm'])->name('lista-cabazes.gerar');
+        Route::post('/lista-cabazes/gerar', [ListaCabazController::class, 'gerar'])->name('lista-cabazes.gerar.store');
         Route::resource('/lista-cabazes', ListaCabazController::class)
             ->parameters(['lista-cabazes' => 'listaCabaz'])
             ->except(['show']);
         Route::post('/lista-cabazes/importar', [ListaCabazController::class, 'import'])->name('lista-cabazes.import');
+        Route::get('/sazonalidade', [SazonalidadeController::class, 'index'])->name('sazonalidade.index');
+        Route::post('/sazonalidade', [SazonalidadeController::class, 'store'])->name('sazonalidade.store');
+        Route::delete('/sazonalidade/{sazonalidade}', [SazonalidadeController::class, 'destroy'])->name('sazonalidade.destroy');
+        Route::post('/cabaz-templates', [SazonalidadeController::class, 'storeTemplate'])->name('cabaz-templates.store');
+        Route::delete('/cabaz-templates/{cabazTemplate}', [SazonalidadeController::class, 'destroyTemplate'])->name('cabaz-templates.destroy');
         Route::post('/lista-cabazes/{listaCabaz}/itens', [ListaCabazController::class, 'storeItem'])->name('lista-cabazes.itens.store');
         Route::put('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'updateItem'])->name('lista-cabazes.itens.update');
         Route::delete('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'destroyItem'])->name('lista-cabazes.itens.destroy');
@@ -79,14 +99,25 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/produtos/sync', [ProdutoController::class, 'sync'])->name('produtos.sync');
         Route::put('/produtos/{produto}', [ProdutoController::class, 'update'])->name('produtos.update');
         Route::post('/produtos/{produto}/atualizar-site', [ProdutoController::class, 'updateSite'])->name('produtos.update-site');
+
+        Route::get('/sistema', [OperationsController::class, 'index'])->name('operations.index');
+        Route::post('/sistema/health', [OperationsController::class, 'health'])->name('operations.health');
+        Route::post('/sistema/security', [OperationsController::class, 'security'])->name('operations.security');
+        Route::post('/sistema/updates', [OperationsController::class, 'updates'])->name('operations.updates');
+        Route::post('/sistema/backup', [OperationsController::class, 'backup'])->name('operations.backup');
         Route::get('/compras', ComprasController::class)->name('compras.index');
         Route::post('/compras/precos', [ComprasController::class, 'updatePrecos'])->name('compras.precos.update');
         Route::get('/despesas/pdf', [DespesaController::class, 'exportarPdf'])->name('despesas.pdf');
         Route::get('/despesas/csv', [DespesaController::class, 'exportarCsv'])->name('despesas.csv');
         Route::get('/despesas/create', [DespesaController::class, 'create'])->name('despesas.create');
+        Route::get('/despesas/items/sugestoes', [DespesaController::class, 'sugestoesItems'])->name('despesas.items.sugestoes');
         Route::post('/despesas', [DespesaController::class, 'store'])->name('despesas.store');
+        Route::get('/despesas/{despesa}', [DespesaController::class, 'show'])->name('despesas.show');
         Route::get('/despesas/{despesa}/edit', [DespesaController::class, 'edit'])->name('despesas.edit');
         Route::patch('/despesas/{despesa}', [DespesaController::class, 'update'])->name('despesas.update');
+        Route::post('/despesas/{despesa}/fotos', [DespesaController::class, 'addFoto'])->name('despesas.fotos.add');
+        Route::post('/despesas/{despesa}/items', [DespesaController::class, 'addItem'])->name('despesas.items.add');
+        Route::delete('/despesas/fotos/{foto}', [DespesaController::class, 'deleteFoto'])->name('despesas.fotos.delete');
         Route::delete('/despesas/{despesa}', [DespesaController::class, 'destroy'])->name('despesas.destroy');
         Route::get('/despesas', [DespesaController::class, 'index'])->name('despesas.index');
         Route::resource('/tabelas-precos', TabelaPrecoController::class)
@@ -96,6 +127,16 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'updateItem'])->name('tabelas-precos.itens.update');
         Route::delete('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'destroyItem'])->name('tabelas-precos.itens.destroy');
         Route::post('/tabelas-precos/{tabelaPreco}/clonar', [TabelaPrecoController::class, 'clonar'])->name('tabelas-precos.clonar');
+        // Invoices OCR
+        Route::get('/invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+        Route::get('/invoices/upload', [InvoiceUploadController::class, 'create'])->name('invoices.upload');
+        Route::post('/invoices/upload', [InvoiceUploadController::class, 'store'])->name('invoices.upload.store');
+        Route::get('/invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
+        Route::get('/invoices/{invoice}/review', [InvoiceReviewController::class, 'edit'])->name('invoices.review');
+        Route::put('/invoices/{invoice}/review', [InvoiceReviewController::class, 'update'])->name('invoices.review.update');
+        Route::post('/invoices/{invoice}/confirm', [InvoiceReviewController::class, 'confirm'])->name('invoices.confirm');
+        Route::delete('/invoices/{invoice}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
+
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');
         Route::post('/encomendas/sync', [EncomendaController::class, 'sync'])->name('encomendas.sync');
         Route::delete('/encomendas/limpar-todas', [EncomendaController::class, 'destroyAll'])->name('encomendas.destroy-all');

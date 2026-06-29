@@ -9,8 +9,16 @@
     @endphp
     <x-page-title title="Encomendas" subtitle="Cache local das encomendas WooCommerce">
         <div class="flex flex-wrap gap-2">
-            <form method="post" action="{{ route('encomendas.sync') }}">
+            <form method="post" action="{{ route('encomendas.sync') }}" class="flex flex-wrap items-center gap-2 rounded border border-white/10 bg-white/5 px-3 py-2">
                 @csrf
+                <label class="flex items-center gap-1 text-xs font-medium text-slate-200">
+                    <input type="checkbox" name="sync_orders" value="1" checked class="rounded border-white/20 bg-[#0A0F1A]">
+                    Encomendas
+                </label>
+                <label class="flex items-center gap-1 text-xs font-medium text-slate-200">
+                    <input type="checkbox" name="sync_subscriptions" value="1" checked class="rounded border-white/20 bg-[#0A0F1A]">
+                    Subscricoes
+                </label>
                 <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Sincronizar agora</button>
             </form>
             <form method="post" action="{{ route('encomendas.destroy-all') }}" onsubmit="return confirm('Tem a certeza que quer remover TODAS as encomendas da cache local? Depois pode sincronizar novamente a partir do WooCommerce.');">

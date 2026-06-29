@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Corporate;
 use App\Models\ListaCabaz;
 use App\Models\ListaCabazItem;
+use App\Models\WooOrder;
 use App\Services\ComprasService;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
@@ -49,6 +50,8 @@ class ComparacaoCabazController extends Controller
             ->get();
         $linhasEmpresas = $this->linhasEmpresas($inicio, $fim, $compras);
 
+        $resumoSubscritores = $lista ? $this->resumoSubscritores($lista) : [];
+
         return view('comparacao-cabazes.index', [
             'listas' => $listas,
             'lista' => $lista,
@@ -65,6 +68,9 @@ class ComparacaoCabazController extends Controller
             'fim' => $fim->toDateString(),
             'linhasEmpresas' => $linhasEmpresas,
             'resumoEmpresas' => $this->resumoEmpresas($linhasEmpresas),
+            'resumoSubscritores' => $resumoSubscritores,
+            'precosPorCabaz' => ListaCabaz::precosPorCabaz(),
+            'custoMaxPorCabaz' => ListaCabaz::custoMaxPorCabaz(),
         ]);
     }
 
@@ -114,6 +120,55 @@ class ComparacaoCabazController extends Controller
             'venda' => $venda,
             'margem' => $margem,
             'margem_percentagem' => $venda > 0 ? round(($margem / $venda) * 100, 1) : null,
+        ];
+    }
+
+    private function resumoSubscritores(ListaCabaz $lista): array
+    {
+        $custos = $this->custosPorTipo($lista);
+        $precos = ListaCabaz::precosPorCabaz();
+        $custoMax = ListaCabaz::custoMaxPorCabaz();
+
+        $linhas = collect(self::TIPOS)->map(function (string $label, string $tipo) use ($custos, $precos, $custoMax): array {
+            $subscritores = WooOrder::query()
+                ->where('source_type', 'subscription')
+                ->where('cabaz_tipo', $tipo)
+                ->whereIn('status', ['active', 'subscricao', 'wc-subscricao', 'processing', 'on-hold'])
+                ->count();
+
+            $custoCabaz = (float) ($custos[$tipo] ?? 0);
+            $precoCabaz = (float) ($precos[$tipo] ?? 0);
+            $custoMaxCabaz = (float) ($custoMax[$tipo] ?? 0);
+            $custo = round($custoCabaz * $subscritores, 2);
+            $venda = round($precoCabaz * $subscritores, 2);
+            $margem = round($venda - $custo, 2);
+
+            return [
+                'tipo'          => $tipo,
+                'tipo_label'    => $label,
+                'subscritores'  => $subscritores,
+                'custo_cabaz'   => $custoCabaz,
+                'preco_cabaz'   => $precoCabaz,
+                'custo_max'     => $custoMaxCabaz,
+                'custo'         => $custo,
+                'venda'         => $venda,
+                'margem'        => $margem,
+                'margem_pct'    => $venda > 0 ? round(($margem / $venda) * 100, 1) : null,
+                'dentro_target' => $custoCabaz <= $custoMaxCabaz,
+            ];
+        })->values();
+
+        $custo = round($linhas->sum('custo'), 2);
+        $venda = round($linhas->sum('venda'), 2);
+        $margem = round($venda - $custo, 2);
+
+        return [
+            'linhas'             => $linhas,
+            'total_subscritores' => $linhas->sum('subscritores'),
+            'custo'              => $custo,
+            'venda'              => $venda,
+            'margem'             => $margem,
+            'margem_pct'         => $venda > 0 ? round(($margem / $venda) * 100, 1) : null,
         ];
     }
 

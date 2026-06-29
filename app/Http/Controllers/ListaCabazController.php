@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CabazTemplate;
 use App\Models\Corporate;
 use App\Models\ListaCabaz;
 use App\Models\ListaCabazItem;
+use App\Models\Sazonalidade;
 use App\Models\TabelaPreco;
 use App\Models\WooOrder;
 use Illuminate\Http\RedirectResponse;
@@ -90,6 +92,111 @@ class ListaCabazController extends Controller
         $listaCabaz->delete();
 
         return redirect()->route('lista-cabazes.index')->with('status', 'Lista removida.');
+    }
+
+    public function gerarForm(Request $request): View
+    {
+        $mes = max(1, min(12, $request->integer('mes', now()->month)));
+        $ano = $request->integer('ano', now()->year);
+
+        $produtosEpoca = Sazonalidade::query()
+            ->whereJsonContains('meses', $mes)
+            ->orderBy('categoria')
+            ->orderBy('produto')
+            ->get()
+            ->groupBy('categoria');
+
+        $templates = CabazTemplate::query()
+            ->orderBy('ordem')
+            ->orderBy('categoria')
+            ->get()
+            ->groupBy('cabaz_tipo');
+
+        $contagens = $this->contagensPorTipo();
+
+        return view('lista-cabazes.gerar', [
+            'mes' => $mes,
+            'ano' => $ano,
+            'meses' => ListaCabaz::meses(),
+            'anos' => range(now()->year - 1, now()->year + 1),
+            'semanas' => range(1, 4),
+            'tipos' => self::TIPOS,
+            'produtosEpoca' => $produtosEpoca,
+            'templates' => $templates,
+            'contagens' => $contagens,
+            'sugestao' => $this->buildSugestao($produtosEpoca, $templates),
+        ]);
+    }
+
+    public function gerar(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'semana_numero' => ['required', 'integer', 'min:1', 'max:4'],
+            'ano' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'mes' => ['required', 'integer', 'min:1', 'max:12'],
+            'itens' => ['present', 'array'],
+            'itens.*.cabaz_tipo' => ['required', 'in:mini,pequeno,medio,grande'],
+            'itens.*.produto' => ['required', 'string', 'max:255'],
+            'itens.*.categoria' => ['nullable', 'string', 'max:100'],
+            'itens.*.quantidade' => ['required', 'numeric', 'gt:0'],
+            'itens.*.unidade' => ['required', 'string', 'max:20'],
+            'itens.*.peso_unitario_kg' => ['nullable', 'numeric', 'gt:0'],
+        ]);
+
+        $lista = DB::transaction(function () use ($data): ListaCabaz {
+            $lista = ListaCabaz::create([
+                'semana_numero' => $data['semana_numero'],
+                'ano' => $data['ano'],
+                'mes' => $data['mes'],
+            ]);
+
+            foreach ($data['itens'] as $i => $item) {
+                $lista->itens()->create([
+                    'cabaz_tipo' => $item['cabaz_tipo'],
+                    'produto' => $item['produto'],
+                    'categoria' => $item['categoria'] ?? null,
+                    'quantidade' => $item['quantidade'],
+                    'unidade' => $item['unidade'],
+                    'peso_unitario_kg' => filled($item['peso_unitario_kg'] ?? null) ? (float) $item['peso_unitario_kg'] : null,
+                    'ordem' => $i,
+                ]);
+            }
+
+            return $lista;
+        });
+
+        return redirect()
+            ->route('lista-cabazes.edit', $lista)
+            ->with('status', 'Lista gerada automaticamente. Revê e ajusta conforme necessário.');
+    }
+
+    private function buildSugestao(Collection $produtosEpocaByCategoria, Collection $templatesByTipo): array
+    {
+        $sugestao = [];
+
+        foreach (self::TIPOS as $tipo => $label) {
+            $templatesTipo = $templatesByTipo->get($tipo, collect());
+            $itens = [];
+
+            foreach ($templatesTipo as $template) {
+                $produtosCat = $produtosEpocaByCategoria->get($template->categoria, collect());
+
+                foreach ($produtosCat->take((int) $template->quantidade_itens) as $produto) {
+                    $itens[] = [
+                        'cabaz_tipo' => $tipo,
+                        'produto' => $produto->produto,
+                        'categoria' => $produto->categoria,
+                        'quantidade' => (float) $template->quantidade_por_item,
+                        'unidade' => $template->unidade,
+                        'peso_unitario_kg' => $template->peso_unitario_kg ? (float) $template->peso_unitario_kg : null,
+                    ];
+                }
+            }
+
+            $sugestao[$tipo] = $itens;
+        }
+
+        return $sugestao;
     }
 
     public function import(Request $request): RedirectResponse
@@ -189,6 +296,7 @@ class ListaCabazController extends Controller
             'tipos' => self::TIPOS,
             'contagens' => $contagens,
             'totais' => $totais,
+            'custoPorTipo' => $this->custoPorTipo($listaCabaz->itens),
         ]);
     }
 
