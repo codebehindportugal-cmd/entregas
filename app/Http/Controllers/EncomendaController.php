@@ -108,20 +108,86 @@ class EncomendaController extends Controller
     public function show(WooOrder $encomenda, WooCommerceService $service): View
     {
         $encomenda->load(['preparacaoItems.feitoPor', 'registoEntregas.user']);
-        $wooProducts = WooProduct::query()
-            ->where('status', 'publish')
-            ->orderBy('name')
-            ->get();
-        $wooCoupons = [];
-        $couponLoadError = null;
-
-        try {
-            $wooCoupons = $service->fetchCoupons();
-        } catch (Throwable $exception) {
-            $couponLoadError = $exception->getMessage();
-        }
+        [$wooProducts, $wooCoupons, $couponLoadError] = $this->woocommerceFormData($service);
 
         return view('encomendas.show', compact('encomenda', 'wooProducts', 'wooCoupons', 'couponLoadError'));
+    }
+
+    public function create(WooCommerceService $service): View
+    {
+        [$wooProducts, $wooCoupons, $couponLoadError] = $this->woocommerceFormData($service);
+
+        return view('encomendas.create', compact('wooProducts', 'wooCoupons', 'couponLoadError'));
+    }
+
+    public function store(Request $request, WooCommerceService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'billing_name' => ['required', 'string', 'max:255'],
+            'billing_phone' => ['required', 'string', 'max:255'],
+            'billing_email' => ['nullable', 'email', 'max:255'],
+            'billing_address_1' => ['nullable', 'string', 'max:255'],
+            'billing_city' => ['nullable', 'string', 'max:255'],
+            'billing_postcode' => ['nullable', 'string', 'max:50'],
+            'shipping_address_1' => ['nullable', 'string', 'max:255'],
+            'shipping_city' => ['nullable', 'string', 'max:255'],
+            'shipping_postcode' => ['nullable', 'string', 'max:50'],
+            'customer_notes' => ['nullable', 'string'],
+            'dia_entrega' => ['nullable', 'in:segunda,quarta,sabado'],
+            'scheduled_delivery_at' => ['nullable', 'date'],
+            'customer_language' => ['nullable', 'in:pt,en'],
+            'products' => ['required', 'array'],
+            'products.*.woo_product_id' => ['nullable', 'integer', 'exists:woo_products,id'],
+            'products.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
+            'coupon_codes' => ['nullable', 'array'],
+            'coupon_codes.*' => ['string', 'max:255'],
+        ]);
+
+        $products = collect($data['products'] ?? [])
+            ->filter(fn (array $line): bool => filled($line['woo_product_id'] ?? null))
+            ->values()
+            ->all();
+
+        if ($products === []) {
+            return back()->withInput()->withErrors(['products' => 'Escolhe pelo menos um produto WooCommerce.']);
+        }
+
+        $couponCodes = array_values(array_unique(array_filter($data['coupon_codes'] ?? [])));
+
+        if ($couponCodes !== []) {
+            try {
+                $registeredCodes = collect($service->fetchCoupons())->pluck('code')->all();
+            } catch (Throwable $exception) {
+                return back()->withInput()->withErrors(['coupon_codes' => 'Nao foi possivel validar os cupoes no WooCommerce: '.$exception->getMessage()]);
+            }
+
+            $invalidCoupons = array_values(array_diff($couponCodes, $registeredCodes));
+
+            if ($invalidCoupons !== []) {
+                return back()->withInput()->withErrors(['coupon_codes' => 'Cupoes nao registados no WooCommerce: '.implode(', ', $invalidCoupons)]);
+            }
+        }
+
+        try {
+            $result = $service->createPendingOrder([
+                ...$data,
+                'products' => $products,
+                'coupon_codes' => $couponCodes,
+            ]);
+        } catch (Throwable $exception) {
+            return back()->withInput()->withErrors(['publish' => $exception->getMessage()]);
+        }
+
+        $novaEncomenda = $result['order'];
+        $message = "Encomenda criada no WooCommerce em pagamento pendente: #{$novaEncomenda->woo_id}.";
+
+        if ($result['payment_url'] ?? null) {
+            $message .= " Link de pagamento: {$result['payment_url']}";
+        }
+
+        return redirect()
+            ->route('encomendas.show', $novaEncomenda)
+            ->with('status', $message);
     }
 
     public function updateProfile(Request $request, WooOrder $encomenda): RedirectResponse
@@ -294,6 +360,24 @@ class EncomendaController extends Controller
         });
 
         return redirect()->route('encomendas.index')->with('status', "{$count} encomendas removidas da cache local. Pode sincronizar novamente.");
+    }
+
+    private function woocommerceFormData(WooCommerceService $service): array
+    {
+        $wooProducts = WooProduct::query()
+            ->where('status', 'publish')
+            ->orderBy('name')
+            ->get();
+        $wooCoupons = [];
+        $couponLoadError = null;
+
+        try {
+            $wooCoupons = $service->fetchCoupons();
+        } catch (Throwable $exception) {
+            $couponLoadError = $exception->getMessage();
+        }
+
+        return [$wooProducts, $wooCoupons, $couponLoadError];
     }
 
     private function periodRange(string $periodo, ?Carbon $inicio, ?Carbon $fim): array

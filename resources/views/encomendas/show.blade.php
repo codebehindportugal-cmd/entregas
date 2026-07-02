@@ -10,6 +10,9 @@
             @if($encomenda->whatsappFaturaUrl())
                 <a href="{{ $encomenda->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
             @endif
+            @if($encomenda->isSubscricao() && $encomenda->whatsappRenovacaoUrl())
+                <a href="{{ $encomenda->whatsappRenovacaoUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp renovacao</a>
+            @endif
             @if($encomenda->whatsappPagamentoUrl())
                 <a href="{{ $encomenda->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Enviar pagamento</a>
             @endif
@@ -73,7 +76,7 @@
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Entregas</h2>
                 @php($entregas = $encomenda->entregasSubscricao())
-                @php($calendarioSubscricao = $encomenda->isSubscricao() ? $encomenda->calendarioSubscricao() : collect())
+                @php($calendarioEntregas = $encomenda->calendarioEntregas())
                 <div class="mt-4 grid gap-3 text-sm sm:grid-cols-3">
                     <div class="rounded bg-white/5 p-3">
                         <p class="text-slate-400">No ciclo</p>
@@ -91,11 +94,11 @@
                 @if($entregas['proxima'])
                     <p class="mt-3 text-sm text-slate-300">Proxima: {{ \Illuminate\Support\Carbon::parse($entregas['proxima'])->format('d/m/Y') }}</p>
                 @endif
-                @if($calendarioSubscricao->isNotEmpty())
+                @if($calendarioEntregas->isNotEmpty())
                     <div class="mt-5 border-t border-white/10 pt-5">
-                        <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-400">Datas da subscricao</h3>
+                        <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ $encomenda->isSubscricao() ? 'Datas da subscricao' : 'Calendario de entregas' }}</h3>
                         <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                            @foreach($calendarioSubscricao as $entregaCalendario)
+                            @foreach($calendarioEntregas as $entregaCalendario)
                                 @php($classesListaEntrega = match ($entregaCalendario['status']) {
                                     'entregue' => 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100',
                                     'adiada' => 'border-amber-400/30 bg-[#F59E0B]/10 text-amber-100',
@@ -117,7 +120,7 @@
                             <span class="rounded bg-white/10 px-2 py-1 text-slate-300">Em atraso</span>
                         </div>
                         <div class="mt-5 space-y-5">
-                            @foreach($calendarioSubscricao->groupBy(fn ($item) => $item['data']->format('Y-m')) as $mesCalendario => $diasCalendario)
+                            @foreach($calendarioEntregas->groupBy(fn ($item) => $item['data']->format('Y-m')) as $mesCalendario => $diasCalendario)
                                 @php($inicioMesCalendario = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $mesCalendario.'-01'))
                                 @php($diasPorData = $diasCalendario->keyBy('data_key'))
                                 <div>
@@ -165,7 +168,7 @@
                     @if($encomenda->isSubscricao())
                         <select name="delivery_date" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                             <option value="">Proxima entrega em aberto</option>
-                            @foreach($calendarioSubscricao->where('status', 'por_realizar') as $entregaCalendario)
+                            @foreach($calendarioEntregas->where('status', 'por_realizar') as $entregaCalendario)
                                 <option value="{{ $entregaCalendario['data_key'] }}">{{ $entregaCalendario['data']->format('d/m/Y') }}</option>
                             @endforeach
                         </select>

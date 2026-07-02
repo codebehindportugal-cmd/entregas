@@ -295,4 +295,73 @@ class WooOrderPublishTest extends TestCase
                 && collect(data_get($payload, 'coupon_lines', []))->pluck('code')->all() === ['MANUAL10', 'FRESCO'];
         });
     }
+
+    public function test_create_pending_order_without_existing_profile_posts_customer_products_and_coupons(): void
+    {
+        config([
+            'woocommerce.url' => 'https://example.test',
+            'woocommerce.key' => 'ck_test',
+            'woocommerce.secret' => 'cs_test',
+        ]);
+
+        $product = WooProduct::create([
+            'woo_id' => 654,
+            'name' => 'Cabaz novo',
+            'type' => 'simple',
+            'status' => 'publish',
+            'stock_status' => 'instock',
+            'purchasable' => true,
+            'em_epoca' => true,
+            'disponivel_compra' => true,
+        ]);
+
+        Http::fake([
+            'example.test/wp-json/wc/v3/orders' => Http::response([
+                'id' => 789,
+                'status' => 'pending',
+                'total' => '22.00',
+                'date_created' => '2026-05-07T10:00:00',
+                'payment_url' => 'https://example.test/pay/789',
+                'billing' => [
+                    'first_name' => 'Cliente',
+                    'last_name' => 'Novo',
+                    'email' => 'novo@example.test',
+                    'phone' => '910000000',
+                ],
+                'line_items' => [
+                    ['name' => 'Cabaz novo', 'quantity' => 2, 'product_id' => 654],
+                ],
+            ], 201),
+        ]);
+
+        $result = app(WooCommerceService::class)->createPendingOrder([
+            'billing_name' => 'Cliente Novo',
+            'billing_phone' => '910000000',
+            'billing_email' => 'novo@example.test',
+            'billing_address_1' => 'Rua Nova 1',
+            'billing_city' => 'Lisboa',
+            'products' => [
+                ['woo_product_id' => $product->id, 'quantity' => 2],
+            ],
+            'coupon_codes' => ['NOVO10'],
+            'dia_entrega' => 'quarta',
+            'scheduled_delivery_at' => '2026-05-13',
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            $payload = $request->data();
+
+            return $request->method() === 'POST'
+                && data_get($payload, 'billing.email') === 'novo@example.test'
+                && data_get($payload, 'line_items.0.product_id') === 654
+                && data_get($payload, 'line_items.0.quantity') === 2
+                && collect(data_get($payload, 'coupon_lines', []))->pluck('code')->all() === ['NOVO10'];
+        });
+        $this->assertSame('https://example.test/pay/789', $result['payment_url']);
+        $this->assertDatabaseHas('woo_orders', [
+            'woo_id' => 789,
+            'billing_email' => 'novo@example.test',
+            'status' => 'pending',
+        ]);
+    }
 }

@@ -324,6 +324,85 @@ class WooCommerceService
         ];
     }
 
+    public function createPendingOrder(array $data): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $lineItems = $this->manualPendingOrderLineItems($data['products'] ?? []);
+
+        if ($lineItems === []) {
+            throw new RuntimeException('Escolhe pelo menos um produto WooCommerce para criar a encomenda.');
+        }
+
+        $billingName = trim((string) ($data['billing_name'] ?? ''));
+        [$firstName, $lastName] = $this->splitBillingName($billingName);
+        $billing = $this->sanitizeBilling([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $data['billing_email'] ?? null,
+            'phone' => $data['billing_phone'] ?? null,
+            'address_1' => $data['billing_address_1'] ?? null,
+            'city' => $data['billing_city'] ?? null,
+            'postcode' => $data['billing_postcode'] ?? null,
+        ]);
+        $shipping = $this->sanitizeBilling([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'address_1' => ($data['shipping_address_1'] ?? null) ?: ($data['billing_address_1'] ?? null),
+            'city' => ($data['shipping_city'] ?? null) ?: ($data['billing_city'] ?? null),
+            'postcode' => ($data['shipping_postcode'] ?? null) ?: ($data['billing_postcode'] ?? null),
+        ]);
+        $meta = collect([
+            '_hdm_dia_entrega' => $data['dia_entrega'] ?? null,
+            '_hdm_data_entrega' => $data['scheduled_delivery_at'] ?? null,
+            '_hdm_criada_manual' => '1',
+        ])
+            ->filter(fn (mixed $value): bool => filled($value))
+            ->map(fn (mixed $value, string $key): array => ['key' => $key, 'value' => $value])
+            ->values()
+            ->all();
+
+        $payload = [
+            'status' => 'pending',
+            'billing' => $billing,
+            'shipping' => $shipping,
+            'line_items' => $lineItems,
+            'coupon_lines' => $this->pendingOrderCoupons([], $data['coupon_codes'] ?? null),
+            'customer_note' => $data['customer_notes'] ?? null,
+            'meta_data' => $meta,
+        ];
+
+        $response = $this->client()
+            ->post("{$url}/wp-json/wc/v3/orders", $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro ao criar encomenda WooCommerce: '.$response->status().' - '.$response->body());
+        }
+
+        $wooOrder = $response->json();
+        $payload = $this->payload($wooOrder, 'order');
+        $payload['source_type'] = 'order';
+        $payload['customer_language'] = $data['customer_language'] ?? $payload['customer_language'];
+        $payload['dia_entrega'] = $data['dia_entrega'] ?? $payload['dia_entrega'];
+        $payload['scheduled_delivery_at'] = $data['scheduled_delivery_at'] ?? ($payload['scheduled_delivery_at'] ?? null);
+        $payload['customer_notes'] = $data['customer_notes'] ?? null;
+        $payload['raw_payload'] = array_replace_recursive($wooOrder, ['payment_url' => $this->paymentUrl($wooOrder)]);
+
+        $model = WooOrder::updateOrCreate(
+            ['woo_id' => (int) Arr::get($wooOrder, 'id')],
+            $payload
+        );
+
+        return [
+            'order' => $model,
+            'payment_url' => $this->paymentUrl($wooOrder),
+        ];
+    }
+
     public function markAsCompleted(WooOrder $order): WooOrder
     {
         $url = rtrim((string) config('woocommerce.url'), '/');

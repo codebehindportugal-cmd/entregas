@@ -99,6 +99,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');
         Route::post('/encomendas/sync', [EncomendaController::class, 'sync'])->name('encomendas.sync');
         Route::delete('/encomendas/limpar-todas', [EncomendaController::class, 'destroyAll'])->name('encomendas.destroy-all');
+        Route::get('/encomendas/nova', [EncomendaController::class, 'create'])->name('encomendas.create');
+        Route::post('/encomendas/nova', [EncomendaController::class, 'store'])->name('encomendas.store');
         Route::get('/encomendas/{encomenda}', [EncomendaController::class, 'show'])->name('encomendas.show');
         Route::put('/encomendas/{encomenda}/perfil', [EncomendaController::class, 'updateProfile'])->name('encomendas.profile.update');
         Route::post('/encomendas/{encomenda}/duplicar', [EncomendaController::class, 'duplicate'])->name('encomendas.duplicate');

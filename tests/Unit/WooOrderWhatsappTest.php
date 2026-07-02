@@ -64,6 +64,18 @@ class WooOrderWhatsappTest extends TestCase
         $this->assertStringContainsString('Shall we send it?', $message);
     }
 
+    public function test_active_subscription_is_recognized_for_renewal_whatsapp(): void
+    {
+        $order = new WooOrder([
+            'status' => 'active',
+            'billing_name' => 'Maria',
+            'billing_phone' => '912345678',
+        ]);
+
+        $this->assertTrue($order->isSubscricao());
+        $this->assertNotNull($order->whatsappRenovacaoUrl());
+    }
+
     public function test_moloni_document_uses_last_positive_document_id(): void
     {
         config(['woocommerce.url' => 'https://loja.test']);

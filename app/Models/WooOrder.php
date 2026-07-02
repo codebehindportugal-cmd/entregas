@@ -267,6 +267,68 @@ class WooOrder extends Model
             ->values();
     }
 
+    public function calendarioEntregas(): Collection
+    {
+        if ($this->isSubscricao()) {
+            return $this->calendarioSubscricao();
+        }
+
+        $registos = $this->registosEntregaParaConclusao()
+            ->mapWithKeys(fn (RegistoEntrega $registo): array => [
+                Carbon::parse($registo->data_entrega)->toDateString() => $registo->status,
+            ]);
+        $datas = collect([
+            $this->scheduled_delivery_at?->toDateString(),
+            $this->postponed_until?->toDateString(),
+        ])
+            ->merge($registos->keys())
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
+
+        if ($datas->isEmpty() && $this->dia_entrega !== null) {
+            $data = now()->startOfDay();
+
+            for ($i = 0; $i < 21; $i++) {
+                if ($this->diaEntregaCoincideComData($data->toDateString())) {
+                    $datas->push($data->toDateString());
+                    break;
+                }
+
+                $data->addDay();
+            }
+        }
+
+        $postponedUntil = $this->postponed_until?->toDateString();
+
+        return $datas
+            ->map(function (string $data) use ($registos, $postponedUntil): array {
+                $date = Carbon::parse($data);
+                $registoStatus = $registos->get($data);
+                $status = match (true) {
+                    $registoStatus === 'entregue' => 'entregue',
+                    $registoStatus === 'falhou' => 'em_atraso',
+                    $postponedUntil === $data => 'adiada',
+                    $date->isPast() && ! $date->isToday() => 'em_atraso',
+                    default => 'por_realizar',
+                };
+
+                return [
+                    'data' => $date,
+                    'data_key' => $data,
+                    'status' => $status,
+                    'label' => match ($status) {
+                        'entregue' => 'Entregue',
+                        'adiada' => 'Adiada',
+                        'em_atraso' => 'Em atraso',
+                        default => 'Por realizar',
+                    },
+                ];
+            })
+            ->values();
+    }
+
     private function entregaContaComoFeita(
         string $data,
         ?string $dataAdiada,

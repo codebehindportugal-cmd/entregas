@@ -9,6 +9,7 @@
     @endphp
     <x-page-title title="Encomendas" subtitle="Cache local das encomendas WooCommerce">
         <div class="flex flex-wrap gap-2">
+            <a href="{{ route('encomendas.create') }}" class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Nova encomenda B2C</a>
             <form method="post" action="{{ route('encomendas.sync') }}">
                 @csrf
                 <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Sincronizar agora</button>
@@ -165,8 +166,8 @@
                         </td>
                         <td class="p-3 font-semibold text-white">{{ number_format((float) $order->total, 2, ',', ' ') }} €</td>
                         <td class="p-3 text-right">
-                            @if($order->status === 'subscricao' && $order->whatsappRenovacaoUrl())
-                                <a href="{{ $order->whatsappRenovacaoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">WhatsApp</a>
+                            @if($order->isSubscricao() && $order->whatsappRenovacaoUrl())
+                                <a href="{{ $order->whatsappRenovacaoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">WhatsApp renovacao</a>
                             @endif
                             @if($order->whatsappPagamentoUrl())
                                 <a href="{{ $order->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Enviar pagamento</a>
