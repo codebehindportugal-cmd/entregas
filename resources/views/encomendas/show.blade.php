@@ -204,25 +204,11 @@
             <form method="post" action="{{ route('encomendas.duplicate', $encomenda) }}" class="rounded border border-white/10 bg-[#151E2D] p-5" onsubmit="return confirm('Criar esta encomenda no WooCommerce em pagamento pendente?');">
                 @csrf
                 <h2 class="text-lg font-semibold text-white">Criar encomenda WooCommerce</h2>
-                <div class="mt-4 space-y-3">
-                    @for($linha = 0; $linha < 6; $linha++)
-                        @php($itemOriginal = ($encomenda->line_items ?? [])[$linha] ?? null)
-                        <div class="grid gap-3 md:grid-cols-[1fr_8rem]">
-                            <label class="block text-sm text-slate-300">Produto
-                                <select name="products[{{ $linha }}][woo_product_id]" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                                    <option value="">{{ $itemOriginal ? (($itemOriginal['quantity'] ?? 1).'x '.($itemOriginal['name'] ?? 'Produto antigo')) : 'Escolher produto' }}</option>
-                                    @foreach($wooProducts as $produtoWoo)
-                                        <option value="{{ $produtoWoo->id }}">
-                                            {{ $produtoWoo->name }}{{ $produtoWoo->precoVenda() !== null ? ' - '.number_format($produtoWoo->precoVenda(), 2, ',', ' ').' EUR' : '' }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="block text-sm text-slate-300">Qtd.
-                                <input name="products[{{ $linha }}][quantity]" type="number" min="1" max="999" value="{{ $itemOriginal['quantity'] ?? 1 }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                            </label>
-                        </div>
-                    @endfor
+                <div class="mt-4">
+                    @include('encomendas._product-lines', [
+                        'wooProducts' => $wooProducts,
+                        'initialLines' => $encomenda->line_items ?? [],
+                    ])
                 </div>
                 <div class="mt-4">
                     <p class="text-sm text-slate-300">Cupoes</p>

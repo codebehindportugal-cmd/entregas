@@ -70,24 +70,8 @@
         <section class="space-y-6">
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Produtos</h2>
-                <div class="mt-4 space-y-3">
-                    @for($linha = 0; $linha < 8; $linha++)
-                        <div class="grid gap-3 md:grid-cols-[1fr_8rem]">
-                            <label class="block text-sm text-slate-300">Produto
-                                <select name="products[{{ $linha }}][woo_product_id]" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                                    <option value="">Escolher produto</option>
-                                    @foreach($wooProducts as $produtoWoo)
-                                        <option value="{{ $produtoWoo->id }}" @selected(old("products.{$linha}.woo_product_id") == $produtoWoo->id)>
-                                            {{ $produtoWoo->name }}{{ $produtoWoo->precoVenda() !== null ? ' - '.number_format($produtoWoo->precoVenda(), 2, ',', ' ').' EUR' : '' }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </label>
-                            <label class="block text-sm text-slate-300">Qtd.
-                                <input name="products[{{ $linha }}][quantity]" type="number" min="1" max="999" value="{{ old("products.{$linha}.quantity", 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                            </label>
-                        </div>
-                    @endfor
+                <div class="mt-4">
+                    @include('encomendas._product-lines', ['wooProducts' => $wooProducts])
                 </div>
                 @if($wooProducts->isEmpty())
                     <p class="mt-3 rounded bg-[#F59E0B]/15 px-3 py-2 text-sm text-amber-200">Sincroniza produtos primeiro.</p>
