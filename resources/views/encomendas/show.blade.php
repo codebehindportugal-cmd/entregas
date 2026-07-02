@@ -10,6 +10,9 @@
             @if($encomenda->whatsappFaturaUrl())
                 <a href="{{ $encomenda->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
             @endif
+            @if($encomenda->whatsappPagamentoUrl())
+                <a href="{{ $encomenda->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Enviar pagamento</a>
+            @endif
             @if(! in_array($encomenda->status, ['completed', 'wc-completed'], true))
                 <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                     @csrf
@@ -195,6 +198,59 @@
         </section>
 
         <section class="space-y-6">
+            <form method="post" action="{{ route('encomendas.duplicate', $encomenda) }}" class="rounded border border-white/10 bg-[#151E2D] p-5" onsubmit="return confirm('Criar esta encomenda no WooCommerce em pagamento pendente?');">
+                @csrf
+                <h2 class="text-lg font-semibold text-white">Criar encomenda WooCommerce</h2>
+                <div class="mt-4 space-y-3">
+                    @for($linha = 0; $linha < 6; $linha++)
+                        @php($itemOriginal = ($encomenda->line_items ?? [])[$linha] ?? null)
+                        <div class="grid gap-3 md:grid-cols-[1fr_8rem]">
+                            <label class="block text-sm text-slate-300">Produto
+                                <select name="products[{{ $linha }}][woo_product_id]" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                                    <option value="">{{ $itemOriginal ? (($itemOriginal['quantity'] ?? 1).'x '.($itemOriginal['name'] ?? 'Produto antigo')) : 'Escolher produto' }}</option>
+                                    @foreach($wooProducts as $produtoWoo)
+                                        <option value="{{ $produtoWoo->id }}">
+                                            {{ $produtoWoo->name }}{{ $produtoWoo->precoVenda() !== null ? ' - '.number_format($produtoWoo->precoVenda(), 2, ',', ' ').' EUR' : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="block text-sm text-slate-300">Qtd.
+                                <input name="products[{{ $linha }}][quantity]" type="number" min="1" max="999" value="{{ $itemOriginal['quantity'] ?? 1 }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            </label>
+                        </div>
+                    @endfor
+                </div>
+                <div class="mt-4">
+                    <p class="text-sm text-slate-300">Cupoes</p>
+                    @if($couponLoadError)
+                        <p class="mt-1 rounded bg-red-500/10 px-3 py-2 text-sm text-red-200">Nao foi possivel carregar os cupoes do WooCommerce.</p>
+                    @elseif(count($wooCoupons) === 0)
+                        <p class="mt-1 rounded bg-white/5 px-3 py-2 text-sm text-slate-400">Sem cupoes registados no WooCommerce.</p>
+                    @else
+                        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                            @foreach($wooCoupons as $coupon)
+                                <label class="flex items-start gap-2 rounded border border-white/10 bg-[#0A0F1A] p-3 text-sm text-slate-200">
+                                    <input name="coupon_codes[]" type="checkbox" value="{{ $coupon['code'] }}" class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
+                                    <span>
+                                        <span class="font-semibold text-white">{{ $coupon['code'] }}</span>
+                                        @if(filled($coupon['amount'] ?? null))
+                                            <span class="text-slate-400">({{ $coupon['amount'] }}{{ ($coupon['discount_type'] ?? '') === 'percent' ? '%' : ' EUR' }})</span>
+                                        @endif
+                                    </span>
+                                </label>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <button class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Criar no WooCommerce</button>
+                    @if($wooProducts->isEmpty())
+                        <span class="rounded bg-[#F59E0B]/15 px-3 py-2 text-sm text-amber-200">Sincroniza produtos primeiro.</span>
+                    @endif
+                </div>
+            </form>
+
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Preferencias do WordPress</h2>
                 @if($encomenda->preferences_text)

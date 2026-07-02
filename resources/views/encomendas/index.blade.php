@@ -168,7 +168,7 @@
                             @if($order->status === 'subscricao' && $order->whatsappRenovacaoUrl())
                                 <a href="{{ $order->whatsappRenovacaoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">WhatsApp</a>
                             @endif
-                            @if($order->status === 'pending' && $order->whatsappPagamentoUrl())
+                            @if($order->whatsappPagamentoUrl())
                                 <a href="{{ $order->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Enviar pagamento</a>
                             @endif
                             @if($order->publicInvoiceUrl())

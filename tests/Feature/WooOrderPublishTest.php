@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\WooOrder;
+use App\Models\WooProduct;
 use App\Services\WooCommerceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -214,11 +215,84 @@ class WooOrderPublishTest extends TestCase
         app(WooCommerceService::class)->createPendingOrderFrom($order);
 
         Http::assertSent(function ($request): bool {
+            $payload = $request->data();
+
             return $request->method() === 'POST'
-                && $request->url() === 'https://example.test/wp-json/wc/v3/orders'
-                && $request->data('line_items') === [
-                    ['product_id' => 14383, 'quantity' => 1],
-                ];
+                && str_contains($request->url(), '/wp-json/wc/v3/orders')
+                && data_get($payload, 'line_items.0.product_id') === 14383
+                && data_get($payload, 'line_items.0.quantity') === 1;
+        });
+    }
+
+    public function test_create_pending_order_uses_selected_woocommerce_products_and_manual_coupons(): void
+    {
+        config([
+            'woocommerce.url' => 'https://example.test',
+            'woocommerce.key' => 'ck_test',
+            'woocommerce.secret' => 'cs_test',
+        ]);
+
+        $product = WooProduct::create([
+            'woo_id' => 987,
+            'name' => 'Cabaz manual',
+            'type' => 'simple',
+            'status' => 'publish',
+            'stock_status' => 'instock',
+            'purchasable' => true,
+            'em_epoca' => true,
+            'disponivel_compra' => true,
+        ]);
+
+        $order = WooOrder::factory()->create([
+            'woo_id' => 123,
+            'billing_name' => 'Maria Silva',
+            'billing_phone' => '910000000',
+            'billing_email' => 'maria@example.test',
+            'raw_payload' => [
+                'billing' => [
+                    'first_name' => 'Maria',
+                    'last_name' => 'Silva',
+                ],
+                'line_items' => [
+                    ['name' => 'Valor manual', 'quantity' => 1],
+                ],
+            ],
+        ]);
+
+        Http::fake([
+            'example.test/wp-json/wc/v3/orders/123' => Http::response([], 404),
+            'example.test/wp-json/wc/v3/subscriptions/123' => Http::response([], 404),
+            'example.test/wp-json/wc/v3/orders' => Http::response([
+                'id' => 456,
+                'status' => 'pending',
+                'total' => '35.50',
+                'date_created' => '2026-05-07T10:00:00',
+                'billing' => [
+                    'first_name' => 'Maria',
+                    'last_name' => 'Silva',
+                    'email' => 'maria@example.test',
+                ],
+                'line_items' => [
+                    ['name' => 'Cabaz manual', 'quantity' => 3, 'product_id' => 987],
+                ],
+            ], 201),
+        ]);
+
+        app(WooCommerceService::class)->createPendingOrderFrom($order, [
+            'products' => [
+                ['woo_product_id' => $product->id, 'quantity' => 3],
+            ],
+            'coupon_codes' => "MANUAL10\nFRESCO",
+        ]);
+
+        Http::assertSent(function ($request): bool {
+            $payload = $request->data();
+
+            return $request->method() === 'POST'
+                && str_contains($request->url(), '/wp-json/wc/v3/orders')
+                && data_get($payload, 'line_items.0.product_id') === 987
+                && data_get($payload, 'line_items.0.quantity') === 3
+                && collect(data_get($payload, 'coupon_lines', []))->pluck('code')->all() === ['MANUAL10', 'FRESCO'];
         });
     }
 }

@@ -193,6 +193,38 @@ class WooCommerceService
         return $all;
     }
 
+    public function fetchCoupons(): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        if (blank($url) || blank(config('woocommerce.key')) || blank(config('woocommerce.secret'))) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $response = $this->client()
+            ->get("{$url}/wp-json/wc/v3/coupons", [
+                'per_page' => config('woocommerce.per_page'),
+                'orderby' => 'date',
+                'order' => 'desc',
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro WooCommerce Cupoes: '.$response->status().' - '.$response->body());
+        }
+
+        return collect($response->json())
+            ->filter(fn (mixed $coupon): bool => is_array($coupon) && filled($coupon['code'] ?? null))
+            ->map(fn (array $coupon): array => [
+                'id' => (int) Arr::get($coupon, 'id'),
+                'code' => (string) Arr::get($coupon, 'code'),
+                'amount' => Arr::get($coupon, 'amount'),
+                'discount_type' => Arr::get($coupon, 'discount_type'),
+                'description' => Arr::get($coupon, 'description'),
+            ])
+            ->values()
+            ->all();
+    }
+
     public function fetchProductsPage(int $page = 1, int $perPage = 20): array
     {
         $url = rtrim((string) config('woocommerce.url'), '/');
@@ -259,7 +291,7 @@ class WooCommerceService
         ];
     }
 
-    public function createPendingOrderFrom(WooOrder $order): array
+    public function createPendingOrderFrom(WooOrder $order, array $options = []): array
     {
         $url = rtrim((string) config('woocommerce.url'), '/');
 
@@ -267,7 +299,7 @@ class WooCommerceService
             throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
         }
 
-        $payload = $this->pendingOrderPayload($order);
+        $payload = $this->pendingOrderPayload($order, $options);
 
         $response = $this->client()
             ->post("{$url}/wp-json/wc/v3/orders", $payload);
@@ -554,10 +586,11 @@ class WooCommerceService
         return $payload;
     }
 
-    private function pendingOrderPayload(WooOrder $order): array
+    private function pendingOrderPayload(WooOrder $order, array $options = []): array
     {
         $sourcePayload = $this->payloadWithPublishableLineItems($order);
-        $lineItems = collect(Arr::get($sourcePayload, 'line_items', []))
+        $manualLineItems = $this->manualPendingOrderLineItems($options['products'] ?? []);
+        $lineItems = ($manualLineItems !== [] ? collect($manualLineItems) : collect(Arr::get($sourcePayload, 'line_items', [])))
             ->map(function (array $item): array {
                 return array_filter([
                     'product_id' => (int) Arr::get($item, 'product_id'),
@@ -586,7 +619,7 @@ class WooCommerceService
             'billing' => $billing,
             'shipping' => Arr::get($sourcePayload, 'shipping', []),
             'line_items' => $lineItems,
-            'coupon_lines' => $this->pendingOrderCoupons($sourcePayload),
+            'coupon_lines' => $this->pendingOrderCoupons($sourcePayload, $options['coupon_codes'] ?? null),
             'customer_note' => $order->customer_notes,
             'meta_data' => $this->pendingOrderMeta($order),
         ];
@@ -600,8 +633,68 @@ class WooCommerceService
         return $payload;
     }
 
-    private function pendingOrderCoupons(array $sourcePayload): array
+    private function manualPendingOrderLineItems(array $products): array
     {
+        $ids = collect($products)
+            ->pluck('woo_product_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $wooProducts = \App\Models\WooProduct::query()
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+
+        return collect($products)
+            ->map(function (array $line) use ($wooProducts): array {
+                $product = $wooProducts->get((int) ($line['woo_product_id'] ?? 0));
+
+                if ($product === null) {
+                    return [];
+                }
+
+                $quantity = max(1, (int) ($line['quantity'] ?? 1));
+                $parentId = (int) data_get($product->raw_payload, 'parent_id');
+
+                if ($product->type === 'variation' && $parentId > 0) {
+                    return [
+                        'product_id' => $parentId,
+                        'variation_id' => (int) $product->woo_id,
+                        'quantity' => $quantity,
+                    ];
+                }
+
+                return [
+                    'product_id' => (int) $product->woo_id,
+                    'quantity' => $quantity,
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private function pendingOrderCoupons(array $sourcePayload, string|array|null $manualCoupons = null): array
+    {
+        if (filled($manualCoupons)) {
+            $codes = is_array($manualCoupons)
+                ? $manualCoupons
+                : (preg_split('/[,;\r\n]+/', $manualCoupons) ?: []);
+
+            return collect($codes)
+                ->map(fn (mixed $code): string => trim((string) $code))
+                ->filter()
+                ->unique()
+                ->map(fn (string $code): array => ['code' => $code])
+                ->values()
+                ->all();
+        }
+
         return collect(Arr::get($sourcePayload, 'coupon_lines', []))
             ->map(function (array $coupon): array {
                 return array_filter([

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WooOrder;
+use App\Models\WooProduct;
 use App\Services\MoloniService;
 use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
@@ -104,11 +105,23 @@ class EncomendaController extends Controller
         return back()->with('status', "WooCommerce sincronizado: {$result['fetched']} lidas ({$result['orders']} encomendas, {$result['subscriptions']} subscricoes), {$result['created']} criadas, {$result['updated']} atualizadas, {$result['removed']} concluidas removidas.");
     }
 
-    public function show(WooOrder $encomenda): View
+    public function show(WooOrder $encomenda, WooCommerceService $service): View
     {
         $encomenda->load(['preparacaoItems.feitoPor', 'registoEntregas.user']);
+        $wooProducts = WooProduct::query()
+            ->where('status', 'publish')
+            ->orderBy('name')
+            ->get();
+        $wooCoupons = [];
+        $couponLoadError = null;
 
-        return view('encomendas.show', compact('encomenda'));
+        try {
+            $wooCoupons = $service->fetchCoupons();
+        } catch (Throwable $exception) {
+            $couponLoadError = $exception->getMessage();
+        }
+
+        return view('encomendas.show', compact('encomenda', 'wooProducts', 'wooCoupons', 'couponLoadError'));
     }
 
     public function updateProfile(Request $request, WooOrder $encomenda): RedirectResponse
@@ -174,10 +187,37 @@ class EncomendaController extends Controller
         return back()->with('status', 'Adiamento removido.');
     }
 
-    public function duplicate(WooOrder $encomenda, WooCommerceService $service): RedirectResponse
+    public function duplicate(Request $request, WooOrder $encomenda, WooCommerceService $service): RedirectResponse
     {
+        $data = $request->validate([
+            'products' => ['nullable', 'array'],
+            'products.*.woo_product_id' => ['nullable', 'integer', 'exists:woo_products,id'],
+            'products.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999'],
+            'coupon_codes' => ['nullable', 'array'],
+            'coupon_codes.*' => ['string', 'max:255'],
+        ]);
+
+        $couponCodes = array_values(array_unique(array_filter($data['coupon_codes'] ?? [])));
+
+        if ($couponCodes !== []) {
+            try {
+                $registeredCodes = collect($service->fetchCoupons())->pluck('code')->all();
+            } catch (Throwable $exception) {
+                return back()->withErrors(['publish' => 'Nao foi possivel validar os cupoes no WooCommerce: '.$exception->getMessage()]);
+            }
+
+            $invalidCoupons = array_values(array_diff($couponCodes, $registeredCodes));
+
+            if ($invalidCoupons !== []) {
+                return back()->withErrors(['publish' => 'Cupoes nao registados no WooCommerce: '.implode(', ', $invalidCoupons)]);
+            }
+        }
+
         try {
-            $result = $service->createPendingOrderFrom($encomenda);
+            $result = $service->createPendingOrderFrom($encomenda, [
+                'products' => $data['products'] ?? [],
+                'coupon_codes' => $couponCodes,
+            ]);
         } catch (Throwable $exception) {
             return back()->withErrors(['publish' => $exception->getMessage()]);
         }
