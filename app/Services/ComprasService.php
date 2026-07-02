@@ -90,11 +90,13 @@ class ComprasService
             $pastelaria = $this->pastelariaVazia();
 
             foreach ($corporates as $corporate) {
-                foreach ($corporate->frutasParaDia($diaSemana) as $fruta => $quantidade) {
+                $diaEntrega = $corporate->diaEntregaOriginalParaData($data) ?? $diaSemana;
+
+                foreach ($corporate->frutasParaDia($diaEntrega) as $fruta => $quantidade) {
                     $pecas[$fruta] = ($pecas[$fruta] ?? 0) + (in_array($fruta, self::PRODUTOS_KG, true) ? (float) $quantidade : (int) $quantidade);
                 }
 
-                foreach ($corporate->pastelariaPorDia($diaSemana) as $produto => $quantidade) {
+                foreach ($corporate->pastelariaPorDia($diaEntrega) as $produto => $quantidade) {
                     $pastelaria[$produto] = ($pastelaria[$produto] ?? 0) + (int) $quantidade;
                 }
             }

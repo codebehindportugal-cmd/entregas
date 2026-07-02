@@ -156,9 +156,17 @@
 
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Adiar entrega</h2>
-                <form method="post" action="{{ route('encomendas.postpone', $encomenda) }}" class="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                <form method="post" action="{{ route('encomendas.postpone', $encomenda) }}" class="mt-4 grid gap-3 {{ $encomenda->isSubscricao() ? 'sm:grid-cols-[1fr_1fr_auto]' : 'sm:grid-cols-[1fr_auto]' }}">
                     @csrf
                     @method('put')
+                    @if($encomenda->isSubscricao())
+                        <select name="delivery_date" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
+                            <option value="">Proxima entrega em aberto</option>
+                            @foreach($calendarioSubscricao->where('status', 'por_realizar') as $entregaCalendario)
+                                <option value="{{ $entregaCalendario['data_key'] }}">{{ $entregaCalendario['data']->format('d/m/Y') }}</option>
+                            @endforeach
+                        </select>
+                    @endif
                     <input name="postponed_until" type="date" value="{{ optional($encomenda->postponed_until)->toDateString() }}" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                     <button class="rounded bg-[#F59E0B]/20 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-[#F59E0B]/30">Guardar adiamento</button>
                 </form>
@@ -169,7 +177,7 @@
                         <button class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">Remover adiamento</button>
                     </form>
                 @endif
-                @if(! $encomenda->isSubscricao() && filled($encomenda->postponement_history))
+                @if(filled($encomenda->postponement_history))
                     <div class="mt-4 border-t border-white/10 pt-4">
                         <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Historico de adiamentos</h3>
                         <div class="mt-2 space-y-1 text-sm text-slate-300">

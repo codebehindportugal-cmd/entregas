@@ -7,11 +7,12 @@ use App\Models\PreparacaoItem;
 use App\Models\RegistoEntrega;
 use App\Models\User;
 use App\Models\WooOrder;
+use App\Services\HolidayCalendarService;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(HolidayCalendarService $holidayCalendar): View
     {
         $hoje = now()->toDateString();
         $preparacaoHoje = PreparacaoItem::with(['corporate', 'wooOrder'])
@@ -44,6 +45,7 @@ class DashboardController extends Controller
             'ultimasEncomendas' => WooOrder::latest('synced_at')->limit(5)->get(),
             'proximasPreparacoes' => $preparacaoHoje->where('feito', false)->take(6),
             'entregasPendentes' => $entregasHoje->where('status', 'pendente')->take(6),
+            'feriados' => $holidayCalendar->upcoming(12),
         ]);
     }
 }

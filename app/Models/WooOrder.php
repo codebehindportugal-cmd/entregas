@@ -340,11 +340,38 @@ class WooOrder extends Model
         $dataOriginal = $novaData < $hoje
             ? $datasPorAdiar->last(fn (string $data) => $data < $novaData)
             : $datasPorAdiar->first(fn (string $data) => $data >= $hoje);
+        $dataSemanasAntes = Carbon::parse($novaData)->subWeeks($this->semanasPorCiclo())->toDateString();
+        $recalcularPosteriores = $datas->contains($novaData) && ! $datas->contains($dataSemanasAntes);
 
         $dataOriginal ??= $datasPorAdiar->first();
+        $dataOriginal = $recalcularPosteriores ? $novaData : $dataOriginal;
 
         if ($dataOriginal === null) {
             $this->guardarAdiamento(['postponed_until' => $novaData]);
+
+            return;
+        }
+
+        $novasDatas = $this->substituirDataDaSubscricao($datas, $dataOriginal, $novaData, $recalcularPosteriores);
+        $dataFim = collect($novasDatas)->last();
+
+        $this->guardarAdiamento([
+            'delivery_dates' => $novasDatas,
+            'next_payment_at' => $this->next_payment_at?->toDateString(),
+            'subscription_ends_at' => $dataFim,
+            'postponed_until' => $novaData,
+            'postponement_history' => $this->historicoComAdiamento($dataOriginal, $novaData),
+        ]);
+    }
+
+    public function adiarEntregaDaSubscricaoPara(string|Carbon $dataOriginal, string|Carbon $dataNova): void
+    {
+        $dataOriginal = Carbon::parse($dataOriginal)->toDateString();
+        $novaData = Carbon::parse($dataNova)->toDateString();
+        $datas = $this->datasSubscricao();
+
+        if (! $datas->contains($dataOriginal)) {
+            $this->adiarProximaEntregaPara($novaData);
 
             return;
         }
@@ -357,6 +384,7 @@ class WooOrder extends Model
             'next_payment_at' => $this->next_payment_at?->toDateString(),
             'subscription_ends_at' => $dataFim,
             'postponed_until' => $novaData,
+            'postponement_history' => $this->historicoComAdiamento($dataOriginal, $novaData),
         ]);
     }
 
@@ -367,22 +395,17 @@ class WooOrder extends Model
             ?? $this->scheduled_delivery_at?->toDateString()
             ?? $this->ordered_at?->toDateString();
 
-        $historico = collect($this->postponement_history ?? [])
-            ->filter(fn (mixed $item): bool => is_array($item))
-            ->values();
-
-        if ($dataAtual !== null && $dataAtual !== $novaData) {
-            $historico->push([
-                'from' => $dataAtual,
-                'to' => $novaData,
-                'changed_at' => now()->toDateTimeString(),
-            ]);
-        }
+        $historico = $dataAtual !== null && $dataAtual !== $novaData
+            ? $this->historicoComAdiamento($dataAtual, $novaData)
+            : collect($this->postponement_history ?? [])
+                ->filter(fn (mixed $item): bool => is_array($item))
+                ->values()
+                ->all();
 
         $this->forceFill([
             'postponed_until' => $novaData,
             'scheduled_delivery_at' => $novaData,
-            'postponement_history' => $historico->values()->all(),
+            'postponement_history' => $historico,
         ])->save();
     }
 
@@ -404,7 +427,7 @@ class WooOrder extends Model
         ])->save();
     }
 
-    private function substituirDataDaSubscricao(Collection $datas, string $dataOriginal, string $novaData): array
+    private function substituirDataDaSubscricao(Collection $datas, string $dataOriginal, string $novaData, bool $recalcularPosteriores = false): array
     {
         $anteriores = $datas
             ->takeUntil(fn (string $data): bool => $data === $dataOriginal)
@@ -419,7 +442,7 @@ class WooOrder extends Model
         foreach ($posteriores as $dataOriginalPosterior) {
             $data = Carbon::parse($dataOriginalPosterior);
 
-            if ($data->lessThanOrEqualTo($ultimaData) || $ultimaData->diffInDays($data) < $this->diasMinimosEntreEntregas()) {
+            if ($recalcularPosteriores || $data->lessThanOrEqualTo($ultimaData) || $ultimaData->diffInDays($data) < $this->diasMinimosEntreEntregas()) {
                 $data = $ultimaData->copy()->addWeeks($this->semanasPorCiclo());
 
                 while ($data->dayOfWeek !== $diaSemana) {
@@ -438,7 +461,7 @@ class WooOrder extends Model
 
     private function datasBaseParaAdiamento(Collection $datas, string $novaData): Collection
     {
-        if ($this->first_delivery_at === null || $novaData >= now()->toDateString()) {
+        if ($datas->isNotEmpty() || $this->first_delivery_at === null || $novaData >= now()->toDateString()) {
             return $datas;
         }
 
@@ -494,6 +517,23 @@ class WooOrder extends Model
         if ($this->exists) {
             $this->save();
         }
+    }
+
+    private function historicoComAdiamento(string $dataOriginal, string $novaData): array
+    {
+        $historico = collect($this->postponement_history ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->values();
+
+        if ($dataOriginal !== $novaData) {
+            $historico->push([
+                'from' => $dataOriginal,
+                'to' => $novaData,
+                'changed_at' => now()->toDateTimeString(),
+            ]);
+        }
+
+        return $historico->values()->all();
     }
 
     private function preparacaoItemsParaAdiamento(): Collection

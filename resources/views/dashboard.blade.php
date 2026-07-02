@@ -58,6 +58,35 @@
         </div>
     </section>
 
+    <section class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-semibold text-white">Calendario de feriados</h2>
+                <p class="text-sm text-slate-400">Nacionais e municipais configurados para os proximos 12 meses.</p>
+            </div>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-3">
+            @foreach($feriados->groupBy(fn ($feriado) => \Illuminate\Support\Carbon::parse($feriado['date'])->format('Y-m')) as $mes => $feriadosMes)
+                @php($dataMes = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $mes.'-01'))
+                <div class="rounded border border-white/10 bg-[#0A0F1A] p-4">
+                    <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-400">{{ $dataMes->translatedFormat('F Y') }}</h3>
+                    <div class="mt-3 space-y-2">
+                        @foreach($feriadosMes as $feriado)
+                            @php($dataFeriado = \Illuminate\Support\Carbon::parse($feriado['date']))
+                            <div class="flex items-start justify-between gap-3 rounded bg-white/5 px-3 py-2">
+                                <div>
+                                    <p class="text-sm font-semibold text-white">{{ $feriado['name'] }}</p>
+                                    <p class="text-xs text-slate-400">{{ $feriado['type'] === 'municipal' ? 'Municipal'.($feriado['municipality'] ? ' - '.$feriado['municipality'] : '') : 'Nacional' }}</p>
+                                </div>
+                                <span class="shrink-0 rounded bg-white/10 px-2 py-1 text-xs font-semibold text-slate-200">{{ $dataFeriado->format('d/m') }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </section>
+
     <section class="grid gap-6 lg:grid-cols-3">
         <div class="rounded border border-white/10 bg-[#151E2D] p-5">
             <div class="mb-4 flex items-center justify-between">

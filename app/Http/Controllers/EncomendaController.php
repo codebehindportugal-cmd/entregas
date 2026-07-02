@@ -145,10 +145,15 @@ class EncomendaController extends Controller
     {
         $data = $request->validate([
             'postponed_until' => ['required', 'date'],
+            'delivery_date' => ['nullable', 'date'],
         ]);
 
         if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {
-            $encomenda->adiarProximaEntregaPara($data['postponed_until']);
+            if (filled($data['delivery_date'] ?? null)) {
+                $encomenda->adiarEntregaDaSubscricaoPara($data['delivery_date'], $data['postponed_until']);
+            } else {
+                $encomenda->adiarProximaEntregaPara($data['postponed_until']);
+            }
         } else {
             $encomenda->adiarEncomendaNormalPara($data['postponed_until']);
         }

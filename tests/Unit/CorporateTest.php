@@ -608,4 +608,51 @@ class CorporateTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_corporate_delivery_on_holiday_moves_to_next_delivery_day(): void
+    {
+        $corporate = new Corporate([
+            'sucursal' => 'Lisboa',
+            'dias_entrega' => ['Quarta'],
+            'periodicidade_entrega' => 'semanal',
+        ]);
+
+        $this->assertFalse($corporate->temEntregaNaData(Carbon::parse('2026-06-10')));
+        $this->assertTrue($corporate->temEntregaNaData(Carbon::parse('2026-06-17')));
+        $this->assertSame('Quarta', $corporate->diaEntregaOriginalParaData(Carbon::parse('2026-06-17')));
+    }
+
+    public function test_corporate_daily_delivery_is_cancelled_on_holiday(): void
+    {
+        $corporate = new Corporate([
+            'sucursal' => 'Lisboa',
+            'dias_entrega' => ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'],
+            'periodicidade_entrega' => 'semanal',
+        ]);
+
+        $this->assertFalse($corporate->temEntregaNaData(Carbon::parse('2026-06-10')));
+        $this->assertTrue($corporate->temEntregaNaData(Carbon::parse('2026-06-11')));
+        $this->assertSame('Quinta', $corporate->diaEntregaOriginalParaData(Carbon::parse('2026-06-11')));
+    }
+
+    public function test_subscricao_can_postpone_a_selected_delivery_date(): void
+    {
+        Carbon::setTestNow('2026-04-09 10:00:00');
+
+        $order = new WooOrder([
+            'delivery_dates' => ['2026-04-15', '2026-04-22', '2026-04-29', '2026-05-06'],
+            'dia_entrega' => 'quarta',
+            'ciclo_entrega' => 'semanal',
+        ]);
+        $order->setRelation('preparacaoItems', collect());
+
+        $order->adiarEntregaDaSubscricaoPara('2026-04-29', '2026-05-01');
+
+        $this->assertSame(['2026-04-15', '2026-04-22', '2026-05-01', '2026-05-06'], $order->delivery_dates);
+        $this->assertSame('2026-05-01', $order->postponed_until->toDateString());
+        $this->assertSame('2026-04-29', $order->postponement_history[0]['from']);
+        $this->assertSame('2026-05-01', $order->postponement_history[0]['to']);
+
+        Carbon::setTestNow();
+    }
 }

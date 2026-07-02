@@ -43,7 +43,6 @@ class EntregaController extends Controller
         $dataB2c = $this->dataReferenciaParaDia($dia);
 
         $corporatesDoDia = Corporate::where('ativo', true)
-            ->whereJsonContains('dias_entrega', $dia)
             ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                 $query->where('empresa', 'like', "%{$q}%")
                     ->orWhere('sucursal', 'like', "%{$q}%")
@@ -51,9 +50,12 @@ class EntregaController extends Controller
                     ->orWhere('fatura_morada', 'like', "%{$q}%");
             }))
             ->orderBy('empresa')
-            ->get();
+            ->get()
+            ->filter(fn (Corporate $corporate): bool => $corporate->temEntregaNaData($dataB2c))
+            ->values();
 
         $b2cOrders = $this->b2cOrdersParaDia($dia, $dataB2c, $q);
+        $corporateIdsDoDia = $corporatesDoDia->pluck('id');
 
         return view('entregas.index', [
             'dia' => $dia,
@@ -61,28 +63,32 @@ class EntregaController extends Controller
             'userId' => $userId,
             'dias' => array_values(self::DIAS),
             'atribuicoes' => AtribuicaoEntrega::with(['corporate', 'wooOrder', 'user'])
-                ->where('dia_semana', $dia)
                 ->when($userId > 0, fn ($query) => $query->where('user_id', $userId))
-                ->where(function ($query) use ($dia, $q): void {
-                    $query->whereHas('corporate', fn ($query) => $query
-                        ->whereJsonContains('dias_entrega', $dia)
-                        ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                            $query->where('empresa', 'like', "%{$q}%")
-                                ->orWhere('sucursal', 'like', "%{$q}%")
-                                ->orWhere('morada_entrega', 'like', "%{$q}%")
-                                ->orWhere('fatura_morada', 'like', "%{$q}%");
-                        }))
-                    )->orWhereHas('wooOrder', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
+                ->where(function ($query) use ($dia, $q, $corporateIdsDoDia): void {
+                    $query->where(function ($query) use ($corporateIdsDoDia): void {
+                        $query->where('tipo', 'corporate')
+                            ->whereIn('corporate_id', $corporateIdsDoDia);
+                    })->orWhereHas('wooOrder', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                         $query->where('billing_name', 'like', "%{$q}%")
                             ->orWhere('billing_phone', 'like', "%{$q}%")
                             ->orWhere('billing_email', 'like', "%{$q}%")
                             ->orWhere('woo_id', 'like', "%{$q}%");
-                    })));
+                    }))->where('dia_semana', $dia));
                 })
-                ->orderBy('tipo')
-                ->orderBy('corporate_id')
-                ->orderBy('woo_order_id')
-                ->get(),
+                ->get()
+                ->filter(function (AtribuicaoEntrega $atribuicao) use ($dataB2c, $dia): bool {
+                    if ($atribuicao->tipo === 'b2c') {
+                        return $atribuicao->dia_semana === $dia;
+                    }
+
+                    return $atribuicao->corporate?->diaEntregaOriginalParaData($dataB2c) === $atribuicao->dia_semana;
+                })
+                ->sortBy([
+                    ['tipo', 'asc'],
+                    ['corporate_id', 'asc'],
+                    ['woo_order_id', 'asc'],
+                ])
+                ->values(),
             'corporates' => $corporatesDoDia,
             'b2cOrders' => $b2cOrders,
             'dataB2c' => $dataB2c->toDateString(),
@@ -124,21 +130,19 @@ class EntregaController extends Controller
         $sortColumn = $sortColumns[$sort] ?? 'corporates.empresa';
 
         if ($dia !== null) {
-            $corporateIdsComEntrega = Corporate::where('ativo', true)
-                ->whereJsonContains('dias_entrega', $dia)
+            $corporatesComEntrega = Corporate::where('ativo', true)
                 ->get()
-                ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
-                ->pluck('id');
+                ->filter(fn (Corporate $corporate): bool => $corporate->temEntregaNaData($dataSelecionada))
+                ->values();
+            $corporateIdsComEntrega = $corporatesComEntrega->pluck('id');
 
             $atribuicoesCorporate = AtribuicaoEntrega::with('corporate')
-                ->where('dia_semana', $dia)
                 ->where('tipo', 'corporate')
                 ->whereIn('corporate_id', $corporateIdsComEntrega)
-                ->whereHas('corporate', fn ($query) => $query
-                    ->where('ativo', true)
-                    ->whereJsonContains('dias_entrega', $dia)
-                )
-                ->get();
+                ->whereHas('corporate', fn ($query) => $query->where('ativo', true))
+                ->get()
+                ->filter(fn (AtribuicaoEntrega $atribuicao): bool => $atribuicao->corporate?->diaEntregaOriginalParaData($dataSelecionada) === $atribuicao->dia_semana)
+                ->values();
 
             $b2cOrderIdsComEntrega = $this->b2cOrdersParaDia($dia, $dataSelecionada)->pluck('id');
 
@@ -296,7 +300,6 @@ class EntregaController extends Controller
             $historicosDoDia = $historicosEntrega->get($dataKey, collect())->groupBy('corporate_id');
 
             $corporatesDoDia = Corporate::where('ativo', true)
-                ->whereJsonContains('dias_entrega', $diaData)
                 ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                     $query->where('empresa', 'like', "%{$q}%")
                         ->orWhere('sucursal', 'like', "%{$q}%")
@@ -308,15 +311,20 @@ class EntregaController extends Controller
                 ->filter(fn (Corporate $corporate) => $corporate->temEntregaNaData($dataSelecionada))
                 ->values();
 
-            $corporatesDoDia->each(function (Corporate $corporate) use ($corporatePreparacoes, $dataSelecionada, $diaData, $historicosDoDia): void {
+            $corporatesDoDia->each(function (Corporate $corporate) use ($corporatePreparacoes, $dataSelecionada, $historicosDoDia): void {
                 $historicosCorporate = $historicosDoDia->get($corporate->id, collect());
+                $diaOriginal = $corporate->diaEntregaOriginalParaData($dataSelecionada);
+
+                if ($diaOriginal === null) {
+                    return;
+                }
 
                 $corporatePreparacoes->push([
                     'data' => $dataSelecionada->toDateString(),
-                    'dia' => $diaData,
+                    'dia' => $diaOriginal,
                     'corporate' => $corporate,
                     'entrega_regular' => true,
-                    ...$this->resumoHistoricosPreparacao($historicosCorporate, $corporate->totalPecasParaDia($diaData), true),
+                    ...$this->resumoHistoricosPreparacao($historicosCorporate, $corporate->totalPecasParaDia($diaOriginal), true),
                 ]);
             });
 
@@ -610,7 +618,6 @@ class EntregaController extends Controller
 
         $atribuicoes = AtribuicaoEntrega::with(['corporate', 'wooOrder'])
             ->where('user_id', auth()->id())
-            ->when($dia, fn ($query) => $query->where('dia_semana', $dia))
             ->where(function ($query) use ($q): void {
                 $query->whereHas('corporate', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                     $query->where('empresa', 'like', "%{$q}%")
@@ -627,8 +634,8 @@ class EntregaController extends Controller
             ->get();
         $atribuicoes = $atribuicoes
             ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c'
-                ? $atribuicao->wooOrder?->temEntregaB2cNaData($dataSelecionada)
-                : $atribuicao->corporate?->temEntregaNaData($dataSelecionada))
+                ? ($atribuicao->dia_semana === $dia && $atribuicao->wooOrder?->temEntregaB2cNaData($dataSelecionada))
+                : $atribuicao->corporate?->diaEntregaOriginalParaData($dataSelecionada) === $atribuicao->dia_semana)
             ->values();
 
         $registos = $atribuicoes->map(function (AtribuicaoEntrega $atribuicao) use ($data) {

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\CorporateFactory;
+use App\Services\HolidayCalendarService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -211,14 +212,105 @@ class Corporate extends Model
 
     public function temEntregaNaData(\DateTimeInterface $data): bool
     {
+        $data = Carbon::parse($data)->startOfDay();
+        $holidayCalendar = app(HolidayCalendarService::class);
+
+        if ($holidayCalendar->isHolidayForCorporate($data, $this)) {
+            return false;
+        }
+
+        if ($this->temEntregaRegularNaData($data)) {
+            return true;
+        }
+
+        return $this->diaEntregaOriginalParaData($data) !== null;
+    }
+
+    public function diaEntregaOriginalParaData(\DateTimeInterface $data): ?string
+    {
+        $data = Carbon::parse($data)->startOfDay();
+
+        if ($this->temEntregaRegularNaData($data)) {
+            return $this->diaSemana($data);
+        }
+
+        if ($this->entregaTodosOsDiasUteis()) {
+            return null;
+        }
+
+        $holidayCalendar = app(HolidayCalendarService::class);
+        $cursor = $data->copy()->subDay();
+
+        while ($cursor->greaterThanOrEqualTo($data->copy()->subDays(14))) {
+            $diaOriginal = $this->diaSemana($cursor);
+
+            if (
+                $diaOriginal !== null
+                && $this->temEntregaRegularNaData($cursor)
+                && $holidayCalendar->isHolidayForCorporate($cursor, $this)
+                && $this->proximoDiaEntregaDepoisDoFeriado($cursor)?->isSameDay($data)
+            ) {
+                return $diaOriginal;
+            }
+
+            $cursor->subDay();
+        }
+
+        return null;
+    }
+
+    private function temEntregaRegularNaData(Carbon $data): bool
+    {
+        $diaSemana = $this->diaSemana($data);
+
+        if ($diaSemana === null || ! in_array($diaSemana, $this->dias_entrega ?? [], true)) {
+            return false;
+        }
+
         if ($this->periodicidade_entrega !== 'quinzenal' || $this->quinzenal_referencia === null) {
             return true;
         }
 
         $semanaReferencia = $this->quinzenal_referencia->copy()->startOfWeek();
-        $semanaDaData = Carbon::parse($data)->startOfWeek();
+        $semanaDaData = $data->copy()->startOfWeek();
 
         return ((int) $semanaReferencia->diffInWeeks($semanaDaData)) % 2 === 0;
+    }
+
+    private function proximoDiaEntregaDepoisDoFeriado(Carbon $feriado): ?Carbon
+    {
+        $holidayCalendar = app(HolidayCalendarService::class);
+        $data = $feriado->copy()->addDay();
+
+        while ($data->lessThanOrEqualTo($feriado->copy()->addDays(31))) {
+            if ($this->temEntregaRegularNaData($data) && ! $holidayCalendar->isHolidayForCorporate($data, $this)) {
+                return $data;
+            }
+
+            $data->addDay();
+        }
+
+        return null;
+    }
+
+    private function entregaTodosOsDiasUteis(): bool
+    {
+        $dias = $this->dias_entrega ?? [];
+
+        return collect(['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'])
+            ->every(fn (string $dia): bool => in_array($dia, $dias, true));
+    }
+
+    private function diaSemana(Carbon $data): ?string
+    {
+        return [
+            1 => 'Segunda',
+            2 => 'Terca',
+            3 => 'Quarta',
+            4 => 'Quinta',
+            5 => 'Sexta',
+            6 => 'Sabado',
+        ][$data->dayOfWeek] ?? null;
     }
 
     public function usaCabazTipo(): bool
