@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\WooOrder;
 use App\Services\WooCommerceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -60,5 +61,39 @@ class WooCommerceSubscriptionSyncTest extends TestCase
             'dia_entrega' => 'quarta',
             'first_delivery_at' => '2026-06-03',
         ]);
+    }
+
+    public function test_sync_removes_completed_orders_from_local_cache(): void
+    {
+        config([
+            'woocommerce.url' => 'https://example.test',
+            'woocommerce.key' => 'ck_test',
+            'woocommerce.secret' => 'cs_test',
+            'woocommerce.per_page' => 50,
+            'woocommerce.sync_subscriptions' => false,
+        ]);
+
+        $completed = WooOrder::factory()->create([
+            'woo_id' => 321,
+            'source_type' => 'order',
+            'status' => 'processing',
+        ]);
+
+        Http::fake(function ($request) {
+            parse_str((string) parse_url($request->url(), PHP_URL_QUERY), $query);
+
+            if (($query['status'] ?? null) === 'completed') {
+                return Http::response([
+                    ['id' => 321, 'status' => 'completed'],
+                ], 200);
+            }
+
+            return Http::response([], 200);
+        });
+
+        $result = app(WooCommerceService::class)->sync();
+
+        $this->assertSame(1, $result['removed']);
+        $this->assertDatabaseMissing('woo_orders', ['id' => $completed->id]);
     }
 }

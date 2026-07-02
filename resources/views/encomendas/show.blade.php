@@ -10,7 +10,7 @@
             @if($encomenda->whatsappFaturaUrl())
                 <a href="{{ $encomenda->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
             @endif
-            @if($encomenda->podeConcluirNoWordPress())
+            @if(! in_array($encomenda->status, ['completed', 'wc-completed'], true))
                 <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                     @csrf
                     <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Fechar encomenda</button>

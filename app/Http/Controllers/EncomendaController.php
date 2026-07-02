@@ -101,7 +101,7 @@ class EncomendaController extends Controller
             return back()->withErrors(['sync' => $exception->getMessage()]);
         }
 
-        return back()->with('status', "WooCommerce sincronizado: {$result['fetched']} lidas ({$result['orders']} encomendas, {$result['subscriptions']} subscricoes), {$result['created']} criadas, {$result['updated']} atualizadas.");
+        return back()->with('status', "WooCommerce sincronizado: {$result['fetched']} lidas ({$result['orders']} encomendas, {$result['subscriptions']} subscricoes), {$result['created']} criadas, {$result['updated']} atualizadas, {$result['removed']} concluidas removidas.");
     }
 
     public function show(WooOrder $encomenda): View
@@ -199,8 +199,8 @@ class EncomendaController extends Controller
     {
         $encomenda->load('registoEntregas');
 
-        if (! $encomenda->podeConcluirNoWordPress()) {
-            return back()->withErrors(['complete' => 'Esta encomenda ainda nao tem todas as entregas marcadas como entregues.']);
+        if (in_array($encomenda->status, ['completed', 'wc-completed'], true)) {
+            return back()->withErrors(['complete' => 'Esta encomenda ja esta concluida.']);
         }
 
         try {

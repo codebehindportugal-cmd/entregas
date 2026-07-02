@@ -185,7 +185,7 @@
                                 @csrf
                                 <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Renovar</button>
                             </form>
-                            @if($order->podeConcluirNoWordPress())
+                            @if(! in_array($order->status, ['completed', 'wc-completed'], true))
                                 <form method="post" action="{{ route('encomendas.complete', $order) }}" class="mb-2" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                                     @csrf
                                     <button class="rounded bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/30">Fechar encomenda</button>

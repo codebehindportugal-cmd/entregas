@@ -45,7 +45,9 @@ class DashboardController extends Controller
             'ultimasEncomendas' => WooOrder::latest('synced_at')->limit(5)->get(),
             'proximasPreparacoes' => $preparacaoHoje->where('feito', false)->take(6),
             'entregasPendentes' => $entregasHoje->where('status', 'pendente')->take(6),
-            'feriados' => $holidayCalendar->upcoming(12),
+            'feriados' => $holidayCalendar->holidaysForYear((int) now()->year)
+                ->filter(fn (array $holiday): bool => str_starts_with($holiday['date'], now()->format('Y-m')))
+                ->values(),
         ]);
     }
 }

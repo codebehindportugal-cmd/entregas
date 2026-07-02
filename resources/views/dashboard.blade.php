@@ -62,10 +62,10 @@
         <div class="mb-4 flex items-center justify-between gap-3">
             <div>
                 <h2 class="text-lg font-semibold text-white">Calendario de feriados</h2>
-                <p class="text-sm text-slate-400">Nacionais e municipais configurados para os proximos 12 meses.</p>
+                <p class="text-sm text-slate-400">Feriados nacionais e municipais do mes atual.</p>
             </div>
         </div>
-        <div class="grid gap-4 lg:grid-cols-3">
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             @foreach($feriados->groupBy(fn ($feriado) => \Illuminate\Support\Carbon::parse($feriado['date'])->format('Y-m')) as $mes => $feriadosMes)
                 @php($dataMes = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $mes.'-01'))
                 <div class="rounded border border-white/10 bg-[#0A0F1A] p-4">
@@ -83,6 +83,8 @@
                         @endforeach
                     </div>
                 </div>
+            @empty
+                <p class="rounded border border-white/10 bg-[#0A0F1A] p-4 text-sm text-slate-400">Sem feriados configurados para este mes.</p>
             @endforeach
         </div>
     </section>

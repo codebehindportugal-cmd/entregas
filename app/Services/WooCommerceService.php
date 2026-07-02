@@ -22,6 +22,7 @@ class WooCommerceService
             ->all();
         $created = 0;
         $updated = 0;
+        $removed = $this->removeCompletedOrders($this->fetchCompletedOrders(), 'order');
 
         foreach ($orders as $order) {
             $model = $this->saveSyncedOrder($order, 'order');
@@ -33,6 +34,7 @@ class WooCommerceService
 
         if (config('woocommerce.sync_subscriptions')) {
             $subscriptions = $this->fetchSubscriptions();
+            $removed += $this->removeCompletedOrders($this->fetchCompletedSubscriptions(), 'subscription');
 
             foreach ($subscriptions as $subscription) {
                 $model = $this->saveSyncedOrder($subscription, 'subscription');
@@ -47,6 +49,7 @@ class WooCommerceService
             'subscriptions' => count($subscriptions),
             'created' => $created,
             'updated' => $updated,
+            'removed' => $removed,
         ];
     }
 
@@ -82,6 +85,34 @@ class WooCommerceService
         $response = $this->client()
             ->get("{$url}/wp-json/wc/v3/subscriptions", [
                 'status' => config('woocommerce.subscription_statuses'),
+                'per_page' => config('woocommerce.per_page'),
+                'orderby' => 'date',
+                'order' => 'desc',
+            ]);
+
+        if ($response->status() === 404) {
+            return [];
+        }
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro WooCommerce Subscriptions: '.$response->status().' - '.$response->body());
+        }
+
+        return $response->json();
+    }
+
+    public function fetchCompletedOrders(): array
+    {
+        return $this->fetchOrdersByStatus('completed');
+    }
+
+    public function fetchCompletedSubscriptions(): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+
+        $response = $this->client()
+            ->get("{$url}/wp-json/wc/v3/subscriptions", [
+                'status' => 'completed',
                 'per_page' => config('woocommerce.per_page'),
                 'orderby' => 'date',
                 'order' => 'desc',
@@ -324,6 +355,50 @@ class WooCommerceService
             'order' => $model,
             'created' => $created,
         ];
+    }
+
+    private function removeCompletedOrders(array $orders, string $sourceType): int
+    {
+        $ids = collect($orders)
+            ->filter(fn (array $order): bool => in_array((string) Arr::get($order, 'status'), ['completed', 'wc-completed'], true))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return 0;
+        }
+
+        return WooOrder::query()
+            ->where('source_type', $sourceType)
+            ->whereIn('woo_id', $ids)
+            ->delete();
+    }
+
+    private function fetchOrdersByStatus(string $status): array
+    {
+        $url = rtrim((string) config('woocommerce.url'), '/');
+        $key = config('woocommerce.key');
+        $secret = config('woocommerce.secret');
+
+        if (blank($url) || blank($key) || blank($secret)) {
+            throw new RuntimeException('Configura as variaveis WOOCOMMERCE_URL, WOOCOMMERCE_KEY e WOOCOMMERCE_SECRET no .env.');
+        }
+
+        $response = $this->client()
+            ->get("{$url}/wp-json/wc/v3/orders", [
+                'status' => $status,
+                'per_page' => config('woocommerce.per_page'),
+                'orderby' => 'date',
+                'order' => 'desc',
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Erro WooCommerce: '.$response->status().' - '.$response->body());
+        }
+
+        return $response->json();
     }
 
     private function productPayload(array $product): array
