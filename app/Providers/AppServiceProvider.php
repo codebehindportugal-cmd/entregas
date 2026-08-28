@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Support\MoloniSettings;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Definicoes do Moloni guardadas na app (Gestao -> Definicoes Moloni)
+        // por cima do config/moloni.php. Silencioso se a BD nao estiver pronta.
+        MoloniSettings::aplicar();
     }
 }

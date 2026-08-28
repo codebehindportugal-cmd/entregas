@@ -1,6 +1,6 @@
 @php
     $dias = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta'];
-    $frutas = ['banana' => 'Banana', 'maca' => 'Maca', 'pera' => 'Pera', 'laranja' => 'Laranja', 'kiwi' => 'Kiwi', 'uvas' => 'Uvas', 'fruta_epoca' => 'Fruta epoca'];
+    $frutas = ['banana' => 'Banana', 'maca' => 'Maca', 'pera' => 'Pera', 'laranja' => 'Laranja', 'uvas' => 'Uvas', 'fruta_epoca' => 'Fruta epoca'];
     $outrosProdutos = ['frutos_secos' => 'Frutos secos', 'mirtilos' => 'Mirtilos', 'framboesas' => 'Framboesas', 'amoras' => 'Amoras', 'morangos' => 'Morangos'];
     $padaria = ['pao_mistura' => 'Pao de mistura', 'pao_forma' => 'Pao de forma', 'croissant' => 'Croissants', 'bolo' => 'Bolos'];
     $produtosKg = ['uvas', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
@@ -9,6 +9,13 @@
     $padariaPorDiaValores = old('pastelaria_por_dia', $corporate->pastelaria_por_dia ?? []);
     $produtosMensais = old('produtos_mensais', $corporate->produtos_mensais ?? []);
 @endphp
+<div class="mb-5 flex flex-wrap gap-1 rounded border border-white/10 bg-[#0A0F1A] p-1" data-form-tabs>
+    <button type="button" data-form-tab="empresa" class="rounded px-4 py-2 text-sm font-semibold">Empresa</button>
+    <button type="button" data-form-tab="faturacao" class="rounded px-4 py-2 text-sm font-semibold">Faturacao</button>
+    <button type="button" data-form-tab="entregas" class="rounded px-4 py-2 text-sm font-semibold">Entregas e produtos</button>
+</div>
+
+<div data-form-panel="empresa">
 <div class="grid gap-4 lg:grid-cols-2">
     <label class="text-sm text-slate-300">Empresa
         <input name="empresa" required value="{{ old('empresa', $corporate->empresa) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
@@ -18,6 +25,13 @@
     </label>
     <label class="text-sm text-slate-300 lg:col-span-2">Morada da sucursal / entrega
         <input name="morada_entrega" value="{{ old('morada_entrega', $corporate->moradaParaEntrega()) }}" placeholder="Morada usada pelo colaborador para navegar ate a entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+    </label>
+    <label class="text-sm text-slate-300">Codigo postal (entrega)
+        <input name="cp_entrega" value="{{ old('cp_entrega', $corporate->cp_entrega) }}" placeholder="Ex.: 3500-885" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        <span class="mt-1 block text-xs text-slate-500">Usado no local de descarga da guia de transporte. Vazio = extraido da morada.</span>
+    </label>
+    <label class="text-sm text-slate-300">Cidade (entrega)
+        <input name="cidade_entrega" value="{{ old('cidade_entrega', $corporate->cidade_entrega) }}" placeholder="Ex.: Viseu" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
     <label class="text-sm text-slate-300">Periodicidade
         <select name="periodicidade_entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
@@ -37,29 +51,80 @@
     <label class="text-sm text-slate-300">Telefone
         <input name="responsavel_telefone" value="{{ old('responsavel_telefone', $corporate->responsavel_telefone) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
-    <label class="text-sm text-slate-300">Email faturacao
-        <input name="fatura_email" type="email" value="{{ old('fatura_email', $corporate->fatura_email) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+    <label class="text-sm text-slate-300">Numero caixas
+        <input name="numero_caixas" type="number" min="0" value="{{ old('numero_caixas', $corporate->numero_caixas ?? 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
+    <label class="text-sm text-slate-300">Alteracoes validas a partir de
+        <input name="configuracao_ativa_desde" type="date" value="{{ old('configuracao_ativa_desde', now()->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        <span class="mt-1 block text-xs text-slate-500">Usado no mapa mensal para manter corretas as quantidades antes e depois da alteracao.</span>
+    </label>
+</div>
+<label class="mt-5 block text-sm text-slate-300">Notas
+    <textarea name="notas" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('notas', $corporate->notas) }}</textarea>
+</label>
+<label class="mt-4 flex items-center gap-2 text-sm text-slate-300">
+    <input name="ativo" value="1" type="checkbox" @checked(old('ativo', $corporate->ativo ?? true))> Ativo
+</label>
+
+</div>
+
+<div data-form-panel="faturacao">
+<div class="grid gap-4 lg:grid-cols-2">
     <label class="text-sm text-slate-300">Nome faturacao
         <input name="fatura_nome" value="{{ old('fatura_nome', $corporate->fatura_nome) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
     <label class="text-sm text-slate-300">NIF
         <input name="fatura_nif" value="{{ old('fatura_nif', $corporate->fatura_nif) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
+    <label class="text-sm text-slate-300">Email faturacao
+        <input name="fatura_email" type="email" value="{{ old('fatura_email', $corporate->fatura_email) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+    </label>
     <label class="text-sm text-slate-300 lg:col-span-2">Morada faturacao
         <input name="fatura_morada" value="{{ old('fatura_morada', $corporate->fatura_morada) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
     </label>
-    <label class="text-sm text-slate-300">Numero caixas
-        <input name="numero_caixas" type="number" min="0" value="{{ old('numero_caixas', $corporate->numero_caixas ?? 1) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+    <label class="text-sm text-slate-300">Preco venda por peca (EUR, SEM IVA)
+        <input name="preco_venda_peca" type="number" min="0" step="0.0001" value="{{ old('preco_venda_peca', $corporate->preco_venda_peca) }}" placeholder="Ex: 0.4300" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        <span class="mt-1 block text-xs text-slate-500">Preco LIQUIDO (sem IVA) de cada peca de fruta desta empresa. O IVA (6%) e acrescentado na fatura. Ex.: 0,43 x 560 pecas = 240,00 de incidencia + IVA = 254,40 a pagar.</span>
     </label>
-    <label class="text-sm text-slate-300">Preco venda por peca
-        <input name="preco_venda_peca" type="number" min="0" step="0.0001" value="{{ old('preco_venda_peca', $corporate->preco_venda_peca) }}" placeholder="Ex: 0.4500" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-        <span class="mt-1 block text-xs text-slate-500">Usado para todas as pecas de fruta desta empresa.</span>
-    </label>
-    <label class="text-sm text-slate-300">Alteracoes validas a partir de
-        <input name="configuracao_ativa_desde" type="date" value="{{ old('configuracao_ativa_desde', now()->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-        <span class="mt-1 block text-xs text-slate-500">Usado no mapa mensal para manter corretas as quantidades antes e depois da alteracao.</span>
-    </label>
+</div>
+{{-- Faturacao: aplica-se a TODAS as empresas, tenham ou nao cabaz do catalogo. --}}
+<div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4">
+    <p class="mb-1 text-sm font-semibold text-white">Faturacao</p>
+    <p class="mb-4 text-xs text-slate-500">Valores e referencias usados na fatura e na guia Moloni desta empresa.</p>
+    <div class="grid gap-4 md:grid-cols-2">
+        <label class="text-sm text-slate-300">Valor acordado por ciclo (4 semanas, EUR c/ IVA)
+            <input name="valor_ciclo" type="number" min="0" step="0.01" value="{{ old('valor_ciclo', $corporate->valor_ciclo) }}" placeholder="Ex: 254.40" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Total da fatura mensal desta empresa, tal como acordado. Manda em tudo o resto: se estiver preenchido, e este o valor da linha do cabaz.</span>
+        </label>
+        <label class="text-sm text-slate-300">Custo de envio por entrega (EUR)
+            <input name="custo_envio" type="number" min="0" step="0.01" value="{{ old('custo_envio', $corporate->custo_envio) }}" placeholder="Ex: 7.50" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Linha propria na fatura (IVA 23%), multiplicada pelas entregas do ciclo. Vazio = usa o valor por defeito das Definicoes Moloni; escrever 0 isenta esta empresa.</span>
+        </label>
+        <label class="text-sm text-slate-300">Preco do cabaz (EUR, c/ IVA)
+            <input name="preco_cabaz" type="number" min="0" step="0.01" value="{{ old('preco_cabaz', $corporate->preco_cabaz) }}" placeholder="Ex: 12.50" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Preco acordado por cabaz/entrega. So usado quando o valor por ciclo esta vazio.</span>
+        </label>
+        <label class="text-sm text-slate-300">Inicio do ciclo de faturacao
+            <input name="ciclo_inicio" type="date" value="{{ old('ciclo_inicio', optional($corporate->ciclo_inicio)->format('Y-m-d')) }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">A partir daqui conta o ciclo de 4 semanas (referencia interna da fatura).</span>
+        </label>
+        <label class="text-sm text-slate-300">Referencia do cliente
+            <input name="referencia_cliente" type="text" value="{{ old('referencia_cliente', $corporate->referencia_cliente) }}" placeholder="Ex.: nr. de fornecedor" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Vai no campo 'A sua referencia' (V/Ref.) do Moloni. Pode trocar-se ao faturar.</span>
+        </label>
+        <label class="text-sm text-slate-300">Dias de vencimento
+            <input name="dias_vencimento" type="number" min="0" max="365" value="{{ old('dias_vencimento', $corporate->dias_vencimento) }}" placeholder="Ex.: 15" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Prazo de pagamento na fatura. Vazio = usa o valor por defeito das definicoes.</span>
+        </label>
+        <label class="text-sm text-slate-300">Referencia do artigo composto (Moloni)
+            <input name="moloni_composto_ref" type="text" value="{{ old('moloni_composto_ref', $corporate->moloni_composto_ref) }}" placeholder="Ex.: HM5069-0" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Cabaz composto a usar na fatura. Vazio = usa o das definicoes.</span>
+        </label>
+        <label class="text-sm text-slate-300">Referencia do artigo da guia (Moloni)
+            <input name="moloni_guia_ref" type="text" value="{{ old('moloni_guia_ref', $corporate->moloni_guia_ref) }}" placeholder="Ex.: HM5069-0" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Artigo usado na guia de transporte. Vazio = usa o das definicoes ou o composto.</span>
+        </label>
+    </div>
 </div>
 <div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>
     <label class="flex items-start gap-3 text-sm text-slate-300">
@@ -83,6 +148,10 @@
         </label>
     </div>
 </div>
+
+</div>
+
+<div data-form-panel="entregas">
 <div class="mt-5">
     <p class="mb-2 text-sm font-medium text-slate-300">Dias de entrega</p>
     <div class="flex flex-wrap gap-2">
@@ -157,15 +226,49 @@
         @endforeach
     </div>
 </div>
-<label class="mt-5 block text-sm text-slate-300">Notas
-    <textarea name="notas" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('notas', $corporate->notas) }}</textarea>
-</label>
-<label class="mt-4 flex items-center gap-2 text-sm text-slate-300">
-    <input name="ativo" value="1" type="checkbox" @checked(old('ativo', $corporate->ativo ?? true))> Ativo
-</label>
+</div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        // Separadores principais da ficha (Empresa / Faturacao / Entregas).
+        const formTabs = Array.from(document.querySelectorAll('[data-form-tab]'));
+        const formPanels = Array.from(document.querySelectorAll('[data-form-panel]'));
+
+        const activateFormTab = (nome) => {
+            formTabs.forEach((tab) => {
+                const isActive = tab.dataset.formTab === nome;
+
+                tab.className = isActive
+                    ? 'rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]'
+                    : 'rounded px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-white/5';
+                tab.blur();
+            });
+
+            formPanels.forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.formPanel !== nome);
+            });
+
+            try {
+                localStorage.setItem('corporateFormTab', nome);
+            } catch (e) { /* ignora */ }
+        };
+
+        formTabs.forEach((tab) => tab.addEventListener('click', () => activateFormTab(tab.dataset.formTab)));
+
+        // Se houver erros de validacao, abre o separador do primeiro campo com erro.
+        const campoComErro = document.querySelector('.border-red-500, [aria-invalid="true"]');
+        let separadorInicial = 'empresa';
+
+        try {
+            separadorInicial = localStorage.getItem('corporateFormTab') || 'empresa';
+        } catch (e) { /* ignora */ }
+
+        if (campoComErro) {
+            separadorInicial = campoComErro.closest('[data-form-panel]')?.dataset.formPanel || separadorInicial;
+        }
+
+        activateFormTab(formPanels.some((p) => p.dataset.formPanel === separadorInicial) ? separadorInicial : 'empresa');
+
         const tabs = Array.from(document.querySelectorAll('[data-product-tab]'));
         const panels = Array.from(document.querySelectorAll('[data-product-panel]'));
         const cabazToggle = document.querySelector('[data-cabaz-toggle]');

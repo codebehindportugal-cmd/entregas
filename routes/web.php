@@ -5,20 +5,19 @@ use App\Http\Controllers\ComparacaoCabazController;
 use App\Http\Controllers\ComprasController;
 use App\Http\Controllers\CorporateController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DefinicoesMoloniController;
 use App\Http\Controllers\DespesaController;
 use App\Http\Controllers\EncomendaController;
 use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
-use App\Http\Controllers\ListaCabazController;
+use App\Http\Controllers\FaturacaoController;
+use App\Http\Controllers\FaturasController;
+use App\Http\Controllers\FrutaEpocaController;
 use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\TabelaPrecoController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
-
-Route::get('/faturas/{encomenda}', [EncomendaController::class, 'publicInvoice'])
-    ->middleware('signed')
-    ->name('encomendas.invoice.public');
 
 Route::get('/relatorios/download', function (Illuminate\Http\Request $request) {
     abort_unless($request->hasValidSignature(), 403);
@@ -66,19 +65,19 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/preparacao', [EntregaController::class, 'preparacao'])->name('preparacao.index');
         Route::put('/preparacao/{item}', [EntregaController::class, 'updatePreparacaoItem'])->name('preparacao.update');
         Route::put('/preparacao/{item}/produtos', [EntregaController::class, 'updatePreparacaoProdutos'])->name('preparacao.produtos.update');
-        Route::resource('/lista-cabazes', ListaCabazController::class)
-            ->parameters(['lista-cabazes' => 'listaCabaz'])
-            ->except(['show']);
-        Route::post('/lista-cabazes/importar', [ListaCabazController::class, 'import'])->name('lista-cabazes.import');
-        Route::post('/lista-cabazes/{listaCabaz}/itens', [ListaCabazController::class, 'storeItem'])->name('lista-cabazes.itens.store');
-        Route::put('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'updateItem'])->name('lista-cabazes.itens.update');
-        Route::delete('/lista-cabazes/itens/{item}', [ListaCabazController::class, 'destroyItem'])->name('lista-cabazes.itens.destroy');
-        Route::get('/lista-cabazes/{listaCabaz}/totais', [ListaCabazController::class, 'totais'])->name('lista-cabazes.totais');
         Route::get('/margens-cabazes', ComparacaoCabazController::class)->name('comparacao-cabazes.index');
         Route::get('/produtos', [ProdutoController::class, 'index'])->name('produtos.index');
         Route::post('/produtos/sync', [ProdutoController::class, 'sync'])->name('produtos.sync');
         Route::put('/produtos/{produto}', [ProdutoController::class, 'update'])->name('produtos.update');
         Route::post('/produtos/{produto}/atualizar-site', [ProdutoController::class, 'updateSite'])->name('produtos.update-site');
+        Route::get('/faturas', [FaturasController::class, 'index'])->name('faturas.index');
+        Route::get('/faturas/{fatura}/pdf', [FaturasController::class, 'pdf'])->name('faturas.pdf');
+        Route::post('/faturas/{fatura}/enviada', [FaturasController::class, 'enviada'])->name('faturas.enviada');
+        Route::get('/definicoes-moloni', [DefinicoesMoloniController::class, 'index'])->name('definicoes-moloni.index');
+        Route::put('/definicoes-moloni', [DefinicoesMoloniController::class, 'update'])->name('definicoes-moloni.update');
+        Route::get('/fruta-epoca', [FrutaEpocaController::class, 'index'])->name('fruta-epoca.index');
+        Route::post('/fruta-epoca', [FrutaEpocaController::class, 'store'])->name('fruta-epoca.store');
+        Route::delete('/fruta-epoca', [FrutaEpocaController::class, 'destroy'])->name('fruta-epoca.destroy');
         Route::get('/compras', ComprasController::class)->name('compras.index');
         Route::post('/compras/precos', [ComprasController::class, 'updatePrecos'])->name('compras.precos.update');
         Route::get('/despesas/pdf', [DespesaController::class, 'exportarPdf'])->name('despesas.pdf');
@@ -107,7 +106,9 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'postpone'])->name('encomendas.postpone');
         Route::delete('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'clearPostpone'])->name('encomendas.postpone.clear');
         Route::post('/encomendas/{encomenda}/concluir-wordpress', [EncomendaController::class, 'complete'])->name('encomendas.complete');
-        Route::get('/encomendas/{encomenda}/fatura', [EncomendaController::class, 'invoice'])->name('encomendas.invoice');
+        Route::post('/encomendas/{encomenda}/fatura-moloni', [FaturacaoController::class, 'subscricao'])->name('encomendas.fatura-moloni');
+        Route::put('/encomendas/{encomenda}/produtos-fatura', [FaturacaoController::class, 'produtosB2c'])->name('encomendas.produtos-fatura');
+        Route::post('/empresas/faturar', [FaturacaoController::class, 'empresas'])->name('corporates.faturar');
         Route::delete('/encomendas/{encomenda}', [EncomendaController::class, 'destroy'])->name('encomendas.destroy');
         Route::post('/entregas/atribuicoes', [EntregaController::class, 'storeAtribuicao'])->name('entregas.atribuicoes.store');
         Route::post('/entregas/atribuicoes/massa', [EntregaController::class, 'storeAtribuicoesBulk'])->name('entregas.atribuicoes.bulk');

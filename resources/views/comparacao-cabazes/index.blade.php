@@ -1,159 +1,93 @@
 <x-layouts.app title="Margens">
-    <x-page-title title="Margens" subtitle="Comparacao entre custo e vendas" />
+    <x-page-title title="Margens" subtitle="Faturas emitidas menos entradas, por semana" />
 
-    <form method="get" class="mb-6 rounded border border-emerald-900/10 bg-white p-4 shadow-sm">
-        <div class="grid gap-3 lg:grid-cols-[2fr_1fr_1fr_auto]">
-            <label class="text-sm font-medium text-slate-700">Lista semanal
-                <select name="lista_cabaz_id" class="mt-1 w-full rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
-                    @foreach($listas as $opcao)
-                        <option value="{{ $opcao->id }}" @selected($lista?->id === $opcao->id)>{{ $opcao->tituloFormatado() }}</option>
-                    @endforeach
-                </select>
-            </label>
-            <label class="text-sm font-medium text-slate-700">Inicio empresas
-                <input name="inicio" type="date" value="{{ $inicio }}" class="mt-1 w-full rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
-            </label>
-            <label class="text-sm font-medium text-slate-700">Fim empresas
-                <input name="fim" type="date" value="{{ $fim }}" class="mt-1 w-full rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
-            </label>
-            <div class="flex items-end">
-                <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Ver comparacao</button>
-            </div>
+    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 sm:grid-cols-[1fr_1fr_auto]">
+        <label class="text-sm text-slate-300">Inicio
+            <input name="inicio" type="date" value="{{ $inicio }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        </label>
+        <label class="text-sm text-slate-300">Fim
+            <input name="fim" type="date" value="{{ $fim }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+        </label>
+        <div class="flex items-end">
+            <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Ver margens</button>
         </div>
-        @if($lista)
-            <p class="mt-3 text-xs text-slate-500">Pedido na semana anterior pela empresa. Custos calculados pela lista selecionada; vendas calculadas com o preco por peca definido em cada empresa.</p>
-        @endif
     </form>
 
-    <h2 class="mb-3 text-lg font-semibold text-slate-900">Cabazes de empresas</h2>
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div class="rounded border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm font-medium text-slate-500">Cabazes empresas</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-950">{{ $resumo['cabazes'] }}</p>
+    @php
+        $fmt = fn ($v) => number_format((float) $v, 2, ',', ' ').' EUR';
+    @endphp
+
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded border border-white/10 bg-[#151E2D] p-5">
+            <p class="text-sm text-slate-400">Faturado</p>
+            <p class="mt-2 text-2xl font-semibold text-white">{{ $fmt($totais['faturado']) }}</p>
+            <p class="mt-1 text-xs text-slate-500">Empresas {{ $fmt($totais['empresas']) }} + B2C {{ $fmt($totais['b2c']) }}</p>
         </div>
-        <div class="rounded border border-rose-200 bg-rose-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-rose-700">Custo</p>
-            <p class="mt-2 text-3xl font-semibold text-rose-950">{{ number_format($resumo['custo'], 2, ',', ' ') }} EUR</p>
+        <div class="rounded border border-amber-400/30 bg-amber-500/10 p-5">
+            <p class="text-sm text-amber-200">Entradas</p>
+            <p class="mt-2 text-2xl font-semibold text-white">{{ $fmt($totais['entradas']) }}</p>
+            <p class="mt-1 text-xs text-amber-100/70">Despesas de fornecedores</p>
         </div>
-        <div class="rounded border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-emerald-700">Venda</p>
-            <p class="mt-2 text-3xl font-semibold text-emerald-950">{{ number_format($resumo['venda'], 2, ',', ' ') }} EUR</p>
+        <div class="rounded border border-emerald-400/30 bg-emerald-500/10 p-5">
+            <p class="text-sm text-emerald-200">Margem</p>
+            <p class="mt-2 text-2xl font-semibold {{ $totais['margem'] >= 0 ? 'text-emerald-300' : 'text-red-300' }}">{{ $fmt($totais['margem']) }}</p>
         </div>
-        <div class="rounded border border-blue-200 bg-blue-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-blue-700">Margem</p>
-            <p class="mt-2 text-3xl font-semibold text-blue-950">{{ number_format($resumo['margem'], 2, ',', ' ') }} EUR</p>
-        </div>
-        <div class="rounded border border-amber-200 bg-amber-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-amber-700">Margem %</p>
-            <p class="mt-2 text-3xl font-semibold text-amber-950">{{ $resumo['margem_percentagem'] !== null ? number_format($resumo['margem_percentagem'], 1, ',', ' ').'%' : '-' }}</p>
+        <div class="rounded border border-[#3B82F6]/30 bg-[#3B82F6]/10 p-5">
+            <p class="text-sm text-blue-200">Margem %</p>
+            <p class="mt-2 text-2xl font-semibold text-white">{{ $totais['margem_pct'] === null ? '-' : number_format($totais['margem_pct'], 1, ',', ' ').' %' }}</p>
         </div>
     </div>
 
-    <div class="overflow-x-auto rounded border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-auto rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
-            <thead>
+            <thead class="bg-[#1B2638] text-slate-300">
                 <tr>
-                    <th class="p-3">Empresa</th>
-                    <th class="p-3">Cabaz</th>
-                    <th class="p-3">Qtd.</th>
-                    <th class="p-3">Pecas/cabaz</th>
-                    <th class="p-3">Preco/peca</th>
-                    <th class="p-3">Custo/cabaz</th>
-                    <th class="p-3">Venda/cabaz</th>
-                    <th class="p-3">Custo</th>
-                    <th class="p-3">Venda</th>
-                    <th class="p-3">Margem</th>
+                    <th class="p-3">Semana</th>
+                    <th class="p-3 text-right">Empresas</th>
+                    <th class="p-3 text-right">B2C</th>
+                    <th class="p-3 text-right">Faturado</th>
+                    <th class="p-3 text-right">Entradas</th>
+                    <th class="p-3 text-right">Margem</th>
+                    <th class="p-3 text-right">Margem %</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse($linhas as $linha)
-                    <tr>
-                        <td class="p-3 text-slate-950">
-                            {{ $linha['empresa']->empresa }}
-                            <span class="block text-xs font-normal text-slate-500">{{ $linha['empresa']->sucursal ?: 'Sem sucursal' }}</span>
+                @forelse($semanas as $s)
+                    <tr class="border-t border-white/10">
+                        <td class="p-3 text-slate-200">
+                            <span class="font-semibold text-white">Sem. {{ $s['semana_numero'] }}</span>
+                            <span class="ml-1 text-xs text-slate-500">{{ $s['label'] }}</span>
                         </td>
-                        <td class="p-3 text-slate-700">{{ $linha['tipo_label'] }}</td>
-                        <td class="p-3 text-slate-700">{{ $linha['quantidade'] }}</td>
-                        <td class="p-3 text-slate-700">{{ number_format($linha['pecas_cabaz'], 2, ',', ' ') }}</td>
-                        <td class="p-3 text-slate-700">{{ $linha['preco_peca'] !== null ? number_format($linha['preco_peca'], 4, ',', ' ').' EUR' : 'Sem preco' }}</td>
-                        <td class="p-3 text-rose-800">{{ number_format($linha['custo_cabaz'], 2, ',', ' ') }} EUR</td>
-                        <td class="p-3 text-emerald-800">{{ $linha['venda_cabaz'] !== null ? number_format($linha['venda_cabaz'], 2, ',', ' ').' EUR' : '-' }}</td>
-                        <td class="p-3 font-semibold text-rose-900">{{ number_format($linha['custo'], 2, ',', ' ') }} EUR</td>
-                        <td class="p-3 font-semibold text-emerald-900">{{ $linha['venda'] !== null ? number_format($linha['venda'], 2, ',', ' ').' EUR' : '-' }}</td>
-                        <td class="p-3">
-                            <span class="rounded px-2.5 py-1 text-xs font-bold {{ ($linha['margem'] ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900' }}">{{ $linha['margem'] !== null ? number_format($linha['margem'], 2, ',', ' ').' EUR' : '-' }}</span>
-                        </td>
+                        <td class="p-3 text-right text-slate-300">{{ $fmt($s['empresas']) }}</td>
+                        <td class="p-3 text-right text-slate-300">{{ $fmt($s['b2c']) }}</td>
+                        <td class="p-3 text-right font-semibold text-white">{{ $fmt($s['faturado']) }}</td>
+                        <td class="p-3 text-right text-amber-200">{{ $fmt($s['entradas']) }}</td>
+                        <td class="p-3 text-right font-semibold {{ $s['margem'] >= 0 ? 'text-emerald-300' : 'text-red-300' }}">{{ $fmt($s['margem']) }}</td>
+                        <td class="p-3 text-right text-slate-300">{{ $s['margem_pct'] === null ? '-' : number_format($s['margem_pct'], 1, ',', ' ').' %' }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" class="p-4 text-slate-500">Sem cabazes de empresas para comparar.</td>
+                        <td colspan="7" class="p-4 text-slate-400">Sem dados no periodo escolhido.</td>
                     </tr>
                 @endforelse
             </tbody>
+            @if($semanas->isNotEmpty())
+                <tfoot class="border-t border-white/20 bg-[#1B2638]">
+                    <tr>
+                        <td class="p-3 font-semibold text-white">Total</td>
+                        <td class="p-3 text-right text-slate-200">{{ $fmt($totais['empresas']) }}</td>
+                        <td class="p-3 text-right text-slate-200">{{ $fmt($totais['b2c']) }}</td>
+                        <td class="p-3 text-right font-semibold text-white">{{ $fmt($totais['faturado']) }}</td>
+                        <td class="p-3 text-right text-amber-200">{{ $fmt($totais['entradas']) }}</td>
+                        <td class="p-3 text-right font-semibold {{ $totais['margem'] >= 0 ? 'text-emerald-300' : 'text-red-300' }}">{{ $fmt($totais['margem']) }}</td>
+                        <td class="p-3 text-right text-slate-200">{{ $totais['margem_pct'] === null ? '-' : number_format($totais['margem_pct'], 1, ',', ' ').' %' }}</td>
+                    </tr>
+                </tfoot>
+            @endif
         </table>
     </div>
 
-    <h2 class="mb-3 mt-8 text-lg font-semibold text-slate-900">Empresas fruta individual</h2>
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div class="rounded border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm font-medium text-slate-500">Empresas</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-950">{{ $resumoEmpresas['empresas'] }}</p>
-            <p class="mt-1 text-xs text-slate-500">{{ $resumoEmpresas['entregas'] }} entregas</p>
-        </div>
-        <div class="rounded border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm font-medium text-slate-500">Pecas</p>
-            <p class="mt-2 text-3xl font-semibold text-slate-950">{{ $resumoEmpresas['pecas'] }}</p>
-        </div>
-        <div class="rounded border border-rose-200 bg-rose-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-rose-700">Custo</p>
-            <p class="mt-2 text-3xl font-semibold text-rose-950">{{ number_format($resumoEmpresas['custo'], 2, ',', ' ') }} EUR</p>
-        </div>
-        <div class="rounded border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-emerald-700">Venda</p>
-            <p class="mt-2 text-3xl font-semibold text-emerald-950">{{ number_format($resumoEmpresas['venda'], 2, ',', ' ') }} EUR</p>
-        </div>
-        <div class="rounded border border-blue-200 bg-blue-50 p-5 shadow-sm">
-            <p class="text-sm font-medium text-blue-700">Margem</p>
-            <p class="mt-2 text-3xl font-semibold text-blue-950">{{ number_format($resumoEmpresas['margem'], 2, ',', ' ') }} EUR</p>
-            <p class="mt-1 text-xs text-blue-700">{{ $resumoEmpresas['margem_percentagem'] !== null ? number_format($resumoEmpresas['margem_percentagem'], 1, ',', ' ').'%' : '-' }}</p>
-        </div>
-    </div>
-
-    <div class="overflow-x-auto rounded border border-slate-200 bg-white shadow-sm">
-        <table class="w-full text-left text-sm">
-            <thead>
-                <tr>
-                    <th class="p-3">Empresa</th>
-                    <th class="p-3">Entregas</th>
-                    <th class="p-3">Pecas</th>
-                    <th class="p-3">Preco/peca</th>
-                    <th class="p-3">Custo</th>
-                    <th class="p-3">Venda</th>
-                    <th class="p-3">Margem</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($linhasEmpresas as $linha)
-                    <tr>
-                        <td class="p-3 text-slate-950">
-                            {{ $linha['empresa']->empresa }}
-                            <span class="block text-xs font-normal text-slate-500">{{ $linha['empresa']->sucursal ?: 'Sem sucursal' }}</span>
-                        </td>
-                        <td class="p-3 text-slate-700">{{ $linha['entregas'] }}</td>
-                        <td class="p-3 text-slate-700">{{ $linha['pecas'] }}</td>
-                        <td class="p-3 text-slate-700">{{ $linha['preco_peca'] !== null ? number_format($linha['preco_peca'], 4, ',', ' ').' EUR' : 'Sem preco' }}</td>
-                        <td class="p-3 font-semibold text-rose-900">{{ number_format($linha['custo'], 2, ',', ' ') }} EUR</td>
-                        <td class="p-3 font-semibold text-emerald-900">{{ $linha['venda'] !== null ? number_format($linha['venda'], 2, ',', ' ').' EUR' : '-' }}</td>
-                        <td class="p-3">
-                            <span class="rounded px-2.5 py-1 text-xs font-bold {{ ($linha['margem'] ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-900' : 'bg-rose-100 text-rose-900' }}">{{ $linha['margem'] !== null ? number_format($linha['margem'], 2, ',', ' ').' EUR' : '-' }}</span>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="7" class="p-4 text-slate-500">Sem empresas com fruta individual neste periodo.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+    <p class="mt-4 text-xs text-slate-500">
+        Vendas contam faturas efetivamente emitidas no Moloni (empresas e B2C). As entradas sao as despesas de fornecedores, pela data da despesa.
+    </p>
 </x-layouts.app>

@@ -1,12 +1,6 @@
 <x-layouts.app title="Perfil do cliente">
     <x-page-title title="{{ $encomenda->billing_name ?: 'Cliente B2C' }}" subtitle="Perfil e preferencias">
         <div class="flex flex-wrap gap-2">
-            @if($encomenda->publicInvoiceUrl())
-                <a href="{{ route('encomendas.invoice', $encomenda) }}" target="_blank" rel="noopener" class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Abrir fatura</a>
-                <a href="{{ $encomenda->publicInvoiceUrl() }}" target="_blank" rel="noopener" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">PDF</a>
-            @else
-                <span class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-400">Fatura por gerar</span>
-            @endif
             @if($encomenda->whatsappFaturaUrl())
                 <a href="{{ $encomenda->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
             @endif
@@ -15,6 +9,27 @@
             @endif
             @if($encomenda->whatsappPagamentoUrl())
                 <a href="{{ $encomenda->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Enviar pagamento</a>
+            @endif
+            @if($encomenda->isSubscricao())
+                <form method="post" action="{{ route('encomendas.fatura-moloni', $encomenda) }}" onsubmit="return confirm('Emitir Fatura-Recibo no Moloni (cabaz composto) para esta subscricao?');">
+                    @csrf
+
+                    @php
+                        $moloniPagamentos = \Illuminate\Support\Facades\Cache::remember('moloni.metodos_pagamento', now()->addHours(6), fn () => rescue(fn () => app(\App\Services\MoloniService::class)->listarMetodosPagamento(), []));
+                    @endphp
+                    <select name="payment_method_id" title="Metodo de pagamento (Fatura-Recibo)" class="rounded border border-white/10 bg-[#0A0F1A] px-2 py-2 text-sm text-slate-200">
+                        <option value="">Metodo de pagamento...</option>
+                        @foreach($moloniPagamentos as $mp)
+                            <option value="{{ $mp['payment_method_id'] ?? '' }}" @selected((string)($mp['payment_method_id'] ?? '') === (string) config('moloni.payment_method_id'))>{{ $mp['name'] ?? '' }}</option>
+                        @endforeach
+                    </select>
+                    @if($encomenda->fatura_document_id)
+                        <input type="hidden" name="forcar" value="1">
+                        <button class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">Reemitir Fatura-Recibo (#{{ $encomenda->fatura_document_id }})</button>
+                    @else
+                        <button class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2563EB]">Emitir Fatura-Recibo Moloni</button>
+                    @endif
+                </form>
             @endif
             @if(! in_array($encomenda->status, ['completed', 'wc-completed'], true))
                 <form method="post" action="{{ route('encomendas.complete', $encomenda) }}" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
@@ -25,6 +40,18 @@
             <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Voltar</a>
         </div>
     </x-page-title>
+
+    <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
+        <h2 class="text-lg font-semibold text-white">Produtos da fatura (cabaz)</h2>
+        <p class="mt-1 text-xs text-slate-500">Um produto por linha. Sao usados na composicao da Fatura-Recibo Moloni. Se ficar vazio, usa a preparacao ou os artigos da encomenda.</p>
+        <form method="post" action="{{ route('encomendas.produtos-fatura', $encomenda) }}" class="mt-4">
+            @csrf
+            @method('put')
+            <textarea name="produtos" rows="6" class="w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white" placeholder="Ex.: Banana&#10;Maca&#10;Fruta da epoca">{{ collect($encomenda->fatura_produtos ?? [])->implode("\n") }}</textarea>
+            <button class="mt-3 rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Guardar produtos</button>
+        </form>
+    </div>
+
 
     <div class="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
         <section class="space-y-4">
@@ -201,45 +228,6 @@
         </section>
 
         <section class="space-y-6">
-            <form method="post" action="{{ route('encomendas.duplicate', $encomenda) }}" class="rounded border border-white/10 bg-[#151E2D] p-5" onsubmit="return confirm('Criar esta encomenda no WooCommerce em pagamento pendente?');">
-                @csrf
-                <h2 class="text-lg font-semibold text-white">Criar encomenda WooCommerce</h2>
-                <div class="mt-4">
-                    @include('encomendas._product-lines', [
-                        'wooProducts' => $wooProducts,
-                        'initialLines' => $encomenda->line_items ?? [],
-                    ])
-                </div>
-                <div class="mt-4">
-                    <p class="text-sm text-slate-300">Cupoes</p>
-                    @if($couponLoadError)
-                        <p class="mt-1 rounded bg-red-500/10 px-3 py-2 text-sm text-red-200">Nao foi possivel carregar os cupoes do WooCommerce.</p>
-                    @elseif(count($wooCoupons) === 0)
-                        <p class="mt-1 rounded bg-white/5 px-3 py-2 text-sm text-slate-400">Sem cupoes registados no WooCommerce.</p>
-                    @else
-                        <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                            @foreach($wooCoupons as $coupon)
-                                <label class="flex items-start gap-2 rounded border border-white/10 bg-[#0A0F1A] p-3 text-sm text-slate-200">
-                                    <input name="coupon_codes[]" type="checkbox" value="{{ $coupon['code'] }}" class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
-                                    <span>
-                                        <span class="font-semibold text-white">{{ $coupon['code'] }}</span>
-                                        @if(filled($coupon['amount'] ?? null))
-                                            <span class="text-slate-400">({{ $coupon['amount'] }}{{ ($coupon['discount_type'] ?? '') === 'percent' ? '%' : ' EUR' }})</span>
-                                        @endif
-                                    </span>
-                                </label>
-                            @endforeach
-                        </div>
-                    @endif
-                </div>
-                <div class="mt-4 flex flex-wrap gap-2">
-                    <button class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Criar no WooCommerce</button>
-                    @if($wooProducts->isEmpty())
-                        <span class="rounded bg-[#F59E0B]/15 px-3 py-2 text-sm text-amber-200">Sincroniza produtos primeiro.</span>
-                    @endif
-                </div>
-            </form>
-
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Preferencias do WordPress</h2>
                 @if($encomenda->preferences_text)

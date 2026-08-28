@@ -4,7 +4,6 @@
         'maca' => 'Macas',
         'pera' => 'Peras',
         'laranja' => 'Laranjas',
-        'kiwi' => 'Kiwis',
         'uvas' => 'Uvas',
         'fruta_epoca' => 'Fruta epoca',
         'frutos_secos' => 'Frutos secos',
@@ -14,7 +13,6 @@
         'morangos' => 'Morangos',
     ];
     $produtosKg = \App\Services\ComprasService::PRODUTOS_KG;
-    $labelsPastelaria = \App\Services\ComprasService::PASTELARIA;
 @endphp
 
 <x-layouts.app title="Preparacao">
@@ -43,63 +41,6 @@
             <a href="{{ route('preparacao.index', ['inicio' => $inicio, 'fim' => $fim]) }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
         </div>
     </form>
-
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div class="rounded border border-white/10 bg-[#151E2D] p-5">
-            <p class="text-sm text-slate-400">Clientes</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $corporatePreparacoes->count() + $b2cPreparacoes->count() }}</p>
-            <p class="mt-1 text-xs text-slate-500">{{ $corporatePreparacoes->count() }} corporate + {{ $b2cPreparacoes->count() }} B2C</p>
-        </div>
-        <div class="rounded border border-emerald-400/30 bg-emerald-500/10 p-5">
-            <p class="text-sm text-emerald-200">Caixas</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $totalCaixas }}</p>
-        </div>
-        <div class="rounded border border-[#3B82F6]/30 bg-[#3B82F6]/10 p-5">
-            <p class="text-sm text-blue-200">Pecas totais</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $totalPecas }}</p>
-            <p class="mt-1 text-xs text-blue-100/80">Sem produtos em kg</p>
-        </div>
-        <div class="rounded border border-cyan-400/30 bg-cyan-500/10 p-5">
-            <p class="text-sm text-cyan-200">Pecas entregues</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $totalPecasEntregues }}</p>
-            <p class="mt-1 text-xs text-cyan-100/80">Com parciais e extras</p>
-        </div>
-        <div class="rounded border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-5">
-            <p class="text-sm text-amber-200">Dia</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $dia }}</p>
-        </div>
-    </div>
-
-    <div class="mb-6 grid gap-4 sm:grid-cols-2">
-        <div class="rounded border border-emerald-400/30 bg-emerald-500/10 p-5">
-            <p class="text-sm text-emerald-200">Preparado</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $totalFeitos }}</p>
-        </div>
-        <div class="rounded border border-[#F59E0B]/30 bg-[#F59E0B]/10 p-5">
-            <p class="text-sm text-amber-200">Por fazer</p>
-            <p class="mt-2 text-3xl font-semibold text-white">{{ $totalPorFazer }}</p>
-        </div>
-    </div>
-
-    <div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        @foreach($labels as $key => $label)
-            <div class="rounded border border-white/10 bg-[#151E2D] p-4">
-                <p class="text-sm text-slate-400">{{ $label }}</p>
-                <p class="mt-2 text-2xl font-semibold text-white">
-                    {{ in_array($key, $produtosKg, true) ? number_format((float) ($totaisFrutas[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($totaisFrutas[$key] ?? 0) }}
-                </p>
-            </div>
-        @endforeach
-    </div>
-
-    <div class="mb-6 grid gap-3 sm:grid-cols-3">
-        @foreach($labelsPastelaria as $key => $label)
-            <div class="rounded border border-blue-400/30 bg-blue-500/10 p-4">
-                <p class="text-sm text-blue-200">{{ $label }}</p>
-                <p class="mt-2 text-2xl font-semibold text-white">{{ (int) ($totaisPastelaria[$key] ?? 0) }}</p>
-            </div>
-        @endforeach
-    </div>
 
     <div class="preparacao-table-scroll max-h-[72vh] overflow-auto rounded border border-white/10 bg-[#151E2D]">
         <table class="w-full text-left text-sm">
@@ -172,6 +113,7 @@
                                     @method('put')
                                     <input type="hidden" name="anchor" value="{{ $anchor }}">
                                     <input type="hidden" name="feito" value="1">
+                                    <input type="text" name="matricula" value="{{ old('matricula', $item?->matricula) }}" placeholder="Matricula" maxlength="20" class="mb-2 w-28 rounded border border-white/10 bg-[#151E2D] px-2 py-1 text-xs text-white">
                                     <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Marcar feito</button>
                                 </form>
                             @endif

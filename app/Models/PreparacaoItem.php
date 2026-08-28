@@ -20,6 +20,8 @@ class PreparacaoItem extends Model
         'feito_at',
         'feito_por',
         'produtos_picados',
+        'matricula',
+        'guia_document_id',
     ];
 
     protected function casts(): array

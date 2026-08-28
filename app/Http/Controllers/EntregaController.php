@@ -483,19 +483,49 @@ class EntregaController extends Controller
         return $datas;
     }
 
-    public function updatePreparacaoItem(Request $request, PreparacaoItem $item): RedirectResponse
+    public function updatePreparacaoItem(Request $request, PreparacaoItem $item, \App\Services\GuiaTransporteService $guias): RedirectResponse
     {
         $feito = $request->boolean('feito');
         $anchor = $request->string('anchor')->toString();
+        $matricula = $request->string('matricula')->toString();
 
         $item->update([
             'feito' => $feito,
             'feito_at' => $feito ? now() : null,
             'feito_por' => $feito ? auth()->id() : null,
+            'matricula' => $matricula !== '' ? $matricula : $item->matricula,
         ]);
 
-        return $this->redirectBackToAnchor($anchor)
-            ->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
+        $aviso = null;
+
+        // Ao terminar a preparacao de uma entrega corporate, emite a guia de
+        // transporte com os produtos do dia (uma vez).
+        if ($feito && $item->tipo === 'corporate' && $item->corporate && ! $item->guia_document_id) {
+            $matriculaGuia = $matricula !== '' ? $matricula : (string) $item->matricula;
+
+            if ($matriculaGuia === '') {
+                $aviso = 'Preparacao marcada, mas falta a matricula para emitir a guia de transporte.';
+            } else {
+                try {
+                    $data = $item->data_preparacao instanceof \Illuminate\Support\Carbon
+                        ? $item->data_preparacao->copy()
+                        : \Illuminate\Support\Carbon::parse($item->data_preparacao);
+
+                    $resultado = $guias->emitirGuiaCorporate($item->corporate, $data, $matriculaGuia);
+                    $item->update(['guia_document_id' => $resultado['document_id']]);
+                } catch (\Throwable $e) {
+                    $aviso = 'Preparacao marcada, mas a guia de transporte falhou: '.$e->getMessage();
+                }
+            }
+        }
+
+        $redirect = $this->redirectBackToAnchor($anchor);
+
+        if ($aviso !== null) {
+            return $redirect->with('status', $aviso);
+        }
+
+        return $redirect->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');
     }
 
     public function updatePreparacaoProdutos(Request $request, PreparacaoItem $item): RedirectResponse

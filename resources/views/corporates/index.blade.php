@@ -62,7 +62,7 @@
                 <th class="p-3">Dias</th>
                 <th class="p-3">Pecas por dia</th>
                 <th class="p-3"><a href="{{ $sortUrl('pecas') }}">Pecas/semana{{ $sortMark('pecas') }}</a></th>
-                <th class="p-3">Venda/peca</th>
+                <th class="p-3" title="Preco liquido, sem IVA">Venda/peca (s/IVA)</th>
                 <th class="p-3"><a href="{{ $sortUrl('periodicidade') }}">Periodicidade{{ $sortMark('periodicidade') }}</a></th>
                 <th class="p-3"><a href="{{ $sortUrl('caixas') }}">Caixas{{ $sortMark('caixas') }}</a></th>
                 <th class="p-3"></th>

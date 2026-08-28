@@ -39,7 +39,7 @@ class SimplePdfService
             $corporate->fatura_morada ? 'Morada '.$corporate->fatura_morada : null,
         ])->filter()->implode(' | ');
         $rows[] = 'Caixas: '.(int) $corporate->numero_caixas;
-        $rows[] = 'Preco por peca: '.$this->money($corporate->preco_venda_peca);
+        $rows[] = 'Preco por peca (sem IVA): '.$this->money($corporate->preco_venda_peca);
         $rows[] = 'Cabaz tipo: '.($corporate->cabaz_tipo ?: 'Nao definido').($corporate->cabaz_quantidade ? ' x '.(int) $corporate->cabaz_quantidade : '');
         $rows[] = 'Notas da empresa: '.($corporate->notas ?: 'Sem notas');
         $rows[] = '';

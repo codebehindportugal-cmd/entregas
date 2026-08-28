@@ -105,26 +105,37 @@ class EncomendaController extends Controller
         return back()->with('status', "WooCommerce sincronizado: {$result['fetched']} lidas ({$result['orders']} encomendas, {$result['subscriptions']} subscricoes), {$result['created']} criadas, {$result['updated']} atualizadas, {$result['removed']} concluidas removidas.");
     }
 
-    public function show(WooOrder $encomenda, WooCommerceService $service): View
+    public function show(WooOrder $encomenda): View
     {
         $encomenda->load(['preparacaoItems.feitoPor', 'registoEntregas.user']);
-        [$wooProducts, $wooCoupons, $couponLoadError] = $this->woocommerceFormData($service);
 
-        return view('encomendas.show', compact('encomenda', 'wooProducts', 'wooCoupons', 'couponLoadError'));
+        return view('encomendas.show', compact('encomenda'));
     }
 
-    public function create(WooCommerceService $service): View
+    public function create(Request $request, WooCommerceService $service): View
     {
         [$wooProducts, $wooCoupons, $couponLoadError] = $this->woocommerceFormData($service);
+        $perfil = $request->filled('perfil') ? WooOrder::find($request->integer('perfil')) : null;
+        $perfis = WooOrder::query()
+            ->where(function ($query): void {
+                $query->whereNotNull('billing_name')
+                    ->orWhereNotNull('billing_phone')
+                    ->orWhereNotNull('billing_email');
+            })
+            ->orderBy('billing_name')
+            ->orderByDesc('synced_at')
+            ->limit(300)
+            ->get();
 
-        return view('encomendas.create', compact('wooProducts', 'wooCoupons', 'couponLoadError'));
+        return view('encomendas.create', compact('wooProducts', 'wooCoupons', 'couponLoadError', 'perfis', 'perfil'));
     }
 
     public function store(Request $request, WooCommerceService $service): RedirectResponse
     {
         $data = $request->validate([
-            'billing_name' => ['required', 'string', 'max:255'],
-            'billing_phone' => ['required', 'string', 'max:255'],
+            'profile_order_id' => ['nullable', 'integer', 'exists:woo_orders,id'],
+            'billing_name' => ['nullable', 'string', 'max:255'],
+            'billing_phone' => ['nullable', 'string', 'max:255'],
             'billing_email' => ['nullable', 'email', 'max:255'],
             'billing_address_1' => ['nullable', 'string', 'max:255'],
             'billing_city' => ['nullable', 'string', 'max:255'],
@@ -142,6 +153,30 @@ class EncomendaController extends Controller
             'coupon_codes' => ['nullable', 'array'],
             'coupon_codes.*' => ['string', 'max:255'],
         ]);
+
+        if (filled($data['profile_order_id'] ?? null)) {
+            $perfil = WooOrder::find($data['profile_order_id']);
+            $billing = $perfil?->raw_payload['billing'] ?? [];
+            $shipping = $perfil?->raw_payload['shipping'] ?? [];
+
+            $data['billing_name'] = ($data['billing_name'] ?? null) ?: $perfil?->billing_name;
+            $data['billing_phone'] = ($data['billing_phone'] ?? null) ?: $perfil?->billing_phone;
+            $data['billing_email'] = ($data['billing_email'] ?? null) ?: $perfil?->billing_email;
+            $data['billing_address_1'] = ($data['billing_address_1'] ?? null) ?: ($billing['address_1'] ?? null);
+            $data['billing_city'] = ($data['billing_city'] ?? null) ?: ($billing['city'] ?? null);
+            $data['billing_postcode'] = ($data['billing_postcode'] ?? null) ?: ($billing['postcode'] ?? null);
+            $data['shipping_address_1'] = ($data['shipping_address_1'] ?? null) ?: ($shipping['address_1'] ?? null);
+            $data['shipping_city'] = ($data['shipping_city'] ?? null) ?: ($shipping['city'] ?? null);
+            $data['shipping_postcode'] = ($data['shipping_postcode'] ?? null) ?: ($shipping['postcode'] ?? null);
+            $data['dia_entrega'] = ($data['dia_entrega'] ?? null) ?: $perfil?->dia_entrega;
+            $data['customer_language'] = ($data['customer_language'] ?? null) ?: $perfil?->customer_language;
+        }
+
+        if (blank($data['billing_name'] ?? null) || blank($data['billing_phone'] ?? null)) {
+            return back()->withInput()->withErrors([
+                'billing_name' => 'Indica o nome e telefone do cliente, ou escolhe um perfil que tenha esses dados.',
+            ]);
+        }
 
         $products = collect($data['products'] ?? [])
             ->filter(fn (array $line): bool => filled($line['woo_product_id'] ?? null))

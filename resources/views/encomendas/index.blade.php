@@ -172,20 +172,11 @@
                             @if($order->whatsappPagamentoUrl())
                                 <a href="{{ $order->whatsappPagamentoUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Enviar pagamento</a>
                             @endif
-                            @if($order->publicInvoiceUrl())
-                                <a href="{{ route('encomendas.invoice', $order) }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Abrir fatura</a>
-                                <a href="{{ $order->publicInvoiceUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">PDF</a>
-                            @else
-                                <span class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-500">Fatura por gerar</span>
-                            @endif
                             @if($order->whatsappFaturaUrl())
                                 <a href="{{ $order->whatsappFaturaUrl() }}" target="_blank" rel="noopener" class="mb-2 inline-block rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">WhatsApp fatura</a>
                             @endif
                             <a href="{{ route('encomendas.show', $order) }}" class="mb-2 inline-block rounded bg-white/10 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/15">Perfil</a>
-                            <form method="post" action="{{ route('encomendas.duplicate', $order) }}" class="mb-2" onsubmit="return confirm('Criar uma renovacao no WooCommerce em pagamento pendente com os mesmos dados e produtos?');">
-                                @csrf
-                                <button class="rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Renovar</button>
-                            </form>
+                            <a href="{{ route('encomendas.create', ['perfil' => $order->id]) }}" class="mb-2 inline-block rounded bg-[#3B82F6]/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Nova encomenda</a>
                             @if(! in_array($order->status, ['completed', 'wc-completed'], true))
                                 <form method="post" action="{{ route('encomendas.complete', $order) }}" class="mb-2" onsubmit="return confirm('Fechar esta encomenda no WordPress?');">
                                     @csrf

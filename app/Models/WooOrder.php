@@ -43,6 +43,11 @@ class WooOrder extends Model
         'scheduled_delivery_at',
         'raw_payload',
         'synced_at',
+        'fatura_document_id',
+        'fatura_tipo',
+        'fatura_emitida_em',
+        'cabaz_itens_faturados',
+        'fatura_produtos',
     ];
 
     protected function casts(): array
@@ -62,6 +67,9 @@ class WooOrder extends Model
             'scheduled_delivery_at' => 'date',
             'synced_at' => 'datetime',
             'total' => 'decimal:2',
+            'fatura_emitida_em' => 'datetime',
+            'cabaz_itens_faturados' => 'array',
+            'fatura_produtos' => 'array',
         ];
     }
 
@@ -339,7 +347,15 @@ class WooOrder extends Model
             return false;
         }
 
-        return in_array($data, $concluidas, true);
+        if (in_array($data, $concluidas, true)) {
+            return true;
+        }
+
+        // Consistente com calendarioSubscricao(): enquanto o modulo de registos de
+        // entrega nao esta operacional, as datas passadas (excepto hoje) contam como
+        // entregues. Sem isto, a contagem de "Feitas" ficava sistematicamente errada
+        // (mais baixa) do que as datas marcadas como entregues no calendario.
+        return $data < now()->toDateString();
     }
 
     public function fimCicloSubscricao(): ?Carbon
@@ -784,7 +800,7 @@ class WooOrder extends Model
             return null;
         }
 
-        return URL::signedRoute('encomendas.invoice.public', ['encomenda' => $this]);
+        return null; // pagina publica da fatura removida: B2C passou para o Moloni
     }
 
     private function moloniAdminUrl(string $action, int $id): ?string

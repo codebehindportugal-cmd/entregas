@@ -32,7 +32,8 @@ class CorporateController extends Controller
         6 => 'Sabado',
     ];
 
-    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+    // Nota: o kiwi foi fundido na fruta da epoca (deixou de ter coluna propria).
+    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     private const PASTELARIA = ['pao_mistura', 'pao_forma', 'croissant', 'bolo'];
 
@@ -427,6 +428,15 @@ class CorporateController extends Controller
 
     private function payload(array $data): array
     {
+        // O kiwi foi fundido na fruta da epoca: soma qualquer kiwi recebido.
+        $data['frutas'] = $this->fundirKiwiNaFrutaEpoca($data['frutas'] ?? []);
+
+        if (is_array($data['frutas_por_dia'] ?? null)) {
+            $data['frutas_por_dia'] = collect($data['frutas_por_dia'])
+                ->map(fn ($valores) => is_array($valores) ? $this->fundirKiwiNaFrutaEpoca($valores) : $valores)
+                ->all();
+        }
+
         $frutas = collect(self::FRUTAS)
             ->mapWithKeys(fn (string $fruta) => [$fruta => $this->quantidadeFruta($data['frutas'][$fruta] ?? 0, $fruta)])
             ->all();
@@ -473,6 +483,16 @@ class CorporateController extends Controller
             'peso_total' => $pesoTotal,
             'ativo' => (bool) ($data['ativo'] ?? false),
             'preco_venda_peca' => filled($data['preco_venda_peca'] ?? null) ? (float) $data['preco_venda_peca'] : null,
+            'preco_cabaz' => filled($data['preco_cabaz'] ?? null) ? (float) $data['preco_cabaz'] : null,
+            'valor_ciclo' => filled($data['valor_ciclo'] ?? null) ? (float) $data['valor_ciclo'] : null,
+            'custo_envio' => filled($data['custo_envio'] ?? null) ? (float) $data['custo_envio'] : null,
+            'ciclo_inicio' => filled($data['ciclo_inicio'] ?? null) ? $data['ciclo_inicio'] : null,
+            'referencia_cliente' => filled($data['referencia_cliente'] ?? null) ? $data['referencia_cliente'] : null,
+            'moloni_composto_ref' => filled($data['moloni_composto_ref'] ?? null) ? $data['moloni_composto_ref'] : null,
+            'moloni_guia_ref' => filled($data['moloni_guia_ref'] ?? null) ? $data['moloni_guia_ref'] : null,
+            'cp_entrega' => filled($data['cp_entrega'] ?? null) ? $data['cp_entrega'] : null,
+            'cidade_entrega' => filled($data['cidade_entrega'] ?? null) ? $data['cidade_entrega'] : null,
+            'dias_vencimento' => filled($data['dias_vencimento'] ?? null) ? (int) $data['dias_vencimento'] : null,
             'quinzenal_referencia' => $data['periodicidade_entrega'] === 'quinzenal' ? ($data['quinzenal_referencia'] ?? null) : null,
         ];
     }
@@ -536,6 +556,11 @@ class CorporateController extends Controller
             'cabaz_tipo' => ['nullable', 'in:pequeno,medio,grande'],
             'cabaz_quantidade' => ['nullable', 'integer', 'min:1'],
             'preco_venda_peca' => ['nullable', 'numeric', 'min:0'],
+            'preco_cabaz' => ['nullable', 'numeric', 'min:0'],
+            'valor_ciclo' => ['nullable', 'numeric', 'min:0'],
+            'custo_envio' => ['nullable', 'numeric', 'min:0'],
+            'ciclo_inicio' => ['nullable', 'date'],
+            'referencia_cliente' => ['nullable', 'string', 'max:255'],
             'fatura_email' => ['nullable', 'email', 'max:255'],
         ]);
 
@@ -579,8 +604,27 @@ class CorporateController extends Controller
         ];
     }
 
+    private function fundirKiwiNaFrutaEpoca(array $valores): array
+    {
+        if (! array_key_exists('kiwi', $valores)) {
+            return $valores;
+        }
+
+        $kiwi = (float) ($valores['kiwi'] ?? 0);
+
+        if ($kiwi > 0) {
+            $valores['fruta_epoca'] = (int) round((float) ($valores['fruta_epoca'] ?? 0) + $kiwi);
+        }
+
+        unset($valores['kiwi']);
+
+        return $valores;
+    }
+
     private function normalizeImportFruits(array $values): array
     {
+        $values = $this->fundirKiwiNaFrutaEpoca($values);
+
         return collect(self::FRUTAS)
             ->mapWithKeys(fn (string $fruta) => [$fruta => in_array($fruta, self::PRODUTOS_KG, true)
                 ? round(max(0, (float) ($values[$fruta] ?? 0)), 2)

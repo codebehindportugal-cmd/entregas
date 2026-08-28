@@ -3,38 +3,67 @@
         <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Voltar</a>
     </x-page-title>
 
+    @php
+        $billing = $perfil?->raw_payload['billing'] ?? [];
+        $shipping = $perfil?->raw_payload['shipping'] ?? [];
+        $selectedPerfilId = old('profile_order_id', $perfil?->id);
+    @endphp
+
+    <form method="get" action="{{ route('encomendas.create') }}" class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
+        <div class="grid gap-4 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+            <label class="block text-sm text-slate-300">Perfil existente
+                <select name="perfil" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    <option value="">Criar cliente novo</option>
+                    @foreach($perfis as $perfilOpcao)
+                        <option value="{{ $perfilOpcao->id }}" @selected((string) $perfilOpcao->id === (string) $selectedPerfilId)>
+                            #{{ $perfilOpcao->woo_id }} - {{ $perfilOpcao->billing_name ?: 'Sem nome' }} {{ $perfilOpcao->billing_phone ? '('.$perfilOpcao->billing_phone.')' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+            </label>
+            <button class="rounded bg-[#3B82F6]/20 px-4 py-2 text-sm font-semibold text-blue-200 hover:bg-[#3B82F6]/30">Usar perfil</button>
+            @if($perfil)
+                <a href="{{ route('encomendas.create') }}" class="rounded bg-white/10 px-4 py-2 text-center text-sm font-semibold text-slate-200 hover:bg-white/15">Cliente novo</a>
+            @endif
+        </div>
+        @if($perfil)
+            <p class="mt-3 text-sm text-slate-400">A criar uma encomenda nova para {{ $perfil->billing_name ?: 'perfil sem nome' }}. Pode alterar os dados antes de enviar para o WooCommerce.</p>
+        @endif
+    </form>
+
     <form method="post" action="{{ route('encomendas.store') }}" class="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         @csrf
+        <input type="hidden" name="profile_order_id" value="{{ $selectedPerfilId }}">
 
         <section class="space-y-6">
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Cliente</h2>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
                     <label class="block text-sm text-slate-300">Nome
-                        <input name="billing_name" required value="{{ old('billing_name') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="billing_name" required value="{{ old('billing_name', $perfil?->billing_name) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Telefone
-                        <input name="billing_phone" required value="{{ old('billing_phone') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="billing_phone" required value="{{ old('billing_phone', $perfil?->billing_phone) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300 md:col-span-2">Email
-                        <input name="billing_email" type="email" value="{{ old('billing_email') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="billing_email" type="email" value="{{ old('billing_email', $perfil?->billing_email) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Idioma
                         <select name="customer_language" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                            <option value="pt" @selected(old('customer_language', 'pt') === 'pt')>Portugues</option>
-                            <option value="en" @selected(old('customer_language') === 'en')>English</option>
+                            <option value="pt" @selected(old('customer_language', $perfil?->customer_language ?: 'pt') === 'pt')>Portugues</option>
+                            <option value="en" @selected(old('customer_language', $perfil?->customer_language) === 'en')>English</option>
                         </select>
                     </label>
                     <label class="block text-sm text-slate-300">Dia de entrega
                         <select name="dia_entrega" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                             <option value="">Sem dia definido</option>
-                            <option value="segunda" @selected(old('dia_entrega') === 'segunda')>Segunda</option>
-                            <option value="quarta" @selected(old('dia_entrega') === 'quarta')>Quarta</option>
-                            <option value="sabado" @selected(old('dia_entrega') === 'sabado')>Sabado</option>
+                            <option value="segunda" @selected(old('dia_entrega', $perfil?->dia_entrega) === 'segunda')>Segunda</option>
+                            <option value="quarta" @selected(old('dia_entrega', $perfil?->dia_entrega) === 'quarta')>Quarta</option>
+                            <option value="sabado" @selected(old('dia_entrega', $perfil?->dia_entrega) === 'sabado')>Sabado</option>
                         </select>
                     </label>
                     <label class="block text-sm text-slate-300 md:col-span-2">Data de entrega
-                        <input name="scheduled_delivery_at" type="date" value="{{ old('scheduled_delivery_at') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="scheduled_delivery_at" type="date" value="{{ old('scheduled_delivery_at', optional($perfil?->scheduled_delivery_at)->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                 </div>
             </div>
@@ -43,26 +72,26 @@
                 <h2 class="text-lg font-semibold text-white">Moradas</h2>
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
                     <label class="block text-sm text-slate-300 md:col-span-2">Morada faturacao
-                        <input name="billing_address_1" value="{{ old('billing_address_1') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="billing_address_1" value="{{ old('billing_address_1', $billing['address_1'] ?? '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Cidade faturacao
-                        <input name="billing_city" value="{{ old('billing_city') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="billing_city" value="{{ old('billing_city', $billing['city'] ?? '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Codigo postal faturacao
-                        <input name="billing_postcode" value="{{ old('billing_postcode') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="billing_postcode" value="{{ old('billing_postcode', $billing['postcode'] ?? '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300 md:col-span-2">Morada entrega
-                        <input name="shipping_address_1" value="{{ old('shipping_address_1') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="shipping_address_1" value="{{ old('shipping_address_1', $shipping['address_1'] ?? '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Cidade entrega
-                        <input name="shipping_city" value="{{ old('shipping_city') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="shipping_city" value="{{ old('shipping_city', $shipping['city'] ?? '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Codigo postal entrega
-                        <input name="shipping_postcode" value="{{ old('shipping_postcode') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        <input name="shipping_postcode" value="{{ old('shipping_postcode', $shipping['postcode'] ?? '') }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                 </div>
                 <label class="mt-4 block text-sm text-slate-300">Notas
-                    <textarea name="customer_notes" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('customer_notes') }}</textarea>
+                    <textarea name="customer_notes" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('customer_notes', $perfil?->customer_notes) }}</textarea>
                 </label>
             </div>
         </section>

@@ -2,6 +2,23 @@
     <x-page-title title="{{ $corporate->empresa }}" subtitle="{{ $corporate->sucursal }}">
         <a href="{{ route('corporates.mapa-mensal', [$corporate, 'mes' => now()->format('Y-m')]) }}" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Mapa mensal</a>
         <a href="{{ route('corporates.edit', $corporate) }}" class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Editar empresa</a>
+        <form method="post" action="{{ route('corporates.faturar') }}" class="flex items-center gap-2"
+                  onsubmit="return confirm('Emitir Fatura Moloni SO desta sucursal para o periodo indicado?');">
+                @csrf
+                {{-- Fatura SO esta sucursal (nunca as outras do mesmo NIF). --}}
+                <input type="hidden" name="corporate_id" value="{{ $corporate->id }}">
+                <input type="date" name="data_referencia" value="{{ now()->toDateString() }}" title="Data de referencia (ciclo de 4 semanas)"
+                       class="rounded border border-white/10 bg-[#0A0F1A] px-2 py-2 text-sm text-slate-200">
+                <input type="text" name="referencia_cliente" value="{{ $corporate->referencia_cliente }}" placeholder="Ref. cliente"
+                       class="rounded border border-white/10 bg-[#0A0F1A] px-2 py-2 text-sm text-slate-200">
+
+                <label class="flex items-center gap-1 text-xs text-slate-300" title="Emite mesmo que ja exista fatura registada para este ciclo">
+                    <input type="checkbox" name="forcar" value="1" class="rounded border-white/20 bg-[#0A0F1A]"> Forcar
+                </label>
+
+                <button class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">{{ $corporate->fatura_nif ? 'Faturar esta sucursal' : 'Faturar esta sucursal (sem NIF)' }}</button>
+            </form>
+
     </x-page-title>
 
     <div class="rounded border border-white/10 bg-[#151E2D] p-5 text-sm text-slate-300">
@@ -16,7 +33,7 @@
         @endif
         <p>Dias: {{ implode(', ', $corporate->dias_entrega ?? []) }}</p>
         <p>Total de pecas por semana: {{ $corporate->totalPecasPorSemana() }}</p>
-        <p>Preco venda por peca: {{ $corporate->preco_venda_peca !== null ? number_format((float) $corporate->preco_venda_peca, 4, ',', ' ').' EUR' : 'Sem dados' }}</p>
+        <p>Preco venda por peca (sem IVA): {{ $corporate->preco_venda_peca !== null ? number_format((float) $corporate->preco_venda_peca, 4, ',', ' ').' EUR' : 'Sem dados' }}</p>
         @if($corporate->valorVendaPorSemana() !== null)
             <p>Valor venda por semana: {{ number_format($corporate->valorVendaPorSemana(), 2, ',', ' ') }} EUR</p>
         @endif

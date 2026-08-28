@@ -22,3 +22,13 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Ficheiros temporarios do editor / restos de trabalho
+.fuse_hidden*
+_to_delete/
+/.claude
+*.bak
+*.bak2
+*.bak-abas
+*.resumos.bak
+array"

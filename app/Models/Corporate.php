@@ -14,7 +14,8 @@ class Corporate extends Model
     /** @use HasFactory<CorporateFactory> */
     use HasFactory;
 
-    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'kiwi', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
+    // Nota: o kiwi foi fundido na fruta da epoca (deixou de ter coluna propria).
+    private const FRUTAS = ['banana', 'maca', 'pera', 'laranja', 'uvas', 'fruta_epoca', 'frutos_secos', 'mirtilos', 'framboesas', 'amoras', 'morangos'];
 
     private const PASTELARIA = ['pao_mistura', 'pao_forma', 'croissant', 'bolo'];
 
@@ -24,6 +25,8 @@ class Corporate extends Model
         'empresa',
         'sucursal',
         'morada_entrega',
+        'cp_entrega',
+        'cidade_entrega',
         'dias_entrega',
         'periodicidade_entrega',
         'quinzenal_referencia',
@@ -38,6 +41,14 @@ class Corporate extends Model
         'preco_venda_peca',
         'cabaz_tipo',
         'cabaz_quantidade',
+        'preco_cabaz',
+        'valor_ciclo',
+        'custo_envio',
+        'moloni_composto_ref',
+        'moloni_guia_ref',
+        'dias_vencimento',
+        'ciclo_inicio',
+        'referencia_cliente',
         'peso_total',
         'frutas',
         'frutas_por_dia',
@@ -61,7 +72,12 @@ class Corporate extends Model
             'ativo' => 'boolean',
             'peso_total' => 'decimal:2',
             'preco_venda_peca' => 'decimal:4',
+            'preco_cabaz' => 'decimal:2',
+            'valor_ciclo' => 'decimal:2',
+            'custo_envio' => 'decimal:2',
+            'ciclo_inicio' => 'date',
             'cabaz_quantidade' => 'integer',
+            'dias_vencimento' => 'integer',
         ];
     }
 
@@ -127,11 +143,19 @@ class Corporate extends Model
         $frutasDoDia = $this->frutas_por_dia[$dia] ?? [];
         $temFrutasDoDia = is_array($this->frutas_por_dia ?? null) && array_key_exists($dia, $this->frutas_por_dia);
 
-        return collect(self::FRUTAS)
-            ->mapWithKeys(function (string $fruta) use ($frutasBase, $frutasDoDia, $temFrutasDoDia): array {
-                $value = $temFrutasDoDia ? ($frutasDoDia[$fruta] ?? 0) : ($frutasBase[$fruta] ?? 0);
+        $fonte = $temFrutasDoDia ? $frutasDoDia : $frutasBase;
 
-                return [$fruta => in_array($fruta, self::PRODUTOS_KG, true) ? round((float) $value, 2) : (int) $value];
+        return collect(self::FRUTAS)
+            ->mapWithKeys(function (string $fruta) use ($fonte): array {
+                $value = (float) ($fonte[$fruta] ?? 0);
+
+                // O kiwi foi fundido na fruta da epoca: soma qualquer kiwi ainda
+                // guardado (robusto mesmo antes da migracao de dados correr).
+                if ($fruta === 'fruta_epoca') {
+                    $value += (float) ($fonte['kiwi'] ?? 0);
+                }
+
+                return [$fruta => in_array($fruta, self::PRODUTOS_KG, true) ? round($value, 2) : (int) $value];
             })
             ->all();
     }
@@ -316,5 +340,32 @@ class Corporate extends Model
     public function usaCabazTipo(): bool
     {
         return filled($this->cabaz_tipo);
+    }
+
+    /**
+     * Ciclo de faturacao de 4 semanas que contem a data de referencia.
+     *
+     * @return array{inicio:\Illuminate\Support\Carbon,fim:\Illuminate\Support\Carbon,numero:int,label:string}|null
+     */
+    public function cicloFaturacao(?\Illuminate\Support\Carbon $referencia = null): ?array
+    {
+        if (blank($this->ciclo_inicio)) {
+            return null;
+        }
+
+        $inicio = \Illuminate\Support\Carbon::parse($this->ciclo_inicio)->startOfDay();
+        $ref = ($referencia ?? now())->copy()->startOfDay();
+
+        $numeroCiclo = $ref->lt($inicio) ? 0 : intdiv((int) $inicio->diffInWeeks($ref), 4);
+
+        $cicloInicio = $inicio->copy()->addWeeks($numeroCiclo * 4);
+        $cicloFim = $cicloInicio->copy()->addWeeks(4)->subDay();
+
+        return [
+            'inicio' => $cicloInicio,
+            'fim' => $cicloFim,
+            'numero' => $numeroCiclo + 1,
+            'label' => $cicloInicio->format('d/m/Y').' - '.$cicloFim->format('d/m/Y'),
+        ];
     }
 }
