@@ -22,6 +22,7 @@ class PreparacaoItem extends Model
         'produtos_picados',
         'matricula',
         'guia_document_id',
+        'remessa_document_id',
     ];
 
     protected function casts(): array

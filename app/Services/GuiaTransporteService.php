@@ -42,9 +42,48 @@ class GuiaTransporteService
         $documentSetId = $this->moloni->documentSetId('guia');
 
         if ($documentSetId === null) {
-            throw new RuntimeException('Falta configurar MOLONI_DOCUMENT_SET_ID_GUIA no .env.');
+            throw new RuntimeException('Falta configurar a Serie da Guia de Transporte nas Definicoes Moloni.');
         }
 
+        $payload = $this->montarPayload($corporate, $data, $documentSetId, $matricula, $dia);
+
+        return ['document_id' => $this->moloni->inserirGuiaTransporte($payload)['document_id']];
+    }
+
+    /**
+     * Guia de Remessa, para as sucursais em que quem entrega e um terceiro.
+     * Sai ALEM da guia de transporte, com os mesmos produtos do dia, mas sem
+     * matricula nossa — o transportador vai nas observacoes.
+     *
+     * @return array{document_id:int}
+     */
+    public function emitirGuiaRemessaCorporate(Corporate $corporate, Carbon $data, ?string $dia = null): array
+    {
+        $documentSetId = $this->moloni->documentSetId('remessa');
+
+        if ($documentSetId === null) {
+            throw new RuntimeException('Falta configurar a Serie da Guia de Remessa nas Definicoes Moloni.');
+        }
+
+        $payload = $this->montarPayload($corporate, $data, $documentSetId, null, $dia);
+
+        $transportador = trim((string) $corporate->transportador);
+
+        if ($transportador !== '') {
+            $payload['notes'] = trim($payload['notes']."\nTransporte efetuado por: ".$transportador);
+        }
+
+        return ['document_id' => $this->moloni->inserirGuiaRemessa($payload)['document_id']];
+    }
+
+    /**
+     * O corpo comum aos dois documentos. A matricula so entra quando ha uma
+     * (guia de transporte); na remessa fica de fora.
+     *
+     * @return array<string, mixed>
+     */
+    private function montarPayload(Corporate $corporate, Carbon $data, int $documentSetId, ?string $matricula, ?string $dia): array
+    {
         $dia ??= self::DIAS[$data->dayOfWeek] ?? 'Segunda';
 
         // Mesmo artigo COMPOSTO da fatura. Por empresa (moloni_guia_ref), senao
@@ -190,9 +229,12 @@ class GuiaTransporteService
             'delivery_destination_city' => $destino['city'],
             'delivery_destination_country' => 1,
             'delivery_datetime' => now()->setTimeFromTimeString($hora)->format('Y-m-d H:i:s'),
-            'vehicle_name' => $matricula,
-            'vehicle_number_plate' => $matricula,
         ];
+
+        if (filled($matricula)) {
+            $payload['vehicle_name'] = $matricula;
+            $payload['vehicle_number_plate'] = $matricula;
+        }
 
         $metodoExpedicaoId = (int) config('moloni.guia_delivery_method_id', 0);
 
@@ -200,9 +242,7 @@ class GuiaTransporteService
             $payload['delivery_method_id'] = $metodoExpedicaoId;
         }
 
-        $resultado = $this->moloni->inserirGuiaTransporte($payload);
-
-        return ['document_id' => $resultado['document_id']];
+        return $payload;
     }
 
     /**

@@ -125,6 +125,20 @@
             <span class="mt-1 block text-xs text-slate-500">Artigo usado na guia de transporte. Vazio = usa o das definicoes ou o composto.</span>
         </label>
     </div>
+
+    <div class="mt-4 rounded border border-white/10 bg-[#0A0F1A] p-4">
+        <label class="flex items-start gap-3 text-sm text-slate-300">
+            <input name="guia_remessa" type="checkbox" value="1" @checked(old('guia_remessa', $corporate->guia_remessa)) class="mt-1 rounded border-white/10">
+            <span>
+                Entrega feita por terceiros — emitir tambem guia de remessa
+                <span class="mt-1 block text-xs text-slate-500">Alem da guia de transporte, sai uma guia de remessa (serie GR das Definicoes Moloni) sempre que a preparacao desta sucursal e dada como feita.</span>
+            </span>
+        </label>
+        <label class="mt-3 block text-sm text-slate-300">Transportador
+            <input name="transportador" type="text" value="{{ old('transportador', $corporate->transportador) }}" placeholder="Ex.: Nome da transportadora" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+            <span class="mt-1 block text-xs text-slate-500">Quem faz a entrega. Sai nas observacoes da guia de remessa.</span>
+        </label>
+    </div>
 </div>
 <div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>
     <label class="flex items-start gap-3 text-sm text-slate-300">

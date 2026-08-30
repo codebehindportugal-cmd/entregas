@@ -13,6 +13,7 @@ use App\Http\Controllers\EquipaController;
 use App\Http\Controllers\FaturacaoController;
 use App\Http\Controllers\FaturasController;
 use App\Http\Controllers\FrutaEpocaController;
+use App\Http\Controllers\ViaturaController;
 use App\Http\Controllers\ListaCabazController;
 use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\TabelaPrecoController;
@@ -81,6 +82,11 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/faturas/{fatura}/enviada', [FaturasController::class, 'enviada'])->name('faturas.enviada');
         Route::get('/definicoes-moloni', [DefinicoesMoloniController::class, 'index'])->name('definicoes-moloni.index');
         Route::put('/definicoes-moloni', [DefinicoesMoloniController::class, 'update'])->name('definicoes-moloni.update');
+        Route::get('/viaturas', [ViaturaController::class, 'index'])->name('viaturas.index');
+        Route::post('/viaturas', [ViaturaController::class, 'store'])->name('viaturas.store');
+        Route::put('/viaturas/{viatura}', [ViaturaController::class, 'update'])->name('viaturas.update');
+        Route::delete('/viaturas/{viatura}', [ViaturaController::class, 'destroy'])->name('viaturas.destroy');
+
         Route::get('/fruta-epoca', [FrutaEpocaController::class, 'index'])->name('fruta-epoca.index');
         Route::post('/fruta-epoca', [FrutaEpocaController::class, 'store'])->name('fruta-epoca.store');
         Route::delete('/fruta-epoca', [FrutaEpocaController::class, 'destroy'])->name('fruta-epoca.destroy');

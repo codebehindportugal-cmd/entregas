@@ -88,6 +88,17 @@ class MoloniService
     }
 
     /**
+     * Insere uma Guia de Remessa (deliveryNotes). Usada nas sucursais em que
+     * a entrega e feita por um terceiro.
+     *
+     * @return array{document_id:int,raw:array}
+     */
+    public function inserirGuiaRemessa(array $payload): array
+    {
+        return $this->inserirDocumento('deliveryNotes/insert', $payload);
+    }
+
+    /**
      * Lista as series de documentos (document sets) da empresa no Moloni.
      *
      * @return array<int,array{document_set_id:int,name:string}>
@@ -654,6 +665,7 @@ class MoloniService
         $chave = match ($tipo) {
             'fatura_recibo' => 'document_set_id_fatura_recibo',
             'guia' => 'document_set_id_guia',
+            'remessa' => 'document_set_id_remessa',
             default => 'document_set_id_fatura',
         };
         $valor = $this->configValue($chave);

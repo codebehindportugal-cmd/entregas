@@ -11,6 +11,7 @@ use App\Models\CorporateHistorico;
 use App\Models\PreparacaoItem;
 use App\Models\RegistoEntrega;
 use App\Models\User;
+use App\Models\Viatura;
 use App\Models\WooOrder;
 use App\Services\ListaCabazResolver;
 use App\Services\ComprasService;
@@ -509,6 +510,7 @@ class EntregaController extends Controller
             'mostrarTudo' => $mostrarTudo,
             'escondidasSemColaborador' => $escondidasSemColaborador,
             'escondidasNaoEntregues' => $escondidasNaoEntregues,
+            'viaturas' => Viatura::query()->ativa()->orderBy('ordem')->orderBy('matricula')->get(),
             'preparacaoItems' => $preparacaoItems,
             'totalCaixas' => $corporatePreparacoes->sum(fn (array $preparacao) => (int) $preparacao['corporate']->numero_caixas),
             'totalPecas' => $totalPecas,
@@ -609,6 +611,21 @@ class EntregaController extends Controller
                 } catch (\Throwable $e) {
                     $aviso = 'Preparacao marcada, mas a guia de transporte falhou: '.$e->getMessage();
                 }
+            }
+        }
+
+        // Sucursais entregues por terceiros levam tambem guia de remessa. Vai
+        // em separado da de transporte: se uma falhar, a outra fica na mesma.
+        if ($feito && $item->tipo === 'corporate' && $item->corporate?->guia_remessa && ! $item->remessa_document_id) {
+            try {
+                $data = $item->data_preparacao instanceof \Illuminate\Support\Carbon
+                    ? $item->data_preparacao->copy()
+                    : \Illuminate\Support\Carbon::parse($item->data_preparacao);
+
+                $resultado = $guias->emitirGuiaRemessaCorporate($item->corporate, $data);
+                $item->update(['remessa_document_id' => $resultado['document_id']]);
+            } catch (\Throwable $e) {
+                $aviso = trim(($aviso ?? '').' Guia de remessa falhou: '.$e->getMessage());
             }
         }
 

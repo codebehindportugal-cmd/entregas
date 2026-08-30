@@ -89,6 +89,7 @@
 
                         // Pecas mesmo entregues neste dia contra as do costume.
                         // Quando diferem, a linha ganha cor e mostra as duas.
+                        $caixasEmpresa = (int) $corporate->numero_caixas;
                         $pecasEntregues = (int) ($preparacao['pecas_entregues'] ?? $totalEmpresa);
                         $semEntrega = str_contains($tipoEntrega, 'Nao entregamos');
                         $diferenca = $pecasEntregues - $totalEmpresa;
@@ -107,7 +108,25 @@
                         </td>
                         <td class="p-3 font-semibold text-emerald-200">{{ $corporate->numero_caixas }}</td>
                         @foreach(array_keys($labels) as $key)
-                            <td class="p-3 text-slate-300">{{ in_array($key, $produtosKg, true) ? number_format((float) ($frutasEmpresa[$key] ?? 0), 2, ',', ' ').' kg' : (int) ($frutasEmpresa[$key] ?? 0) }}</td>
+                            @php
+                                $emKg = in_array($key, $produtosKg, true);
+                                $valorProduto = (float) ($frutasEmpresa[$key] ?? 0);
+                                // Com mais do que uma caixa, quem prepara precisa de
+                                // saber quanto vai para cada uma, nao so o total.
+                                // Nas pecas arredonda-se sempre para cima: e melhor
+                                // levar uma a mais numa caixa do que faltar numa.
+                                $porCaixa = $caixasEmpresa > 1 && $valorProduto > 0
+                                    ? $valorProduto / $caixasEmpresa
+                                    : null;
+                            @endphp
+                            <td class="whitespace-nowrap p-3 text-slate-300">
+                                {{ $emKg ? number_format($valorProduto, 2, ',', ' ').' kg' : (int) $valorProduto }}
+                                @if($porCaixa !== null)
+                                    <span class="block text-xs text-slate-500">
+                                        {{ $emKg ? number_format($porCaixa, 2, ',', ' ').' kg' : (int) ceil($porCaixa) }}/caixa
+                                    </span>
+                                @endif
+                            </td>
                         @endforeach
                         <td class="whitespace-nowrap p-3 font-semibold text-white">
                             @if($semEntrega)
@@ -138,7 +157,26 @@
                                     @method('put')
                                     <input type="hidden" name="anchor" value="{{ $anchor }}">
                                     <input type="hidden" name="feito" value="1">
-                                    <input type="text" name="matricula" value="{{ old('matricula', $item?->matricula) }}" placeholder="Matricula" maxlength="20" class="mb-2 w-28 rounded border border-white/10 bg-[#151E2D] px-2 py-1 text-xs text-white">
+                                    @php
+                                        // A lista vem do controlador; se a linha tiver uma
+                                        // matricula de um carro entretanto desativado, essa
+                                        // e acrescentada para nao se perder o valor.
+                                        $viaturasLinha = $viaturas;
+
+                                        if (filled($item?->matricula) && $viaturas->doesntContain('matricula', $item->matricula)) {
+                                            $viaturasLinha = $viaturas->concat([new \App\Models\Viatura(['matricula' => $item->matricula])]);
+                                        }
+                                    @endphp
+                                    @if($viaturasLinha->isEmpty())
+                                        <a href="{{ route('viaturas.index') }}" class="mb-2 block text-xs font-semibold text-amber-700 underline">Sem viaturas — adiciona uma</a>
+                                    @else
+                                        <select name="matricula" class="mb-2 w-32 rounded border border-white/10 bg-[#151E2D] px-2 py-1 text-xs text-white">
+                                            <option value="">Matricula...</option>
+                                            @foreach($viaturasLinha as $viatura)
+                                                <option value="{{ $viatura->matricula }}" @selected(old('matricula', $item?->matricula) === $viatura->matricula)>{{ $viatura->etiqueta() }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
                                     <button class="rounded bg-[#22C55E] px-3 py-2 text-xs font-semibold text-[#0A0F1A]">Marcar feito</button>
                                 </form>
                             @endif

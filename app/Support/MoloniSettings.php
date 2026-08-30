@@ -36,6 +36,7 @@ class MoloniSettings
                     'document_set_id_fatura' => ['label' => 'Serie da Fatura (B2B)', 'tipo' => 'numero', 'ajuda' => 'document_set_id da serie FT. Ve os ids com "php artisan moloni:document-sets".'],
                     'document_set_id_fatura_recibo' => ['label' => 'Serie da Fatura-Recibo (B2C)', 'tipo' => 'numero'],
                     'document_set_id_guia' => ['label' => 'Serie da Guia de Transporte', 'tipo' => 'numero', 'ajuda' => 'Tem de ser a serie GT, diferente da serie das faturas.'],
+                    'document_set_id_remessa' => ['label' => 'Serie da Guia de Remessa', 'tipo' => 'numero', 'ajuda' => 'Serie GR. So usada nas sucursais marcadas como entregues por terceiros.'],
                 ],
             ],
             'artigos' => [
