@@ -588,10 +588,17 @@ class WooCommerceService
             'cabaz_tipo',
             'ciclo_entrega',
             'scheduled_delivery_at',
-            'first_delivery_at',
             'next_payment_at',
             'subscription_ends_at',
         ]);
+        // A data da 1a entrega, depois de definida, e da app: a sincronizacao NAO
+        // escreve por cima (decisao do Andre, 28/08/2026). Antes, cada sync
+        // recalculava-a a partir da data da encomenda e desfazia as correcoes
+        // feitas a mao — e com ela mudavam todas as datas seguintes do ciclo.
+        if (filled($model->first_delivery_at)) {
+            $payload['first_delivery_at'] = $model->first_delivery_at->toDateString();
+        }
+
         $payload = $this->preserveFilledLocalArrays($model, $payload, [
             'delivery_dates',
             'cancelled_delivery_dates',
@@ -930,14 +937,19 @@ class WooCommerceService
         );
         $deliveryDates = $this->deliveryDates($metadata->get('_hdm_datas_entrega'));
         $cancelledDeliveryDates = $this->deliveryDates($metadata->get('_hdm_datas_canceladas'));
-        $syncedFirstDeliveryAt = $this->firstDateFrom([
+        // A primeira entrega escolhida no site tem prioridade sobre tudo.
+        $primeiraEntregaEscolhida = $this->firstDateFrom([
             $metadata->get('_hdm_data_primeira_entrega'),
+        ]);
+        // Inicio da subscricao (pode ser posterior a data da encomenda).
+        $inicioSubscricao = $this->firstDateFrom([
             $metadata->get('_schedule_start'),
             $metadata->get('_subscription_start_date'),
             $metadata->get('_start_date'),
             Arr::get($order, 'start_date'),
             Arr::get($order, 'date_start'),
         ]);
+        $syncedFirstDeliveryAt = $primeiraEntregaEscolhida ?? $inicioSubscricao;
         $nextPaymentAt = $this->firstDateFrom([
             Arr::get($order, 'next_payment_date'),
             Arr::get($order, 'date_next_payment'),
@@ -966,8 +978,29 @@ class WooCommerceService
             collect(Arr::get($order, 'line_items', []))->pluck('name')->implode(' '),
             $this->cycleFromDeliveryDates($deliveryDates),
         ]);
+        // Data da 1a entrega de uma subscricao (decisao do Andre, 28/08/2026):
+        //  1. a data escolhida no site, se existir;
+        //  2. senao, o 1o dia de entrega a partir do INICIO da subscricao
+        //     (antes contava-se sempre da data da encomenda, o que dava datas
+        //     erradas nas subscricoes que so comecam mais tarde);
+        //  3. senao, a propria data de inicio.
+        $baseParaPrimeiraEntrega = $orderedAt;
+        $inicioPodeSerDiaDeEntrega = false;
+
+        if ($inicioSubscricao !== null) {
+            $inicio = Carbon::parse($inicioSubscricao)->startOfDay();
+
+            if ($baseParaPrimeiraEntrega === null || $inicio->greaterThan($baseParaPrimeiraEntrega)) {
+                $baseParaPrimeiraEntrega = $inicio;
+                // O proprio dia de inicio conta como entrega se calhar no dia certo.
+                $inicioPodeSerDiaDeEntrega = true;
+            }
+        }
+
         $firstDeliveryAt = $sourceType === 'subscription'
-            ? ($this->nextDeliveryDateAfterOrderDate($orderedAt, $diaEntrega) ?? $syncedFirstDeliveryAt)
+            ? ($primeiraEntregaEscolhida
+                ?? $this->nextDeliveryDateAfterOrderDate($baseParaPrimeiraEntrega, $diaEntrega, $inicioPodeSerDiaDeEntrega)
+                ?? $inicioSubscricao)
             : $syncedFirstDeliveryAt;
 
         return [
@@ -1338,7 +1371,7 @@ class WooCommerceService
         return null;
     }
 
-    private function nextDeliveryDateAfterOrderDate(?Carbon $orderedAt, ?string $diaEntrega): ?string
+    private function nextDeliveryDateAfterOrderDate(?Carbon $orderedAt, ?string $diaEntrega, bool $incluirProprioDia = false): ?string
     {
         if ($orderedAt === null) {
             return null;
@@ -1355,7 +1388,7 @@ class WooCommerceService
             return null;
         }
 
-        for ($offset = 1; $offset <= 21; $offset++) {
+        for ($offset = $incluirProprioDia ? 0 : 1; $offset <= 21; $offset++) {
             $candidate = $orderedAt->copy()->startOfDay()->addDays($offset);
 
             if ($candidate->dayOfWeek === $preferredDay) {

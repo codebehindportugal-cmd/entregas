@@ -12,6 +12,7 @@ use App\Models\PreparacaoItem;
 use App\Models\RegistoEntrega;
 use App\Models\User;
 use App\Models\WooOrder;
+use App\Services\ListaCabazResolver;
 use App\Services\ComprasService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -358,6 +359,87 @@ class EntregaController extends Controller
                 });
         }
 
+        // So se prepara o que tem rota atribuida e nao foi dado como nao
+        // entregue (pedido do Andre, 28/08/2026). O filtro pode ser desligado
+        // com ?mostrar_tudo=1, para nao esconder trabalho sem querer.
+        $mostrarTudo = $request->boolean('mostrar_tudo');
+
+        $atribuicoes = AtribuicaoEntrega::query()
+            ->select(['tipo', 'corporate_id', 'woo_order_id', 'dia_semana'])
+            ->get();
+
+        $temColaboradorCorporate = $atribuicoes
+            ->where('tipo', 'corporate')
+            ->map(fn (AtribuicaoEntrega $a): string => $a->corporate_id.'|'.$a->dia_semana)
+            ->flip();
+
+        $temColaboradorB2c = $atribuicoes
+            ->where('tipo', 'b2c')
+            ->map(fn (AtribuicaoEntrega $a): string => $a->woo_order_id.'|'.$a->dia_semana)
+            ->flip();
+
+        $escondidasSemColaborador = 0;
+        $escondidasNaoEntregues = 0;
+
+        // "Nao entregue" tem duas origens: o historico da empresa
+        // (nao_entregamos, planeado) e o registo da rota marcado como falhou
+        // pelo colaborador. As duas escondem a linha da preparacao.
+        $falhadas = RegistoEntrega::query()
+            ->where('status', 'falhou')
+            ->whereBetween('data_entrega', [$inicio->toDateString(), $fim->toDateString()])
+            ->get(['tipo', 'corporate_id', 'woo_order_id', 'data_entrega']);
+
+        $falhadasCorporate = $falhadas
+            ->where('tipo', 'corporate')
+            ->map(fn (RegistoEntrega $registo): string => $registo->corporate_id.'|'.$registo->data_entrega->toDateString())
+            ->flip();
+
+        $falhadasB2c = $falhadas
+            ->where('tipo', 'b2c')
+            ->map(fn (RegistoEntrega $registo): string => $registo->woo_order_id.'|'.$registo->data_entrega->toDateString())
+            ->flip();
+
+        if (! $mostrarTudo) {
+            $antesCorporate = $corporatePreparacoes->count();
+
+            $corporatePreparacoes = $corporatePreparacoes
+                ->reject(function (array $preparacao) use (&$escondidasNaoEntregues, $falhadasCorporate): bool {
+                    $naoEntregamos = str_contains((string) ($preparacao['tipo_entrega'] ?? ''), 'Nao entregamos');
+                    $falhou = $falhadasCorporate->has($preparacao['corporate']->id.'|'.$preparacao['data']);
+
+                    if ($naoEntregamos || $falhou) {
+                        $escondidasNaoEntregues++;
+
+                        return true;
+                    }
+
+                    return false;
+                })
+                ->filter(fn (array $preparacao): bool => $temColaboradorCorporate->has($preparacao['corporate']->id.'|'.$preparacao['dia']))
+                ->values();
+
+            $escondidasSemColaborador += max(0, $antesCorporate - $corporatePreparacoes->count() - $escondidasNaoEntregues);
+
+            $antesB2c = $b2cPreparacoes->count();
+            $naoEntreguesB2c = 0;
+
+            $b2cPreparacoes = $b2cPreparacoes
+                ->reject(function (array $preparacao) use (&$naoEntreguesB2c, $falhadasB2c): bool {
+                    if ($falhadasB2c->has($preparacao['order']->id.'|'.$preparacao['data'])) {
+                        $naoEntreguesB2c++;
+
+                        return true;
+                    }
+
+                    return false;
+                })
+                ->filter(fn (array $preparacao): bool => $temColaboradorB2c->has($preparacao['order']->id.'|'.$preparacao['dia']))
+                ->values();
+
+            $escondidasNaoEntregues += $naoEntreguesB2c;
+            $escondidasSemColaborador += max(0, $antesB2c - $b2cPreparacoes->count() - $naoEntreguesB2c);
+        }
+
         $corporatePreparacoes->each(function (array $preparacao): void {
             PreparacaoItem::firstOrCreate([
                 'data_preparacao' => $preparacao['data'],
@@ -375,6 +457,14 @@ class EntregaController extends Controller
         });
 
         $corporateIds = $corporatePreparacoes->pluck('corporate.id')->filter()->unique()->values();
+        // A picagem de cada encomenda sai da composicao do tamanho que o
+        // cliente assina (Listas de cabazes), nao do nome do produto do site.
+        $resolverListas = new ListaCabazResolver;
+
+        $b2cPreparacoes = $b2cPreparacoes->map(function (array $preparacao) use ($resolverListas): array {
+            return [...$preparacao, 'picagem' => $resolverListas->picagemB2c($preparacao['order'], $preparacao['data'])];
+        });
+
         $b2cOrderIds = $b2cPreparacoes->pluck('order.id')->filter()->unique()->values();
 
         $preparacaoItems = PreparacaoItem::with(['corporate', 'wooOrder', 'feitoPor'])
@@ -416,6 +506,9 @@ class EntregaController extends Controller
             'dias' => array_values(self::DIAS),
             'corporatePreparacoes' => $corporatePreparacoes,
             'b2cPreparacoes' => $b2cPreparacoes,
+            'mostrarTudo' => $mostrarTudo,
+            'escondidasSemColaborador' => $escondidasSemColaborador,
+            'escondidasNaoEntregues' => $escondidasNaoEntregues,
             'preparacaoItems' => $preparacaoItems,
             'totalCaixas' => $corporatePreparacoes->sum(fn (array $preparacao) => (int) $preparacao['corporate']->numero_caixas),
             'totalPecas' => $totalPecas,
@@ -539,7 +632,13 @@ class EntregaController extends Controller
 
         $anchor = $request->string('anchor')->toString();
         $picados = array_values(array_unique($data['produtos_picados'] ?? []));
-        $totalProdutos = count($item->wooOrder?->line_items ?? []);
+
+        // O total a picar sao as linhas da composicao do cabaz mais os extras
+        // da encomenda — as mesmas que a preparacao mostra.
+        $totalProdutos = $item->wooOrder !== null
+            ? count((new ListaCabazResolver)->picagemB2c($item->wooOrder, $item->data_preparacao)['linhas'])
+            : 0;
+
         $feito = $totalProdutos === 0 || count($picados) >= $totalProdutos;
 
         $item->update([

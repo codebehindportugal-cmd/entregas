@@ -53,9 +53,35 @@ class ListaCabazItem extends Model
     public function custoUnitario(): ?float
     {
         $preco = $this->precoEfetivo();
+
+        if ($preco === null) {
+            return null;
+        }
+
         $quantidadeKg = $this->quantidadeParaCustoKg();
 
-        return $preco !== null && $quantidadeKg !== null ? round($quantidadeKg * $preco, 4) : null;
+        if ($quantidadeKg !== null) {
+            return round($quantidadeKg * $preco, 4);
+        }
+
+        // Produtos vendidos a unidade e sem peso indicado (courgette, salsa,
+        // coracao): o preco escrito e o de cada unidade, nao o do quilo.
+        // So vale para precos escritos a mao — os da tabela de precos sao
+        // sempre por quilo.
+        if ($this->tabelaPrecoItem === null && $this->ehAUnidade()) {
+            return round((float) $this->quantidade * $preco, 4);
+        }
+
+        return null;
+    }
+
+    /** A linha e contada a unidade (nao tem peso nem unidade de peso). */
+    public function ehAUnidade(): bool
+    {
+        $unidade = mb_strtolower(trim((string) $this->unidade));
+
+        return $this->peso_unitario_kg === null
+            && in_array($unidade, ['un', 'uni', 'unid', 'unidade', 'unidades', ''], true);
     }
 
     public function quantidadeParaCustoKg(): ?float

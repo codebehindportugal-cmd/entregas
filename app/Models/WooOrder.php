@@ -169,6 +169,11 @@ class WooOrder extends Model
             return 'pequeno';
         }
 
+        // O mini tambem aparece no site como "solo".
+        if (str_contains($nomeLower, 'mini') || str_contains($nomeLower, 'solo')) {
+            return 'mini';
+        }
+
         return null;
     }
 
@@ -388,6 +393,66 @@ class WooOrder extends Model
         return $fim->copy()->addWeeks($this->semanasPorCiclo());
     }
 
+    /**
+     * Numero de semanas que um adiamento salta por defeito: 1 nas subscricoes
+     * semanais, 2 nas de 15 em 15 dias. E o ciclo do cliente que manda.
+     */
+    public function semanasDeAdiamentoSugeridas(): int
+    {
+        return $this->semanasPorCiclo();
+    }
+
+    /**
+     * Primeira entrega ainda por realizar (hoje ou depois). Usada como base
+     * quando se adia sem indicar qual a entrega.
+     */
+    public function proximaEntregaPorRealizar(): ?string
+    {
+        $hoje = now()->toDateString();
+
+        $canceladas = collect($this->cancelled_delivery_dates ?? [])
+            ->filter()
+            ->map(fn (string $data): string => Carbon::parse($data)->toDateString())
+            ->all();
+
+        $preparadas = $this->preparacaoItemsParaAdiamento()
+            ->where('feito', true)
+            ->map(fn (PreparacaoItem $item): string => Carbon::parse($item->data_preparacao)->toDateString())
+            ->all();
+
+        return $this->datasSubscricao()
+            ->reject(fn (string $data): bool => in_array($data, $canceladas, true))
+            ->reject(fn (string $data): bool => in_array($data, $preparadas, true))
+            ->first(fn (string $data): bool => $data >= $hoje);
+    }
+
+    /**
+     * Data resultante de adiar uma entrega N semanas, caindo sempre no dia de
+     * entrega do cliente (segunda / quarta / sabado).
+     */
+    public function dataAdiadaEmSemanas(?string $dataOriginal, int $semanas): ?string
+    {
+        $semanas = max(1, $semanas);
+
+        $base = $dataOriginal
+            ?: $this->proximaEntregaPorRealizar()
+            ?: $this->postponed_until?->toDateString()
+            ?: $this->first_delivery_at?->toDateString();
+
+        if (blank($base)) {
+            return null;
+        }
+
+        $data = Carbon::parse($base)->startOfDay()->addWeeks($semanas);
+        $diaSemana = $this->diaSemanaSubscricao($data);
+
+        while ($data->dayOfWeek !== $diaSemana) {
+            $data->addDay();
+        }
+
+        return $data->toDateString();
+    }
+
     public function adiarProximaEntregaPara(string|Carbon $data): void
     {
         $novaData = Carbon::parse($data)->toDateString();
@@ -431,7 +496,7 @@ class WooOrder extends Model
         }
 
         $novasDatas = $this->substituirDataDaSubscricao($datas, $dataOriginal, $novaData, $recalcularPosteriores);
-        $dataFim = collect($novasDatas)->last();
+        $dataFim = $this->fimDepoisDoAdiamento($novasDatas);
 
         $this->guardarAdiamento([
             'delivery_dates' => $novasDatas,
@@ -455,7 +520,7 @@ class WooOrder extends Model
         }
 
         $novasDatas = $this->substituirDataDaSubscricao($datas, $dataOriginal, $novaData);
-        $dataFim = collect($novasDatas)->last();
+        $dataFim = $this->fimDepoisDoAdiamento($novasDatas);
 
         $this->guardarAdiamento([
             'delivery_dates' => $novasDatas,
@@ -505,6 +570,29 @@ class WooOrder extends Model
         ])->save();
     }
 
+    /**
+     * Fim da subscricao depois de um adiamento.
+     *
+     * Uma subscricao SEM data de fim continua sem data de fim — antes o
+     * adiamento gravava como fim a ultima data gerada, o que transformava uma
+     * subscricao aberta numa que acabava (e deixava de aparecer na preparacao).
+     * Tendo fim, so se estica se as novas datas passarem para la dele.
+     *
+     * @param  array<int,string>  $novasDatas
+     */
+    private function fimDepoisDoAdiamento(array $novasDatas): ?string
+    {
+        $fimAtual = $this->subscription_ends_at?->toDateString();
+
+        if ($fimAtual === null) {
+            return null;
+        }
+
+        $ultima = collect($novasDatas)->filter()->last();
+
+        return $ultima !== null && $ultima > $fimAtual ? $ultima : $fimAtual;
+    }
+
     private function substituirDataDaSubscricao(Collection $datas, string $dataOriginal, string $novaData, bool $recalcularPosteriores = false): array
     {
         $anteriores = $datas
@@ -552,12 +640,20 @@ class WooOrder extends Model
             return collect();
         }
 
-        $total ??= $this->subscription_ends_at === null ? 4 : 120;
         $fim = $respeitarFim ? $this->subscription_ends_at?->copy()->startOfDay() : null;
 
         if ($fim !== null && $this->first_delivery_at->greaterThan($fim)) {
             return collect();
         }
+
+        // Quando ninguem pede um numero de datas, gera-se ate ao fim da
+        // subscricao ou, se nao houver fim, ate um horizonte a frente de HOJE.
+        // Antes eram sempre 4 datas: uma subscricao sem fim ficava presa nas
+        // primeiras quatro entregas e desaparecia da preparacao a partir dai.
+        $limiteDatas = $total ?? 520;
+        $horizonte = $total !== null
+            ? null
+            : ($fim ?? now()->copy()->startOfDay()->addWeeks((int) config('entregas.horizonte_subscricao_semanas', 8)));
 
         $data = $this->first_delivery_at->copy()->startOfDay();
         $diaSemana = $this->diaSemanaSubscricao($data);
@@ -571,7 +667,7 @@ class WooOrder extends Model
 
         $datas = collect([$data->toDateString()]);
 
-        while ($datas->count() < $total) {
+        while ($datas->count() < $limiteDatas) {
             $data = $data->copy()->addWeeks($this->semanasPorCiclo());
 
             while ($data->dayOfWeek !== $diaSemana) {
@@ -579,6 +675,10 @@ class WooOrder extends Model
             }
 
             if ($fim !== null && $data->greaterThan($fim)) {
+                break;
+            }
+
+            if ($horizonte !== null && $data->greaterThan($horizonte)) {
                 break;
             }
 

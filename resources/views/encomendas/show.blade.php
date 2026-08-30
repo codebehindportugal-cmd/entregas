@@ -203,6 +203,46 @@
                     <input name="postponed_until" type="date" value="{{ optional($encomenda->postponed_until)->toDateString() }}" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                     <button class="rounded bg-[#F59E0B]/20 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-[#F59E0B]/30">Guardar adiamento</button>
                 </form>
+
+                @if($encomenda->isSubscricao())
+                    <div class="mt-3">
+                        <p class="text-xs text-slate-400">
+                            Adiar a partir da entrega escolhida acima (ou da proxima em aberto).
+                            Este cliente e <strong class="text-slate-300">{{ $encomenda->ciclo_entrega === 'quinzenal' ? 'de 15 em 15 dias' : 'semanal' }}</strong>,
+                            por isso o salto habitual e de {{ $encomenda->semanasDeAdiamentoSugeridas() }} semana{{ $encomenda->semanasDeAdiamentoSugeridas() > 1 ? 's' : '' }}.
+                        </p>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @foreach([1 => '1 semana', 2 => '2 semanas', 4 => '4 semanas'] as $semanas => $rotulo)
+                                <form method="post" action="{{ route('encomendas.postpone', $encomenda) }}" data-adiar-rapido>
+                                    @csrf
+                                    @method('put')
+                                    <input type="hidden" name="delivery_date" value="" data-adiar-entrega>
+                                    <input type="hidden" name="saltar_semanas" value="{{ $semanas }}">
+                                    <button class="rounded border px-3 py-2 text-xs font-semibold {{ $semanas === $encomenda->semanasDeAdiamentoSugeridas() ? 'border-amber-400/40 bg-[#F59E0B]/20 text-amber-200' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' }}">
+                                        Adiar {{ $rotulo }}
+                                    </button>
+                                </form>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            const escolha = document.querySelector('select[name="delivery_date"]');
+
+                            if (! escolha) {
+                                return;
+                            }
+
+                            // Os botoes rapidos adiam a mesma entrega que estiver escolhida em cima.
+                            document.querySelectorAll('[data-adiar-rapido]').forEach((form) => {
+                                form.addEventListener('submit', () => {
+                                    form.querySelector('[data-adiar-entrega]').value = escolha.value || '';
+                                });
+                            });
+                        });
+                    </script>
+                @endif
                 @if($encomenda->postponed_until)
                     <form method="post" action="{{ route('encomendas.postpone.clear', $encomenda) }}" class="mt-3">
                         @csrf

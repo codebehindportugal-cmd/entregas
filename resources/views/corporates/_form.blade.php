@@ -138,6 +138,7 @@
         <label class="text-sm text-slate-300">Tipo de cabaz
             <select name="cabaz_tipo" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
                 <option value="">Sem tipo de cabaz</option>
+                <option value="mini" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'mini')>Mini</option>
                 <option value="pequeno" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'pequeno')>Pequeno</option>
                 <option value="medio" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'medio')>Medio</option>
                 <option value="grande" @selected(old('cabaz_tipo', $corporate->cabaz_tipo) === 'grande')>Grande</option>

@@ -258,18 +258,34 @@ class EncomendaController extends Controller
     public function postpone(Request $request, WooOrder $encomenda): RedirectResponse
     {
         $data = $request->validate([
-            'postponed_until' => ['required', 'date'],
+            'postponed_until' => ['nullable', 'date', 'required_without:saltar_semanas'],
             'delivery_date' => ['nullable', 'date'],
+            'saltar_semanas' => ['nullable', 'integer', 'min:1', 'max:12'],
+        ], [
+            'postponed_until.required_without' => 'Indique a data do adiamento ou quantas semanas saltar.',
         ]);
+
+        $saltarSemanas = (int) ($data['saltar_semanas'] ?? 0);
+        $destino = $data['postponed_until'] ?? null;
+
+        // Adiar "uma semana" / "duas semanas": a data e calculada a partir da
+        // entrega em causa e cai sempre no dia de entrega do cliente.
+        if ($saltarSemanas > 0) {
+            $destino = $encomenda->dataAdiadaEmSemanas($data['delivery_date'] ?? null, $saltarSemanas);
+
+            if ($destino === null) {
+                return back()->withErrors(['fatura' => 'Nao consegui perceber a partir de que entrega adiar. Escolhe a data a mao.']);
+            }
+        }
 
         if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {
             if (filled($data['delivery_date'] ?? null)) {
-                $encomenda->adiarEntregaDaSubscricaoPara($data['delivery_date'], $data['postponed_until']);
+                $encomenda->adiarEntregaDaSubscricaoPara($data['delivery_date'], $destino);
             } else {
-                $encomenda->adiarProximaEntregaPara($data['postponed_until']);
+                $encomenda->adiarProximaEntregaPara($destino);
             }
         } else {
-            $encomenda->adiarEncomendaNormalPara($data['postponed_until']);
+            $encomenda->adiarEncomendaNormalPara($destino);
         }
 
         return back()->with('status', 'Encomenda adiada ate '.$encomenda->fresh()->postponed_until->format('d/m/Y').'.');

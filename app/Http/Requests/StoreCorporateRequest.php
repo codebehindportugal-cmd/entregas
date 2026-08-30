@@ -32,7 +32,7 @@ class StoreCorporateRequest extends FormRequest
             'fatura_morada' => ['nullable', 'string', 'max:500'],
             'numero_caixas' => ['required', 'integer', 'min:0'],
             'preco_venda_peca' => ['nullable', 'numeric', 'min:0'],
-            'cabaz_tipo' => ['nullable', 'in:pequeno,medio,grande'],
+            'cabaz_tipo' => ['nullable', 'in:mini,pequeno,medio,grande'],
             'cabaz_quantidade' => ['nullable', 'integer', 'min:1'],
             'preco_cabaz' => ['nullable', 'numeric', 'min:0'],
             'valor_ciclo' => ['nullable', 'numeric', 'min:0'],
