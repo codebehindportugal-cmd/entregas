@@ -25,7 +25,7 @@ class RenovarSubscricoes extends Command
             })
             ->get()
             // A janela evita que subscricoes antigas gerem renovacoes de repente.
-            ->filter(fn (WooOrder $order): bool => $order->precisaDeRenovacao(dentroDaJanela: true));
+            ->filter(fn (WooOrder $order): bool => $order->precisaDeRenovacao());
 
         if ($candidatas->isEmpty()) {
             $this->info('Nao ha subscricoes para renovar.');

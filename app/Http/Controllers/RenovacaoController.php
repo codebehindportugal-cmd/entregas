@@ -20,7 +20,9 @@ class RenovacaoController extends Controller
             ->whereNotIn('status', ['completed', 'wc-completed', 'cancelled', 'wc-cancelled'])
             ->orderBy('billing_name')
             ->get()
-            ->filter(fn (WooOrder $order): bool => $order->cicloTerminado())
+            // O ciclo roda sozinho, por isso a lista e so dos ciclos que acabaram
+            // nos ultimos dias (mais os que ja foram renovados).
+            ->filter(fn (WooOrder $order): bool => $order->renovada_em !== null || $order->precisaDeRenovacao())
             ->values();
 
         // Por enviar primeiro: sao as que estao a espera de alguem.

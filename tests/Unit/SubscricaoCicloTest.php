@@ -164,7 +164,31 @@ class SubscricaoCicloTest extends TestCase
         $this->assertSame('2026-09-23', $order->ultimaEntregaDoCiclo());
         $this->assertTrue($order->cicloTerminado());
         $this->assertTrue($order->precisaDeRenovacao());
-        $this->assertTrue($order->precisaDeRenovacao(dentroDaJanela: true));
+        $this->assertTrue($order->precisaDeRenovacao(janelaDias: 0));
+    }
+
+    public function test_o_ciclo_roda_quando_as_quatro_entregas_ja_passaram(): void
+    {
+        // Subscricao antiga: o primeiro ciclo acabou a 23/09/2026, mas o cliente
+        // continua a receber — o ciclo seguinte comeca a partir da ultima.
+        Carbon::setTestNow('2026-10-14 10:00:00');
+
+        $datas = $this->datas($this->subscricao());
+
+        $this->assertSame(['2026-10-07', '2026-10-21', '2026-11-04', '2026-11-18'], $datas);
+        $this->assertSame('2026-09-23', $this->subscricao()->fimDoCicloAnterior());
+    }
+
+    public function test_o_ciclo_congela_depois_de_renovado(): void
+    {
+        Carbon::setTestNow('2026-10-14 10:00:00');
+
+        $order = $this->subscricao(['renovada_em' => '2026-09-23']);
+
+        // Renovada: as entregas passam a ser da encomenda nova, esta fica parada
+        // no ciclo em que estava.
+        $this->assertSame(['2026-08-12', '2026-08-26', '2026-09-09', '2026-09-23'], $this->datas($order));
+        $this->assertFalse($order->precisaDeRenovacao(janelaDias: 0));
     }
 
     public function test_ciclo_a_meio_nao_pede_renovacao(): void
@@ -181,9 +205,9 @@ class SubscricaoCicloTest extends TestCase
 
         $order = $this->subscricao();
 
-        // Acabou ha muito: aparece na lista, mas o comando nao a renova sozinho.
-        $this->assertTrue($order->precisaDeRenovacao());
-        $this->assertFalse($order->precisaDeRenovacao(dentroDaJanela: true));
+        // O ciclo ja rodou: o comando nao renova nada tao atrasado.
+        $this->assertTrue($order->precisaDeRenovacao(janelaDias: 0));
+        $this->assertFalse($order->precisaDeRenovacao());
     }
 
     public function test_subscricao_em_pausa_nao_pede_renovacao(): void

@@ -70,7 +70,7 @@
                         <p><span class="text-slate-500">Entregas:</span> {{ $encomenda->numeroDeEntregasDoCiclo() ?: '-' }} por subscricao{{ $encomenda->renovacao_automatica ? ' (auto-renovavel)' : '' }}</p>
                         @if($encomenda->renovada_em)
                             <p class="text-emerald-200">Renovada em {{ $encomenda->renovada_em->format('d/m/Y') }}</p>
-                        @elseif($encomenda->cicloTerminado())
+                        @elseif($encomenda->precisaDeRenovacao())
                             <p class="text-amber-200">Ciclo terminado - por renovar</p>
                         @endif
                         @if($encomenda->estaPausada())

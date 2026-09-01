@@ -158,29 +158,38 @@ class WooOrder extends Model
     }
 
     /**
-     * Falta criar a encomenda de renovacao: o ciclo acabou, ainda nao se renovou
-     * e nao esta em pausa. A janela evita que subscricoes antigas, paradas ha
-     * meses, gerem renovacoes todas de uma vez.
+     * Falta criar a encomenda de renovacao: o ciclo acabou nos ultimos dias
+     * (janela), ainda nao se renovou e nao esta em pausa. A janela evita que
+     * subscricoes antigas gerem renovacoes todas de uma vez; com 0 dias conta
+     * qualquer ciclo ja terminado.
      */
-    public function precisaDeRenovacao(bool $dentroDaJanela = false): bool
+    public function precisaDeRenovacao(?int $janelaDias = null): bool
     {
         if (! $this->isSubscricao() || $this->renovada_em !== null || $this->estaPausada()) {
             return false;
         }
 
+        $hoje = now()->startOfDay()->toDateString();
         $ultima = $this->ultimaEntregaDoCiclo();
 
-        if ($ultima === null || $ultima > now()->startOfDay()->toDateString()) {
+        // O ciclo acabou hoje, ou entao ja rodou e o que acabou foi o anterior.
+        $fimDoCiclo = $ultima !== null && $ultima <= $hoje
+            ? $ultima
+            : $this->fimDoCicloAnterior();
+
+        if ($fimDoCiclo === null || $fimDoCiclo > $hoje) {
             return false;
         }
 
-        if (! $dentroDaJanela) {
+        $janelaDias ??= (int) config('entregas.janela_renovacao_dias', 7);
+
+        if ($janelaDias <= 0) {
             return true;
         }
 
-        $limite = now()->startOfDay()->subDays((int) config('entregas.janela_renovacao_dias', 7))->toDateString();
+        $limite = now()->startOfDay()->subDays($janelaDias)->toDateString();
 
-        return $ultima >= $limite;
+        return $fimDoCiclo >= $limite;
     }
 
     public function marcarRenovacaoCriada(WooOrder $nova): void
@@ -821,7 +830,56 @@ class WooOrder extends Model
         return $this->gerarDatasDoCiclo(max(1, $datas->count()), false);
     }
 
+    /**
+     * As datas do ciclo ATUAL. Uma subscricao tem sempre o mesmo numero de
+     * entregas (4), mas o ciclo roda: quando as 4 passam sem renovacao, o ciclo
+     * seguinte continua a partir da ultima — senao o cliente desaparecia da
+     * preparacao. Depois de renovada, o ciclo congela no bloco em que estava.
+     */
     private function gerarDatasDoCiclo(?int $total = null, bool $respeitarFim = true): Collection
+    {
+        $sequencia = $this->sequenciaDoCiclo($total, $respeitarFim);
+        $numeroEntregas = $total === null ? $this->numeroDeEntregasDoCiclo() : null;
+
+        if ($numeroEntregas === null || $sequencia->isEmpty()) {
+            return $sequencia;
+        }
+
+        return $sequencia
+            ->slice($this->indiceDoCicloAtual($sequencia, $numeroEntregas) * $numeroEntregas)
+            ->values();
+    }
+
+    private function indiceDoCicloAtual(Collection $sequencia, int $numeroEntregas): int
+    {
+        return intdiv($sequencia->count() - 1, $numeroEntregas);
+    }
+
+    /**
+     * A ultima entrega do ciclo anterior, ou seja o dia em que esse ciclo devia
+     * ter sido renovado. E o que permite apanhar uma renovacao com alguns dias
+     * de atraso (o comando corre uma vez por dia e pode falhar).
+     */
+    public function fimDoCicloAnterior(): ?string
+    {
+        $numeroEntregas = $this->numeroDeEntregasDoCiclo();
+
+        if ($numeroEntregas === null || ! $this->isSubscricao()) {
+            return null;
+        }
+
+        $sequencia = $this->sequenciaDoCiclo();
+
+        if ($sequencia->isEmpty()) {
+            return null;
+        }
+
+        $indice = $this->indiceDoCicloAtual($sequencia, $numeroEntregas);
+
+        return $indice > 0 ? $sequencia->get($indice * $numeroEntregas - 1) : null;
+    }
+
+    private function sequenciaDoCiclo(?int $total = null, bool $respeitarFim = true): Collection
     {
         if ($this->first_delivery_at === null) {
             return collect();
@@ -841,7 +899,8 @@ class WooOrder extends Model
 
         // Sem numero de entregas configurado, volta-se ao comportamento antigo:
         // gera-se ate ao fim da subscricao ou ate um horizonte a frente de HOJE.
-        $limiteDatas = $total ?? $numeroEntregas ?? 520;
+        // Com numero de entregas, o travao e a paragem por ciclo la em baixo.
+        $limiteDatas = $total ?? 520;
         $horizonte = $total !== null || $numeroEntregas !== null
             ? null
             : ($fim ?? now()->copy()->startOfDay()->addWeeks((int) config('entregas.horizonte_subscricao_semanas', 8)));
@@ -857,10 +916,13 @@ class WooOrder extends Model
         }
 
         $pausaSemFim = $this->pausaSemFim();
+        // Ate onde o ciclo roda: hoje, ou o dia da renovacao se ja foi renovada
+        // (a partir dai as entregas passam a ser da encomenda nova).
+        $referencia = $this->renovada_em?->toDateString() ?? now()->startOfDay()->toDateString();
         $datas = collect();
         $voltas = 0;
 
-        while ($datas->count() < $limiteDatas && $voltas++ < 1040) {
+        while ($datas->count() < $limiteDatas && $voltas++ < 2080) {
             if ($fim !== null && $data->greaterThan($fim)) {
                 break;
             }
@@ -879,6 +941,16 @@ class WooOrder extends Model
                 // para a frente — o cliente nao perde entregas.
             } else {
                 $datas->push($data->toDateString());
+
+                // Fecha-se aqui quando ja se completou um ciclo que chega ao
+                // presente: nao vale a pena gerar mais nenhum.
+                if (
+                    $numeroEntregas !== null
+                    && $datas->count() % $numeroEntregas === 0
+                    && $data->toDateString() >= $referencia
+                ) {
+                    break;
+                }
             }
 
             $data = $data->copy()->addWeeks($this->semanasPorCiclo());

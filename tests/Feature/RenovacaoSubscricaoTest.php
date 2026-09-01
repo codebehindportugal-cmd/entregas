@@ -160,16 +160,37 @@ class RenovacaoSubscricaoTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_nao_renova_subscricao_antiga_fora_da_janela(): void
+    public function test_nao_renova_ciclo_que_acabou_ha_mais_de_uma_semana(): void
     {
-        Carbon::setTestNow('2026-12-01 07:00:00');
+        // Ciclos semanais de 4: o ultimo acabou a 25/11 e ja rodou. A 08/12
+        // esta fora da janela de 7 dias, por isso ninguem renova sozinho.
+        Carbon::setTestNow('2026-12-08 07:00:00');
         $this->fakeWoo();
 
-        $this->subscricao();
+        $subscricao = $this->subscricao();
+
+        $this->assertSame('2026-11-25', $subscricao->fimDoCicloAnterior());
 
         $this->artisan('subscricoes:renovar')->assertSuccessful();
 
         Http::assertNothingSent();
+    }
+
+    public function test_renova_com_alguns_dias_de_atraso(): void
+    {
+        // O comando corre uma vez por dia e pode falhar: dois dias depois do
+        // fim do ciclo ainda apanha a renovacao.
+        Carbon::setTestNow('2026-09-04 07:00:00');
+        $this->fakeWoo();
+
+        $subscricao = $this->subscricao();
+
+        $this->assertSame('2026-09-02', $subscricao->fimDoCicloAnterior());
+
+        $this->artisan('subscricoes:renovar')->assertSuccessful();
+
+        Http::assertSentCount(1);
+        $this->assertNotNull($subscricao->fresh()->renovada_em);
     }
 
     public function test_pagina_de_renovacoes_lista_o_que_falta_enviar(): void
