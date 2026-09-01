@@ -12,3 +12,10 @@ Schedule::command('orders:sync')
     ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Renovacao das subscricoes auto-renovaveis: cria a encomenda nova no dia da
+// ultima entrega do ciclo, para depois se enviar o link de pagamento ao cliente.
+Schedule::command('subscricoes:renovar')
+    ->dailyAt('07:00')
+    ->withoutOverlapping()
+    ->runInBackground();

@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DefinicoesMoloniController;
 use App\Http\Controllers\DespesaController;
 use App\Http\Controllers\EncomendaController;
+use App\Http\Controllers\RenovacaoController;
 use App\Http\Controllers\EntregaController;
 use App\Http\Controllers\EquipaController;
 use App\Http\Controllers\FaturacaoController;
@@ -107,6 +108,9 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'updateItem'])->name('tabelas-precos.itens.update');
         Route::delete('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'destroyItem'])->name('tabelas-precos.itens.destroy');
         Route::post('/tabelas-precos/{tabelaPreco}/clonar', [TabelaPrecoController::class, 'clonar'])->name('tabelas-precos.clonar');
+        Route::get('/renovacoes', [RenovacaoController::class, 'index'])->name('renovacoes.index');
+        Route::post('/renovacoes/{encomenda}', [RenovacaoController::class, 'store'])->name('renovacoes.store');
+        Route::put('/renovacoes/{encomenda}/enviada', [RenovacaoController::class, 'marcarEnviada'])->name('renovacoes.enviada');
         Route::get('/encomendas', [EncomendaController::class, 'index'])->name('encomendas.index');
         Route::post('/encomendas/sync', [EncomendaController::class, 'sync'])->name('encomendas.sync');
         Route::delete('/encomendas/limpar-todas', [EncomendaController::class, 'destroyAll'])->name('encomendas.destroy-all');
@@ -115,6 +119,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/encomendas/{encomenda}', [EncomendaController::class, 'show'])->name('encomendas.show');
         Route::put('/encomendas/{encomenda}/perfil', [EncomendaController::class, 'updateProfile'])->name('encomendas.profile.update');
         Route::post('/encomendas/{encomenda}/duplicar', [EncomendaController::class, 'duplicate'])->name('encomendas.duplicate');
+        Route::put('/encomendas/{encomenda}/pausar', [EncomendaController::class, 'pause'])->name('encomendas.pause');
+        Route::put('/encomendas/{encomenda}/retomar', [EncomendaController::class, 'resume'])->name('encomendas.resume');
         Route::put('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'postpone'])->name('encomendas.postpone');
         Route::delete('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'clearPostpone'])->name('encomendas.postpone.clear');
         Route::post('/encomendas/{encomenda}/concluir-wordpress', [EncomendaController::class, 'complete'])->name('encomendas.complete');

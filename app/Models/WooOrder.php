@@ -33,6 +33,12 @@ class WooOrder extends Model
         'delivery_dates',
         'cancelled_delivery_dates',
         'subscription_ends_at',
+        'renovacao_automatica',
+        'pausada_em',
+        'pausada_ate',
+        'renovada_em',
+        'renovacao_woo_order_id',
+        'renovacao_enviada_em',
         'excluded_products',
         'preferences_text',
         'profile_preferences',
@@ -63,6 +69,11 @@ class WooOrder extends Model
             'delivery_dates' => 'array',
             'cancelled_delivery_dates' => 'array',
             'subscription_ends_at' => 'date',
+            'renovacao_automatica' => 'boolean',
+            'pausada_em' => 'date',
+            'pausada_ate' => 'date',
+            'renovada_em' => 'date',
+            'renovacao_enviada_em' => 'datetime',
             'ordered_at' => 'datetime',
             'scheduled_delivery_at' => 'date',
             'synced_at' => 'datetime',
@@ -113,6 +124,176 @@ class WooOrder extends Model
             || in_array($this->status, ['subscricao', 'wc-subscricao', 'active'], true);
     }
 
+    /**
+     * Janela de pausa da subscricao: [primeiro dia, ultimo dia ou null].
+     * Fica gravada mesmo depois de a pausa acabar, para as entregas que ficaram
+     * la dentro continuarem saltadas e o resto do ciclo manter o empurrao.
+     */
+    /** Quantas entregas tem uma subscricao (sempre 4, ver config/entregas.php). */
+    public function numeroDeEntregasDoCiclo(): ?int
+    {
+        $numero = (int) config('entregas.entregas_por_subscricao', 4);
+
+        return $numero > 0 ? $numero : null;
+    }
+
+    public function ultimaEntregaDoCiclo(): ?string
+    {
+        return $this->isSubscricao() ? $this->datasSubscricao()->last() : null;
+    }
+
+    /** O ciclo chegou ao fim: a ultima entrega e hoje ou ja passou. */
+    public function cicloTerminado(): bool
+    {
+        $ultima = $this->ultimaEntregaDoCiclo();
+
+        return $ultima !== null && $ultima <= now()->startOfDay()->toDateString();
+    }
+
+    public function renovacaoWooOrder(): ?WooOrder
+    {
+        return $this->renovacao_woo_order_id === null
+            ? null
+            : static::find($this->renovacao_woo_order_id);
+    }
+
+    /**
+     * Falta criar a encomenda de renovacao: o ciclo acabou, ainda nao se renovou
+     * e nao esta em pausa. A janela evita que subscricoes antigas, paradas ha
+     * meses, gerem renovacoes todas de uma vez.
+     */
+    public function precisaDeRenovacao(bool $dentroDaJanela = false): bool
+    {
+        if (! $this->isSubscricao() || $this->renovada_em !== null || $this->estaPausada()) {
+            return false;
+        }
+
+        $ultima = $this->ultimaEntregaDoCiclo();
+
+        if ($ultima === null || $ultima > now()->startOfDay()->toDateString()) {
+            return false;
+        }
+
+        if (! $dentroDaJanela) {
+            return true;
+        }
+
+        $limite = now()->startOfDay()->subDays((int) config('entregas.janela_renovacao_dias', 7))->toDateString();
+
+        return $ultima >= $limite;
+    }
+
+    public function marcarRenovacaoCriada(WooOrder $nova): void
+    {
+        $this->forceFill([
+            'renovada_em' => now()->toDateString(),
+            'renovacao_woo_order_id' => $nova->id,
+        ])->save();
+    }
+
+    public function marcarRenovacaoEnviada(): void
+    {
+        $this->forceFill(['renovacao_enviada_em' => now()])->save();
+    }
+
+    public function janelaDePausa(): ?array
+    {
+        if (! $this->isSubscricao()) {
+            return null;
+        }
+
+        $inicio = $this->pausada_em?->toDateString();
+        $fim = $this->pausada_ate?->toDateString();
+
+        // Subscricao "on-hold" no site conta como pausada a partir de hoje,
+        // mesmo que ninguem tenha carregado em Pausar na app. Se alguem ja
+        // carregou em Retomar na app (pausada_ate no passado), o site nao manda.
+        if ($inicio === null && $this->pausadaNoSite()) {
+            if ($fim !== null && $fim < now()->startOfDay()->toDateString()) {
+                return null;
+            }
+
+            return [now()->startOfDay()->toDateString(), $fim];
+        }
+
+        if ($inicio === null) {
+            return null;
+        }
+
+        if ($fim !== null && $fim < $inicio) {
+            $fim = $inicio;
+        }
+
+        return [$inicio, $fim];
+    }
+
+    public function pausadaNoSite(): bool
+    {
+        return in_array($this->status, ['on-hold', 'wc-on-hold'], true);
+    }
+
+    /** Esta pausada HOJE (para mostrar o estado na ficha). */
+    public function estaPausada(): bool
+    {
+        $janela = $this->janelaDePausa();
+
+        if ($janela === null) {
+            return false;
+        }
+
+        [$inicio, $fim] = $janela;
+        $hoje = now()->startOfDay()->toDateString();
+
+        return $hoje >= $inicio && ($fim === null || $hoje <= $fim);
+    }
+
+    public function dataEmPausa(string|Carbon $data): bool
+    {
+        $janela = $this->janelaDePausa();
+
+        if ($janela === null) {
+            return false;
+        }
+
+        [$inicio, $fim] = $janela;
+        $dia = Carbon::parse($data)->toDateString();
+
+        return $dia >= $inicio && ($fim === null || $dia <= $fim);
+    }
+
+    /** Pausa sem data de fim: nao ha nada agendado enquanto nao se retomar. */
+    public function pausaSemFim(): bool
+    {
+        $janela = $this->janelaDePausa();
+
+        return $janela !== null && $janela[1] === null;
+    }
+
+    public function pausar(?string $inicio = null, ?string $fim = null): void
+    {
+        $this->forceFill([
+            'pausada_em' => $inicio ?: now()->startOfDay()->toDateString(),
+            'pausada_ate' => $fim ?: null,
+            // O ciclo tem de ser regerado com a pausa a contar.
+            'delivery_dates' => [],
+        ])->save();
+    }
+
+    public function retomar(?string $dia = null): void
+    {
+        $retoma = Carbon::parse($dia ?: now()->toDateString())->startOfDay();
+        $inicio = $this->pausada_em;
+
+        // Retomar antes de a pausa comecar e o mesmo que nunca ter pausado.
+        // Sem pausa local (veio "on-hold" do site), fica so o fim gravado, que
+        // e o que faz o estado do site deixar de mandar.
+        $atributos = $inicio !== null && $retoma->lessThanOrEqualTo($inicio)
+            ? ['pausada_em' => null, 'pausada_ate' => null]
+            : ['pausada_ate' => $retoma->copy()->subDay()->toDateString()];
+
+        $this->forceFill($atributos + ['delivery_dates' => []])->save();
+    }
+
     public function temEntregaB2cNaData(string|Carbon $data): bool
     {
         if (in_array($this->status, ['completed', 'wc-completed'], true)) {
@@ -120,6 +301,12 @@ class WooOrder extends Model
         }
 
         $dataEntrega = Carbon::parse($data)->toDateString();
+
+        // Subscricao em pausa: nao ha entrega nenhuma dentro da janela de pausa,
+        // nem por adiamento.
+        if ($this->dataEmPausa($dataEntrega)) {
+            return false;
+        }
 
         if ($this->postponed_until !== null) {
             return $this->postponed_until->toDateString() === $dataEntrega;
@@ -646,12 +833,16 @@ class WooOrder extends Model
             return collect();
         }
 
-        // Quando ninguem pede um numero de datas, gera-se ate ao fim da
-        // subscricao ou, se nao houver fim, ate um horizonte a frente de HOJE.
-        // Antes eram sempre 4 datas: uma subscricao sem fim ficava presa nas
-        // primeiras quatro entregas e desaparecia da preparacao a partir dai.
-        $limiteDatas = $total ?? 520;
-        $horizonte = $total !== null
+        // Uma subscricao tem sempre o mesmo numero de entregas (4): semanal dura
+        // 4 semanas, de 15 em 15 dias dura 8. Manda sobre o horizonte — geram-se
+        // exatamente essas entregas e mais nenhuma. No fim, ou se renova (cria-se
+        // uma encomenda nova) ou a subscricao acaba.
+        $numeroEntregas = $this->numeroDeEntregasDoCiclo();
+
+        // Sem numero de entregas configurado, volta-se ao comportamento antigo:
+        // gera-se ate ao fim da subscricao ou ate um horizonte a frente de HOJE.
+        $limiteDatas = $total ?? $numeroEntregas ?? 520;
+        $horizonte = $total !== null || $numeroEntregas !== null
             ? null
             : ($fim ?? now()->copy()->startOfDay()->addWeeks((int) config('entregas.horizonte_subscricao_semanas', 8)));
 
@@ -665,15 +856,11 @@ class WooOrder extends Model
             $data->addDay();
         }
 
-        $datas = collect([$data->toDateString()]);
+        $pausaSemFim = $this->pausaSemFim();
+        $datas = collect();
+        $voltas = 0;
 
-        while ($datas->count() < $limiteDatas) {
-            $data = $data->copy()->addWeeks($this->semanasPorCiclo());
-
-            while ($data->dayOfWeek !== $diaSemana) {
-                $data->addDay();
-            }
-
+        while ($datas->count() < $limiteDatas && $voltas++ < 1040) {
             if ($fim !== null && $data->greaterThan($fim)) {
                 break;
             }
@@ -682,7 +869,23 @@ class WooOrder extends Model
                 break;
             }
 
-            $datas->push($data->toDateString());
+            if ($this->dataEmPausa($data->toDateString())) {
+                // Pausa sem data de fim: nao ha nada agendado ate se retomar.
+                if ($pausaSemFim) {
+                    break;
+                }
+
+                // Pausa com fim: a entrega nao conta e o resto do ciclo empurra-se
+                // para a frente — o cliente nao perde entregas.
+            } else {
+                $datas->push($data->toDateString());
+            }
+
+            $data = $data->copy()->addWeeks($this->semanasPorCiclo());
+
+            while ($data->dayOfWeek !== $diaSemana) {
+                $data->addDay();
+            }
         }
 
         return $datas;
@@ -752,7 +955,16 @@ class WooOrder extends Model
             ->sort()
             ->values();
 
-        if ($datas->isNotEmpty() || $this->first_delivery_at === null) {
+        // As datas vindas do site tambem nao acontecem dentro da pausa. Aqui nao
+        // ha empurrao: ao pausar/retomar limpa-se delivery_dates (WooOrder::pausar)
+        // e o ciclo e regerado por gerarDatasDoCiclo(), que ja empurra.
+        if ($datas->isNotEmpty()) {
+            return $datas
+                ->reject(fn (string $data): bool => $this->dataEmPausa($data))
+                ->values();
+        }
+
+        if ($this->first_delivery_at === null) {
             return $datas;
         }
 
@@ -767,6 +979,34 @@ class WooOrder extends Model
             'sabado' => 6,
             default => $fallback->dayOfWeek,
         };
+    }
+
+    /**
+     * A primeira entrega tem de cair no dia de entrega do cliente.
+     * Se vier uma data noutro dia da semana (o site guarda a data da encomenda,
+     * nao a da entrega), avanca-se para o primeiro dia de entrega seguinte —
+     * senao o campo "Primeira entrega" mostra uma data e o ciclo mostra outra.
+     */
+    public function alinharPrimeiraEntregaComDiaDeEntrega(): bool
+    {
+        if ($this->first_delivery_at === null || $this->dia_entrega === null) {
+            return false;
+        }
+
+        $data = $this->first_delivery_at->copy()->startOfDay();
+        $diaSemana = $this->diaSemanaSubscricao($data);
+
+        if ($data->dayOfWeek === $diaSemana) {
+            return false;
+        }
+
+        while ($data->dayOfWeek !== $diaSemana) {
+            $data->addDay();
+        }
+
+        $this->forceFill(['first_delivery_at' => $data])->save();
+
+        return true;
     }
 
     private function diaEntregaCoincideComData(string $data): bool

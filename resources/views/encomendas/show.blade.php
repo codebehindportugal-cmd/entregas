@@ -66,6 +66,17 @@
                     <p><span class="text-slate-500">Tipo:</span> {{ $encomenda->source_type === 'subscription' ? 'Subscricao' : 'Encomenda' }}</p>
                     <p><span class="text-slate-500">Dia:</span> {{ $encomenda->dia_entrega ? ucfirst($encomenda->dia_entrega) : '-' }}</p>
                     <p><span class="text-slate-500">Ciclo:</span> {{ $encomenda->ciclo_entrega === 'quinzenal' ? '15 em 15 dias' : 'Semanal' }}</p>
+                    @if($encomenda->isSubscricao())
+                        <p><span class="text-slate-500">Entregas:</span> {{ $encomenda->numeroDeEntregasDoCiclo() ?: '-' }} por subscricao{{ $encomenda->renovacao_automatica ? ' (auto-renovavel)' : '' }}</p>
+                        @if($encomenda->renovada_em)
+                            <p class="text-emerald-200">Renovada em {{ $encomenda->renovada_em->format('d/m/Y') }}</p>
+                        @elseif($encomenda->cicloTerminado())
+                            <p class="text-amber-200">Ciclo terminado - por renovar</p>
+                        @endif
+                        @if($encomenda->estaPausada())
+                            <p class="text-amber-200">Subscricao em pausa</p>
+                        @endif
+                    @endif
                 </div>
             </div>
 
@@ -186,6 +197,53 @@
                     </div>
                 @endif
             </div>
+
+            @if($encomenda->isSubscricao())
+                <div class="rounded border border-white/10 bg-[#151E2D] p-5">
+                    <h2 class="text-lg font-semibold text-white">Pausar subscricao</h2>
+
+                    @if($encomenda->estaPausada())
+                        @php($janelaPausa = $encomenda->janelaDePausa())
+                        <div class="mt-3 rounded border border-amber-400/30 bg-[#F59E0B]/10 px-3 py-2 text-sm text-amber-100">
+                            Pausada desde {{ \Illuminate\Support\Carbon::parse($janelaPausa[0])->format('d/m/Y') }}
+                            @if($janelaPausa[1])
+                                ate {{ \Illuminate\Support\Carbon::parse($janelaPausa[1])->format('d/m/Y') }}.
+                            @else
+                                por tempo indeterminado.
+                            @endif
+                            @if($encomenda->pausadaNoSite() && $encomenda->pausada_em === null)
+                                <span class="block text-xs">Veio "on-hold" do site.</span>
+                            @endif
+                        </div>
+
+                        <form method="post" action="{{ route('encomendas.resume', $encomenda) }}" class="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                            @csrf
+                            @method('put')
+                            <label class="block text-sm text-slate-300">Retomar a partir de
+                                <input name="retomar_em" type="date" value="{{ now()->toDateString() }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            </label>
+                            <button class="self-end rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Retomar</button>
+                        </form>
+                    @else
+                        <form method="post" action="{{ route('encomendas.pause', $encomenda) }}" class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                            @csrf
+                            @method('put')
+                            <label class="block text-sm text-slate-300">Pausar a partir de
+                                <input name="pausada_em" type="date" value="{{ now()->toDateString() }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            </label>
+                            <label class="block text-sm text-slate-300">Ate (opcional)
+                                <input name="pausada_ate" type="date" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                            </label>
+                            <button class="self-end rounded bg-[#F59E0B]/20 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-[#F59E0B]/30">Pausar</button>
+                        </form>
+                    @endif
+
+                    <p class="mt-3 text-xs text-slate-400">
+                        As entregas que caem dentro da pausa nao acontecem e as seguintes empurram-se para a frente: o cliente nao perde entregas.
+                        Sem data de fim, fica tudo parado ate carregar em Retomar.
+                    </p>
+                </div>
+            @endif
 
             <div class="rounded border border-white/10 bg-[#151E2D] p-5">
                 <h2 class="text-lg font-semibold text-white">Adiar entrega</h2>
@@ -332,6 +390,16 @@
                     <label class="block text-sm text-slate-300">Fim da subscricao
                         <input name="subscription_ends_at" type="date" value="{{ old('subscription_ends_at', optional($encomenda->subscription_ends_at)->toDateString()) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
+                    <div class="text-sm text-slate-300 md:col-span-2">
+                        <span class="block">Renovacao</span>
+                        <label class="mt-1 flex items-start gap-2 rounded border border-white/10 bg-[#0A0F1A] px-3 py-2">
+                            <input type="hidden" name="renovacao_automatica" value="0">
+                            <input type="checkbox" name="renovacao_automatica" value="1" @checked(old('renovacao_automatica', $encomenda->renovacao_automatica)) class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
+                            <span>Auto-renovavel
+                                <span class="mt-1 block text-xs text-slate-500">No dia da ultima entrega, a app cria sozinha a encomenda de renovacao no site (em pagamento pendente) e ela aparece em Renovacoes para se enviar o link ao cliente.</span>
+                            </span>
+                        </label>
+                    </div>
                 </div>
 
                 <label class="mt-4 block text-sm text-slate-300">Preferencias tratadas

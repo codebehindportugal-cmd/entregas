@@ -624,6 +624,67 @@ a.bg-\[\#3B82F6\] {
     color: #64748b !important;
 }
 
+/* Tema claro: estados do calendario de entregas (badges e celulas dos meses).
+   Sem isto, os dias marcados ficavam com texto quase branco sobre fundo claro
+   e as celulas dos dias sem entrega ficavam com o azul escuro do tema antigo,
+   ou seja: os numeros dos dias marcados desapareciam. */
+.text-emerald-100 {
+    color: #047857 !important;
+}
+
+.text-blue-100 {
+    color: #1d4ed8 !important;
+}
+
+.text-amber-100,
+.text-amber-100\/70 {
+    color: #b45309 !important;
+}
+
+.text-red-100 {
+    color: #b91c1c !important;
+}
+
+.bg-emerald-500\/15 {
+    background-color: #dcfce7 !important;
+}
+
+.bg-\[\#3B82F6\]\/15 {
+    background-color: #dbeafe !important;
+}
+
+.bg-\[\#F59E0B\]\/15 {
+    background-color: #fef3c7 !important;
+}
+
+.bg-\[\#0A0F1A\]\/60 {
+    background-color: #f8fafc !important;
+}
+
+.border-white\/5 {
+    border-color: #e6efe8 !important;
+}
+
+.border-emerald-400\/40 {
+    border-color: #86efac !important;
+}
+
+.border-blue-400\/40 {
+    border-color: #93c5fd !important;
+}
+
+.border-\[\#3B82F6\]\/40 {
+    border-color: #93c5fd !important;
+}
+
+.border-amber-400\/40 {
+    border-color: #fcd34d !important;
+}
+
+.border-red-400\/40 {
+    border-color: #fca5a5 !important;
+}
+
 @media (max-width: 767px) {
     main {
         padding-left: 0.75rem !important;

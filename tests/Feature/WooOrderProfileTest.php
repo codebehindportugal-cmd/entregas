@@ -58,10 +58,12 @@ class WooOrderProfileTest extends TestCase
             'source_type' => 'subscription',
             'dia_entrega' => 'segunda',
             'ciclo_entrega' => 'quinzenal',
-            'scheduled_delivery_at' => '2026-05-09',
-            'first_delivery_at' => '2026-05-09',
-            'next_payment_at' => '2026-06-09',
-            'subscription_ends_at' => '2026-07-09',
+            'scheduled_delivery_at' => '2026-05-09 00:00:00',
+            // 09/05 e um sabado e o cliente passou a ser de segunda: a primeira
+            // entrega e empurrada para a segunda seguinte.
+            'first_delivery_at' => '2026-05-11 00:00:00',
+            'next_payment_at' => '2026-06-09 00:00:00',
+            'subscription_ends_at' => '2026-07-09 00:00:00',
             'profile_preferences' => 'Sem banana.',
             'customer_notes' => 'Cliente prefere contacto por SMS.',
         ]);
@@ -85,8 +87,8 @@ class WooOrderProfileTest extends TestCase
 
         $this->assertDatabaseHas('woo_orders', [
             'id' => $order->id,
-            'postponed_until' => '2026-05-30',
-            'scheduled_delivery_at' => '2026-05-30',
+            'postponed_until' => '2026-05-30 00:00:00',
+            'scheduled_delivery_at' => '2026-05-30 00:00:00',
         ]);
     }
 

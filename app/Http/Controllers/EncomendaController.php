@@ -239,20 +239,63 @@ class EncomendaController extends Controller
             'first_delivery_at' => ['nullable', 'date'],
             'next_payment_at' => ['nullable', 'date', 'after_or_equal:first_delivery_at'],
             'subscription_ends_at' => ['nullable', 'date', 'after_or_equal:first_delivery_at'],
+            'renovacao_automatica' => ['nullable', 'boolean'],
             'profile_preferences' => ['nullable', 'string'],
             'customer_notes' => ['nullable', 'string'],
         ]);
 
+        $data['renovacao_automatica'] = $request->boolean('renovacao_automatica');
+
         $encomenda->update($data);
 
-        if (
-            $encomenda->isSubscricao()
-            && $encomenda->wasChanged(['first_delivery_at', 'subscription_ends_at', 'ciclo_entrega', 'dia_entrega'])
-        ) {
-            $encomenda->forceFill(['delivery_dates' => []])->save();
+        $mudouOAgendamento = $encomenda->wasChanged([
+            'first_delivery_at',
+            'subscription_ends_at',
+            'ciclo_entrega',
+            'dia_entrega',
+            'renovacao_automatica',
+        ]);
+
+        if ($encomenda->isSubscricao()) {
+            // A primeira entrega passa sempre para o dia de entrega do cliente,
+            // para o campo e o ciclo mostrarem a mesma data.
+            $alinhou = $encomenda->alinharPrimeiraEntregaComDiaDeEntrega();
+
+            if ($mudouOAgendamento || $alinhou) {
+                $encomenda->forceFill(['delivery_dates' => []])->save();
+            }
         }
 
         return back()->with('status', 'Perfil do cliente atualizado.');
+    }
+
+    public function pause(Request $request, WooOrder $encomenda): RedirectResponse
+    {
+        $data = $request->validate([
+            'pausada_em' => ['nullable', 'date'],
+            'pausada_ate' => ['nullable', 'date', 'after_or_equal:pausada_em'],
+        ]);
+
+        $encomenda->pausar($data['pausada_em'] ?? null, $data['pausada_ate'] ?? null);
+
+        $encomenda->refresh();
+
+        $ate = $encomenda->pausada_ate !== null
+            ? ' ate '.$encomenda->pausada_ate->format('d/m/Y')
+            : ' por tempo indeterminado';
+
+        return back()->with('status', 'Subscricao pausada a partir de '.$encomenda->pausada_em->format('d/m/Y').$ate.'. As entregas em falta foram empurradas para a frente.');
+    }
+
+    public function resume(Request $request, WooOrder $encomenda): RedirectResponse
+    {
+        $data = $request->validate([
+            'retomar_em' => ['nullable', 'date'],
+        ]);
+
+        $encomenda->retomar($data['retomar_em'] ?? null);
+
+        return back()->with('status', 'Subscricao retomada.');
     }
 
     public function postpone(Request $request, WooOrder $encomenda): RedirectResponse
