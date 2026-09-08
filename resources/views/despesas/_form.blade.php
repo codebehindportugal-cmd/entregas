@@ -458,10 +458,10 @@
                     notas: item.notas || ''
                 });
             });
-            mostrarStatus('IA leu ' + data.items.length + ' linha(s). Confirme os valores e guarde.');
+            mostrarStatus((data.fonte === 'ocr' ? 'Leitura local' : 'IA') + ': ' + data.items.length + ' linha(s). Confirme os valores (sobretudo o IVA) e guarde.');
         } else {
             setIfPresent('campo-valor', data.valor);
-            mostrarStatus('A IA leu o cabecalho mas nao encontrou linhas de produtos. Adicione-as a mao.');
+            mostrarStatus(data.aviso || 'Li o cabecalho mas nao encontrei linhas de produtos. Adicione-as a mao.');
         }
 
         toggleValorManual();

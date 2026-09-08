@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiJob;
 use App\Models\Despesa;
 use App\Services\FaturaAiExtractor;
+use App\Services\PaperInvoice\PaperInvoiceExtractor;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -114,19 +115,37 @@ class DespesaController extends Controller
             'ficheiro.mimes' => 'A leitura por IA aceita JPG, PNG, WEBP ou PDF.',
         ]);
 
+        // 1) Leitura local (pdftotext / tesseract / zbarimg), sem depender de APIs.
+        $local = $this->lerFaturaLocalmente($data['ficheiro']);
+
+        if ($local !== null && $local['items'] !== []) {
+            return response()->json($local);
+        }
+
+        // 2) Sem linhas pelo OCR: tenta a IA da OpenAI.
         try {
             $extraido = $extractor->extract($data['ficheiro']);
             $extraido['items'] = $this->normalizarItensIa($extraido['items'] ?? []);
+            $extraido['fonte'] = 'openai';
 
             return response()->json($extraido);
-        } catch (RuntimeException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
         } catch (Throwable $exception) {
-            Log::error('Erro ao ler fatura com IA', ['message' => $exception->getMessage()]);
+            $motivo = $exception instanceof RuntimeException
+                ? $exception->getMessage()
+                : 'Nao foi possivel ler a fatura com IA.';
 
-            return response()->json([
-                'message' => 'Nao foi possivel ler a fatura com IA. Confirme a chave da OpenAI e tente novamente.',
-            ], 500);
+            if (! $exception instanceof RuntimeException) {
+                Log::error('Erro ao ler fatura com IA', ['message' => $exception->getMessage()]);
+            }
+
+            // 3) Se o OCR local trouxe pelo menos o cabecalho, devolve-o.
+            if ($local !== null) {
+                $local['aviso'] = trim('Linhas nao detetadas pelo OCR. '.$motivo.' '.implode(' ', $local['avisos'] ?? []));
+
+                return response()->json($local);
+            }
+
+            return response()->json(['message' => $motivo], 422);
         }
     }
 
@@ -455,6 +474,12 @@ class DespesaController extends Controller
      */
     private function lerItensComIa(UploadedFile $file): array
     {
+        $local = $this->lerFaturaLocalmente($file);
+
+        if ($local !== null && $local['items'] !== []) {
+            return $local['items'];
+        }
+
         if (! config('services.openai.auto_despesas', true)) {
             return [];
         }
@@ -470,6 +495,92 @@ class DespesaController extends Controller
 
             return [];
         }
+    }
+
+    /**
+     * Leitura local da fatura (pdftotext / tesseract / zbarimg), como no
+     * gestao.ateneya.com. Devolve null se o extractor rebentar.
+     */
+    private function lerFaturaLocalmente(UploadedFile $file): ?array
+    {
+        $caminho = null;
+
+        try {
+            $extensao = strtolower((string) ($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg'));
+            $caminho = rtrim(sys_get_temp_dir(), '/\\').DIRECTORY_SEPARATOR.'fatura_'.uniqid('', true).'.'.$extensao;
+            copy($file->getRealPath(), $caminho);
+
+            $lido = app(PaperInvoiceExtractor::class)->extract($caminho);
+
+            return $this->mapearLeituraLocal($lido);
+        } catch (Throwable $exception) {
+            Log::warning('Leitura local da fatura falhou', ['message' => $exception->getMessage()]);
+
+            return null;
+        } finally {
+            if ($caminho !== null && is_file($caminho)) {
+                @unlink($caminho);
+            }
+        }
+    }
+
+    private function mapearLeituraLocal(array $lido): array
+    {
+        $items = [];
+
+        foreach ($lido['products'] ?? [] as $produto) {
+            $quantidade = (float) ($produto['quantity'] ?? 1);
+            $quantidade = $quantidade > 0 ? $quantidade : 1;
+
+            $preco = (float) ($produto['unitPrice'] ?? 0);
+            $totalLinha = (float) ($produto['lineTotal'] ?? 0);
+
+            if ($preco <= 0 && $totalLinha > 0) {
+                $preco = $totalLinha / $quantidade;
+            }
+
+            $items[] = [
+                'descricao' => (string) ($produto['description'] ?? ''),
+                'quantidade' => $quantidade,
+                'unidade_compra' => 'un',
+                'unidades_por_quantidade' => 1,
+                'quantidade_unidades' => $quantidade,
+                'preco_unitario' => $preco,
+                'iva_percentagem' => (float) ($produto['vatRate'] ?? 0),
+                'notas' => '',
+            ];
+        }
+
+        $numero = trim((string) ($lido['invoice']['number'] ?? ''));
+        $nome = trim((string) ($lido['supplier']['name'] ?? ''));
+        $nif = trim((string) ($lido['supplier']['taxNumber'] ?? ''));
+        $total = (float) ($lido['invoice']['total'] ?? 0);
+
+        return [
+            'titulo' => $numero !== '' ? 'Fatura '.$numero : $nome,
+            'numero_fatura' => $numero,
+            'fornecedor' => $nome !== '' ? $nome : $nif,
+            'data' => $this->dataParaInput((string) ($lido['invoice']['date'] ?? '')),
+            'valor' => $total > 0 ? $total : null,
+            'items' => $this->normalizarItensIa($items),
+            'fonte' => 'ocr',
+            'avisos' => array_values($lido['warnings'] ?? []),
+        ];
+    }
+
+    private function dataParaInput(string $valor): ?string
+    {
+        $valor = trim($valor);
+
+        if (preg_match('/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/', $valor, $m)) {
+            return $m[3].'-'.$m[2].'-'.$m[1];
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $valor)) {
+            return $valor;
+        }
+
+        return null;
     }
 
     private function normalizarItensIa(array $items): array

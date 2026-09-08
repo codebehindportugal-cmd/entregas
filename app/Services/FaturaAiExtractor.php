@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class FaturaAiExtractor
@@ -59,6 +60,11 @@ class FaturaAiExtractor
             ]);
 
         if ($response->failed()) {
+            Log::warning('OpenAI recusou a leitura da fatura', [
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 1000),
+            ]);
+
             throw new RuntimeException($this->errorMessage($response->json(), $response->status()));
         }
 
@@ -156,9 +162,10 @@ PROMPT;
     private function errorMessage(?array $body, int $status): string
     {
         $code = $body['error']['code'] ?? null;
+        $tipo = $body['error']['type'] ?? null;
         $message = $body['error']['message'] ?? null;
 
-        if ($code === 'insufficient_quota') {
+        if ($code === 'insufficient_quota' || $tipo === 'insufficient_quota') {
             return 'A conta OpenAI nao tem quota/credito disponivel para usar a API. Verifique o billing da plataforma OpenAI e tente novamente.';
         }
 
@@ -166,8 +173,12 @@ PROMPT;
             return 'A chave OPENAI_API_KEY nao foi aceite. Confirme se a chave esta correta e ativa.';
         }
 
+        if ($status === 404 || $code === 'model_not_found') {
+            return 'O modelo "'.config('services.openai.model', 'gpt-5.5').'" nao existe ou a conta nao tem acesso. Mude o OPENAI_MODEL no .env.'.($message ? ' ('.$message.')' : '');
+        }
+
         if ($status === 429) {
-            return 'A OpenAI recusou o pedido por limite de uso. Tente novamente mais tarde ou verifique os limites da conta.';
+            return 'A OpenAI recusou o pedido por limite de uso (429). Resposta da OpenAI: '.($message ?: 'sem detalhe').' Verifique o credito e os limites em platform.openai.com.';
         }
 
         return 'A extracao por IA falhou'.($message ? ': '.$message : '.');
