@@ -178,6 +178,12 @@
     var valorManualContainer = document.getElementById('valor-manual-container');
     var form = fileInput ? fileInput.closest('form') : null;
 
+    var valoresIniciais = {};
+    ['campo-titulo', 'campo-numero-fatura', 'campo-fornecedor', 'campo-data', 'campo-valor'].forEach(function (id) {
+        var campo = document.getElementById(id);
+        if (campo) valoresIniciais[id] = campo.value.trim();
+    });
+
     var preparacao = null;        // promessa da preparacao da foto (ou null)
     var preparacaoPendente = false;
     var aEnviar = false;
@@ -283,25 +289,37 @@
         return String(valor === null || valor === undefined ? '' : valor).trim().replace(',', '.');
     }
 
+    // O que o QR da AT preenche fica marcado e a leitura por OCR/IA nao lhe
+    // toca: o QR e' a fonte exacta do numero, da data, do NIF e do total.
+    function fixarDoQr(id, valor) {
+        var campo = document.getElementById(id);
+
+        if (!campo || valor === null || valor === undefined || String(valor).trim() === '') {
+            return;
+        }
+
+        campo.value = valor;
+        campo.dataset.fonteQr = '1';
+    }
+
     function preencherComQr(data) {
         var titulo = document.getElementById('campo-titulo');
-        if (titulo && !titulo.value && data['G']) titulo.value = 'Fatura ' + data['G'];
+        if (titulo && !titulo.value && data['G']) {
+            titulo.value = 'Fatura ' + data['G'];
+            titulo.dataset.fonteQr = '1';
+        }
 
         if (data['A']) {
-            var fornecedor = document.getElementById('campo-fornecedor');
-            if (fornecedor) fornecedor.value = data['A'];
+            fixarDoQr('campo-fornecedor', data['A']);
         }
         if (data['F'] && data['F'].length === 8) {
-            var campoData = document.getElementById('campo-data');
-            if (campoData) campoData.value = data['F'].substring(0, 4) + '-' + data['F'].substring(4, 6) + '-' + data['F'].substring(6, 8);
+            fixarDoQr('campo-data', data['F'].substring(0, 4) + '-' + data['F'].substring(4, 6) + '-' + data['F'].substring(6, 8));
         }
         if (data['G']) {
-            var numFat = document.getElementById('campo-numero-fatura');
-            if (numFat) numFat.value = data['G'];
+            fixarDoQr('campo-numero-fatura', data['G']);
         }
         if (data['O']) {
-            var campoValor = document.getElementById('campo-valor');
-            if (campoValor) campoValor.value = normalizarNumero(data['O']);
+            fixarDoQr('campo-valor', normalizarNumero(data['O']));
         }
         if (data['H']) {
             var notas = document.querySelector('textarea[name="notas"]');
@@ -377,6 +395,40 @@
         if (campoValor) campoValor.required = !hasItems;
     }
 
+    // Poe um valor num <select> tolerando formatos ("6.00" -> "6", "KG" -> "kg").
+    // Se mesmo assim nao houver opcao, usa o valor por omissao em vez de deixar
+    // o campo vazio.
+    function escolherOpcao(select, valor, omissao, numerico) {
+        if (!select) return;
+
+        var candidatos = [];
+
+        if (valor !== null && valor !== undefined && String(valor).trim() !== '') {
+            var bruto = String(valor).trim();
+            candidatos.push(bruto);
+            candidatos.push(bruto.toLowerCase());
+
+            if (numerico) {
+                var n = parseFloat(bruto.replace(',', '.'));
+                if (isFinite(n)) {
+                    candidatos.push(String(n));
+                    candidatos.push(String(Math.round(n)));
+                }
+            }
+        }
+
+        candidatos.push(String(omissao));
+
+        for (var i = 0; i < candidatos.length; i++) {
+            select.value = candidatos[i];
+            if (select.selectedIndex !== -1 && select.value === candidatos[i]) {
+                return;
+            }
+        }
+
+        select.selectedIndex = 0;
+    }
+
     function addRow(values) {
         var html = template.innerHTML.replace(/__IDX__/g, idx);
         idx++;
@@ -387,12 +439,13 @@
         if (values) {
             row.querySelector('[name$="[descricao]"]').value = values.descricao || '';
             row.querySelector('.item-qtd').value = values.quantidade || 1;
-            row.querySelector('.item-unidade').value = values.unidade_compra || 'un';
+            escolherOpcao(row.querySelector('.item-unidade'), values.unidade_compra, 'un', false);
             row.querySelector('.item-fator').value = values.unidades_por_quantidade || 1;
             row.querySelector('.item-unidades').value = values.quantidade_unidades || ((parseFloat(values.quantidade) || 1) * (parseFloat(values.unidades_por_quantidade) || 1));
             row.querySelector('.item-preco').value = values.preco_unitario || 0;
-            var ivaSelect = row.querySelector('.item-iva');
-            if (ivaSelect) ivaSelect.value = values.iva_percentagem || 23;
+            // O IVA vem da BD como "6.00" (cast decimal:2) e como 6 da leitura.
+            // Sem normalizar, o select fica em branco e a linha e' gravada errada.
+            escolherOpcao(row.querySelector('.item-iva'), values.iva_percentagem, 23, true);
             var notasInput = row.querySelector('[name$="[notas]"]');
             if (notasInput) notasInput.value = values.notas || '';
         }
@@ -428,9 +481,23 @@
 
     // ------------------------------------------------------------ extracao IA
 
+    // Nao mexe no que veio do QR (mais fiavel) nem no que o utilizador ja
+    // escreveu; o valor com que o campo nasceu (a data de hoje, por exemplo)
+    // pode ser substituido.
     function setIfPresent(id, valor) {
         var campo = document.getElementById(id);
-        if (campo && valor !== null && valor !== undefined && String(valor).trim() !== '' && String(valor) !== '0') {
+
+        if (!campo || campo.dataset.fonteQr === '1') {
+            return;
+        }
+
+        var atual = campo.value.trim();
+
+        if (atual !== '' && atual !== (valoresIniciais[id] || '')) {
+            return;
+        }
+
+        if (valor !== null && valor !== undefined && String(valor).trim() !== '' && String(valor) !== '0') {
             campo.value = valor;
         }
     }
@@ -438,8 +505,7 @@
     function preencherComIa(data) {
         if (!data) return;
 
-        var titulo = document.getElementById('campo-titulo');
-        if (titulo && !titulo.value) setIfPresent('campo-titulo', data.titulo);
+        setIfPresent('campo-titulo', data.titulo);
         setIfPresent('campo-numero-fatura', data.numero_fatura);
         setIfPresent('campo-fornecedor', data.fornecedor);
         setIfPresent('campo-data', data.data);
