@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CorporateMonthRequest;
+use App\Http\Requests\ImportCorporatesRequest;
 use App\Http\Requests\StoreCorporateHistoricoRequest;
 use App\Http\Requests\StoreCorporateRequest;
 use App\Http\Requests\UpdateCorporateRequest;
@@ -151,12 +153,8 @@ class CorporateController extends Controller
         );
     }
 
-    public function import(Request $request): RedirectResponse
+    public function import(ImportCorporatesRequest $request): RedirectResponse
     {
-        $request->validate([
-            'ficheiro' => ['required', 'file', 'max:10240'],
-        ]);
-
         try {
             $payload = json_decode((string) file_get_contents($request->file('ficheiro')->getRealPath()), true);
 
@@ -216,13 +214,11 @@ class CorporateController extends Controller
         return view('corporates.show', compact('corporate'));
     }
 
-    public function relatorioMensal(Request $request, Corporate $corporate): View
+    public function relatorioMensal(CorporateMonthRequest $request, Corporate $corporate): View
     {
         $corporate->load('configSnapshots');
 
-        $validated = $request->validate([
-            'mes' => ['nullable', 'date_format:Y-m'],
-        ]);
+        $validated = $request->validated();
         $mes = $validated['mes'] ?? now()->format('Y-m');
         $inicio = Carbon::createFromFormat('Y-m-d', "{$mes}-01")->startOfDay();
         $fim = $inicio->copy()->endOfMonth();
@@ -295,11 +291,9 @@ class CorporateController extends Controller
         ]);
     }
 
-    public function mapaMensal(Request $request, Corporate $corporate, CorporateMonthlyMapService $mapService): View
+    public function mapaMensal(CorporateMonthRequest $request, Corporate $corporate, CorporateMonthlyMapService $mapService): View
     {
-        $validated = $request->validate([
-            'mes' => ['nullable', 'date_format:Y-m'],
-        ]);
+        $validated = $request->validated();
 
         return view('corporates.mapa-mensal', $mapService->build($corporate, $validated['mes'] ?? null));
     }

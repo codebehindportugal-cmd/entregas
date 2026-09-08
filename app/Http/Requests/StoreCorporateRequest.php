@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\NifPortugues;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCorporateRequest extends FormRequest
@@ -17,7 +18,7 @@ class StoreCorporateRequest extends FormRequest
             'empresa' => ['required', 'string', 'max:255'],
             'sucursal' => ['nullable', 'string', 'max:255'],
             'morada_entrega' => ['nullable', 'string', 'max:500'],
-            'cp_entrega' => ['nullable', 'string', 'max:15'],
+            'cp_entrega' => ['nullable', 'regex:/^\d{4}-\d{3}$/'],
             'cidade_entrega' => ['nullable', 'string', 'max:120'],
             'dias_entrega' => ['required', 'array', 'min:1'],
             'dias_entrega.*' => ['in:Segunda,Terca,Quarta,Quinta,Sexta'],
@@ -25,9 +26,9 @@ class StoreCorporateRequest extends FormRequest
             'quinzenal_referencia' => ['nullable', 'date', 'required_if:periodicidade_entrega,quinzenal'],
             'horario_entrega' => ['nullable', 'string', 'max:255'],
             'responsavel_nome' => ['nullable', 'string', 'max:255'],
-            'responsavel_telefone' => ['nullable', 'string', 'max:50'],
+            'responsavel_telefone' => ['nullable', 'regex:/^(?:(?:\+|00)351[\s.-]?)?[29]\d{2}(?:[\s.-]?\d{3}){2}$/'],
             'fatura_nome' => ['nullable', 'string', 'max:255'],
-            'fatura_nif' => ['nullable', 'string', 'max:50'],
+            'fatura_nif' => ['nullable', new NifPortugues],
             'fatura_email' => ['nullable', 'email', 'max:255'],
             'fatura_morada' => ['nullable', 'string', 'max:500'],
             'numero_caixas' => ['required', 'integer', 'min:0'],
