@@ -534,19 +534,22 @@ class DespesaController extends Controller
 
             $preco = (float) ($produto['unitPrice'] ?? 0);
             $totalLinha = (float) ($produto['lineTotal'] ?? 0);
+            $iva = (float) ($produto['vatRate'] ?? 0);
 
+            // Sem preco unitario, deriva-o do total da linha (que costuma vir
+            // com IVA incluido).
             if ($preco <= 0 && $totalLinha > 0) {
-                $preco = $totalLinha / $quantidade;
+                $preco = $totalLinha / $quantidade / (1 + $iva / 100);
             }
 
             $items[] = [
                 'descricao' => (string) ($produto['description'] ?? ''),
                 'quantidade' => $quantidade,
-                'unidade_compra' => 'un',
+                'unidade_compra' => (string) ($produto['unit'] ?? 'un'),
                 'unidades_por_quantidade' => 1,
                 'quantidade_unidades' => $quantidade,
                 'preco_unitario' => $preco,
-                'iva_percentagem' => (float) ($produto['vatRate'] ?? 0),
+                'iva_percentagem' => $iva,
                 'notas' => '',
             ];
         }

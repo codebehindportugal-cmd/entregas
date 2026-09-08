@@ -29,7 +29,7 @@ class PaperInvoiceExtractor
             ->filter()
             ->values();
 
-        $products = $this->extractProducts($lines->all());
+        $products = $this->dedupProducts($this->extractProducts($lines->all()));
         $total = $this->extractTotal($rawText);
         $vatTotal = $this->extractVatTotal($rawText);
         $lineTotal = array_sum(array_column($products, 'lineTotal'));
@@ -318,9 +318,27 @@ class PaperInvoiceExtractor
     {
         $products = [];
         $insideItems = false;
+        $descricaoPendente = null;
         $lines = $this->joinWrappedProductLines($lines);
 
         foreach ($lines as $line) {
+            // Layout em colunas (Moloni e afins):
+            //   REF Designacao 960 Kg 0,60EUR 6% 610,56EUR
+            // O simbolo do euro vem DEPOIS do numero e ha uma coluna de unidade,
+            // duas coisas que os padroes genericos abaixo nao apanham.
+            if ($colunas = $this->extractColumnProductLine($line, $descricaoPendente)) {
+                $products[] = $colunas;
+                $descricaoPendente = null;
+                $insideItems = true;
+
+                continue;
+            }
+
+            // Designacao numa linha sozinha, mesmo antes da linha com os numeros.
+            if ($this->pareceDescricaoSolta($line)) {
+                $descricaoPendente = $line;
+            }
+
             if (preg_match('/\b(referencia|referÃªncia|designacao|designaÃ§Ã£o|descricao|descri..o|artigo|produto|servico|serviÃ§o)\b.*\b(qtd|quantidade|preco|preÃ§o|valor|total)\b/iu', $line)) {
                 $insideItems = true;
                 continue;
@@ -392,6 +410,117 @@ class PaperInvoiceExtractor
         }
 
         return $products;
+    }
+
+    /**
+     * As faturas trazem muitas vezes o Original e o Duplicado no mesmo PDF, o
+     * que faria aparecer cada linha duas vezes.
+     */
+    private function dedupProducts(array $products): array
+    {
+        $vistos = [];
+        $unicos = [];
+
+        foreach ($products as $produto) {
+            $chave = mb_strtolower(trim((string) ($produto['description'] ?? '')))
+                .'|'.round((float) ($produto['quantity'] ?? 0), 3)
+                .'|'.round((float) ($produto['unitPrice'] ?? 0), 4)
+                .'|'.round((float) ($produto['lineTotal'] ?? 0), 2);
+
+            if (isset($vistos[$chave])) {
+                continue;
+            }
+
+            $vistos[$chave] = true;
+            $unicos[] = $produto;
+        }
+
+        return $unicos;
+    }
+
+    private function extractColumnProductLine(string $line, ?string $descricaoAnterior): ?array
+    {
+        $normalizada = str_replace(["\u{20AC}", 'EUR'], ' ', $line);
+        $normalizada = preg_replace('/\s+/u', ' ', $normalizada ?? $line) ?? $line;
+        $normalizada = trim($normalizada);
+
+        if ($normalizada === '' || preg_match('/^(total|sub[- ]?total|iva|imposto|resumo|designacao|designa..o|observa|informa|iban|atcud|contribuinte|emitido)/iu', $normalizada)) {
+            return null;
+        }
+
+        $padrao = '/^(?<ref>[A-Z0-9][A-Z0-9._\/-]+\s+)?'
+            .'(?<desc>.*?)\s*'
+            .'(?<qtd>\d{1,6}(?:[.,]\d{1,3})?)\s+'
+            .'(?<uni>[A-Za-z]{1,5}\.?\s+)?'
+            .'(?<preco>\d{1,3}(?:[.\s]\d{3})*[.,]\d{2,4})\s+'
+            .'(?<iva>\d{1,2}(?:[.,]\d{1,2})?)\s*%\s+'
+            .'(?<total>\d{1,3}(?:[.\s]\d{3})*[.,]\d{2})$/u';
+
+        if (! preg_match($padrao, $normalizada, $m)) {
+            return null;
+        }
+
+        $descricao = trim($m['desc'] ?? '');
+
+        if ($descricao === '') {
+            $descricao = trim((string) $descricaoAnterior);
+        }
+
+        if ($descricao === '') {
+            $descricao = trim((string) ($m['ref'] ?? ''));
+        }
+
+        if ($descricao === '') {
+            return null;
+        }
+
+        $quantidade = $this->moneyToFloat($m['qtd']);
+        $precoUnitario = $this->moneyToFloat($m['preco']);
+        $iva = $this->moneyToFloat($m['iva']);
+        $total = $this->moneyToFloat($m['total']);
+
+        if ($quantidade <= 0 || $precoUnitario <= 0) {
+            return null;
+        }
+
+        return [
+            'description' => $this->cleanProductDescription($descricao),
+            'quantity' => $quantidade,
+            'unit' => $this->normalizarUnidade($m['uni'] ?? ''),
+            'unitPrice' => $precoUnitario,
+            'vatRate' => $iva,
+            'lineTotal' => $total,
+            'confidence' => 0.85,
+        ];
+    }
+
+    private function normalizarUnidade(string $unidade): string
+    {
+        $unidade = strtolower(trim(str_replace('.', '', $unidade)));
+
+        return match ($unidade) {
+            'kg', 'kgs' => 'kg',
+            'g', 'gr', 'grs' => 'g',
+            'cx', 'caixa', 'caixas' => 'cx',
+            'emb' => 'emb',
+            'molho', 'molhos' => 'molho',
+            default => 'un',
+        };
+    }
+
+    private function pareceDescricaoSolta(string $line): bool
+    {
+        $line = trim($line);
+
+        if (mb_strlen($line) < 3 || mb_strlen($line) > 80) {
+            return false;
+        }
+
+        if (preg_match('/\d/u', $line)) {
+            return false;
+        }
+
+        return ! preg_match('/^(ref|designacao|designa..o|artigo|produto|qtd|quantidade|preco|pre.o|uni|imposto|total|iva|observa|informa|portugal|obs)/iu', $line);
     }
 
     private function joinWrappedProductLines(array $lines): array
@@ -577,6 +706,7 @@ class PaperInvoiceExtractor
     private function extractInvoiceNumber(string $text): string
     {
         $strictPatterns = [
+            '/(?:Fatura|Factura)\\s*(?:N\\.?\\s*[\x{00ba}\x{00b0}o]?)?\\s*((?:FT|FAC|FS|FR|NC|ND|RC)\\s*[A-Z0-9]*\\/?\\s*[A-Z0-9._-]*\\d+)/iu',
             '/\bN[Âººo]?\s*(FAC\s+[A-Z0-9._\/-]+)/iu',
             '/(?:Fatura-recibo|Factura-recibo)\s*[:#]?\s*([^\r\n]+)/iu',
             '/(?:Fatura|Factura|Fatura-recibo|Factura-recibo)\s*[:#]?\s*((?:FAC|FT|FS|FR|NC|ND|RC)?\s*[A-Z0-9._\/-]+(?:\s+[A-Z0-9._\/-]+)?)/iu',
@@ -586,7 +716,12 @@ class PaperInvoiceExtractor
 
         foreach ($strictPatterns as $pattern) {
             if (preg_match($pattern, $text, $matches)) {
-                return trim(preg_replace('/\s+/u', ' ', $matches[1] ?? $matches[0]) ?? '');
+                $numero = trim(preg_replace('/\s+/u', ' ', $matches[1] ?? $matches[0]) ?? '');
+
+                // Capturas como "N." ou "Nº" sao lixo do rotulo, nao o numero.
+                if ($numero !== '' && ! preg_match('/^n[.\x{00ba}\x{00b0}o]*$/iu', $numero)) {
+                    return $numero;
+                }
             }
         }
 
