@@ -1071,11 +1071,7 @@ class EntregaController extends Controller
         }
 
         return WooOrder::query()
-            ->where(function ($query): void {
-                $query->whereIn('status', ['processing', 'on-hold', 'pending'])
-                    ->orWhereIn('status', ['subscricao', 'wc-subscricao', 'active'])
-                    ->orWhere('source_type', 'subscription');
-            })
+            ->operacionais()
             ->where(function ($query) use ($diaB2c, $data): void {
                 $query->whereDate('postponed_until', $data)
                     ->orWhere(function ($query) use ($diaB2c, $data): void {

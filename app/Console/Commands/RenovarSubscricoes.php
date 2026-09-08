@@ -17,12 +17,10 @@ class RenovarSubscricoes extends Command
     public function handle(RenovacaoService $renovacao): int
     {
         $candidatas = WooOrder::query()
+            ->operacionais()
+            ->subscricoes()
             ->where('renovacao_automatica', true)
             ->whereNull('renovada_em')
-            ->where(function ($query): void {
-                $query->where('source_type', 'subscription')
-                    ->orWhereIn('status', ['subscricao', 'wc-subscricao', 'active']);
-            })
             ->get()
             // A janela evita que subscricoes antigas gerem renovacoes de repente.
             ->filter(fn (WooOrder $order): bool => $order->precisaDeRenovacao());

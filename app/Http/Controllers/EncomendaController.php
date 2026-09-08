@@ -15,10 +15,6 @@ use Throwable;
 
 class EncomendaController extends Controller
 {
-    private const EM_PROCESSAMENTO_STATUSES = ['processing', 'on-hold', 'pending'];
-
-    private const STATUSES_EXCLUIDOS = ['completed', 'wc-completed'];
-
     public function index(Request $request): View
     {
         $q = $request->string('q')->toString();
@@ -61,12 +57,7 @@ class EncomendaController extends Controller
             'direction' => $direction,
             'orders' => WooOrder::query()
                 ->with(['preparacaoItems', 'registoEntregas'])
-                ->whereNotIn('status', self::STATUSES_EXCLUIDOS)
-                ->where(function ($query): void {
-                    $query->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
-                        ->orWhere('status', 'subscricao')
-                        ->orWhere('source_type', 'subscription');
-                })
+                ->operacionais()
                 ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
                     $query->where('woo_id', 'like', "%{$q}%")
                         ->orWhere('billing_name', 'like', "%{$q}%")
@@ -76,10 +67,10 @@ class EncomendaController extends Controller
                 ->when($inicio || $fim, fn ($query) => $this->filterByDeliveryDate($query, $inicio, $fim))
                 ->when($status === 'em_processamento', fn ($query) => $query
                     ->where('source_type', 'order')
-                    ->whereIn('status', self::EM_PROCESSAMENTO_STATUSES)
+                    ->whereIn('status', WooOrder::ESTADOS_EM_PROCESSAMENTO)
                 )
                 ->when(in_array($diaEntrega, ['segunda', 'quarta', 'sabado'], true), fn ($query) => $query->where('dia_entrega', $diaEntrega))
-                ->when($sourceType === 'order', fn ($query) => $query->whereIn('status', self::EM_PROCESSAMENTO_STATUSES))
+                ->when($sourceType === 'order', fn ($query) => $query->whereIn('status', WooOrder::ESTADOS_EM_PROCESSAMENTO))
                 ->when($sourceType === 'subscription', fn ($query) => $query->where('source_type', 'subscription'))
                 ->when($tipo === 'adiadas', fn ($query) => $query->whereNotNull('postponed_until'))
                 ->when($tipo === 'preferencias', fn ($query) => $query->where(function ($query): void {

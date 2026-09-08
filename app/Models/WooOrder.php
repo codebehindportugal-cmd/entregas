@@ -3,17 +3,33 @@
 namespace App\Models;
 
 use Database\Factories\WooOrderFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\URL;
 
 class WooOrder extends Model
 {
     /** @use HasFactory<WooOrderFactory> */
     use HasFactory;
+
+    public const ESTADOS_EM_PROCESSAMENTO = ['processing', 'on-hold', 'pending'];
+
+    public const ESTADOS_SUBSCRICAO = ['subscricao', 'wc-subscricao', 'active'];
+
+    public const ESTADOS_TERMINAIS = [
+        'completed',
+        'wc-completed',
+        'cancelled',
+        'wc-cancelled',
+        'expired',
+        'wc-expired',
+        'failed',
+        'refunded',
+        'trash',
+    ];
 
     protected $fillable = [
         'woo_id',
@@ -94,9 +110,28 @@ class WooOrder extends Model
         return $this->hasMany(RegistoEntrega::class);
     }
 
+    public function scopeOperacionais(Builder $query): Builder
+    {
+        return $query
+            ->whereNotIn('status', self::ESTADOS_TERMINAIS)
+            ->where(function (Builder $query): void {
+                $query->whereIn('status', self::ESTADOS_EM_PROCESSAMENTO)
+                    ->orWhereIn('status', self::ESTADOS_SUBSCRICAO)
+                    ->orWhere('source_type', 'subscription');
+            });
+    }
+
+    public function scopeSubscricoes(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->where('source_type', 'subscription')
+                ->orWhereIn('status', self::ESTADOS_SUBSCRICAO);
+        });
+    }
+
     public function podeConcluirNoWordPress(): bool
     {
-        if (in_array($this->status, ['completed', 'wc-completed'], true)) {
+        if (in_array($this->status, self::ESTADOS_TERMINAIS, true)) {
             return false;
         }
 
@@ -305,7 +340,7 @@ class WooOrder extends Model
 
     public function temEntregaB2cNaData(string|Carbon $data): bool
     {
-        if (in_array($this->status, ['completed', 'wc-completed'], true)) {
+        if (in_array($this->status, self::ESTADOS_TERMINAIS, true)) {
             return false;
         }
 

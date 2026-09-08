@@ -13,11 +13,8 @@ class RenovacaoController extends Controller
     public function index(): View
     {
         $subscricoes = WooOrder::query()
-            ->where(function ($query): void {
-                $query->where('source_type', 'subscription')
-                    ->orWhereIn('status', ['subscricao', 'wc-subscricao', 'active']);
-            })
-            ->whereNotIn('status', ['completed', 'wc-completed', 'cancelled', 'wc-cancelled'])
+            ->operacionais()
+            ->subscricoes()
             ->orderBy('billing_name')
             ->get()
             // O ciclo roda sozinho, por isso a lista e so dos ciclos que acabaram

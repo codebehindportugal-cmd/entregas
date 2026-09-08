@@ -17,15 +17,15 @@ class DashboardController extends Controller
         $hoje = now()->toDateString();
         $preparacaoHoje = PreparacaoItem::with(['corporate', 'wooOrder'])
             ->whereDate('data_preparacao', $hoje)
+            ->where(function ($query): void {
+                $query->where('tipo', 'corporate')
+                    ->orWhereHas('wooOrder', fn ($query) => $query->operacionais());
+            })
             ->latest()
             ->get();
         $entregasHojeQuery = RegistoEntrega::with(['corporate', 'user'])->whereDate('data_entrega', $hoje);
         $entregasHoje = (clone $entregasHojeQuery)->get();
-        $b2cAtivas = WooOrder::query()
-            ->where(function ($query): void {
-                $query->whereIn('status', ['processing', 'on-hold', 'pending'])
-                    ->orWhere('status', 'subscricao');
-            });
+        $b2cAtivas = WooOrder::query()->operacionais();
 
         return view('dashboard', [
             'corporatesAtivos' => Corporate::where('ativo', true)->count(),
@@ -40,8 +40,11 @@ class DashboardController extends Controller
             'preparacaoPorFazer' => $preparacaoHoje->where('feito', false)->count(),
             'progressoPreparacao' => $preparacaoHoje->count() > 0 ? round(($preparacaoHoje->where('feito', true)->count() / $preparacaoHoje->count()) * 100) : 0,
             'b2cAtivas' => (clone $b2cAtivas)->count(),
-            'subscricoesAtivas' => WooOrder::where('status', 'subscricao')->count(),
-            'encomendasProcessamento' => WooOrder::whereIn('status', ['processing', 'on-hold', 'pending'])->count(),
+            'subscricoesAtivas' => WooOrder::query()->operacionais()->subscricoes()->count(),
+            'encomendasProcessamento' => WooOrder::query()
+                ->operacionais()
+                ->whereIn('status', WooOrder::ESTADOS_EM_PROCESSAMENTO)
+                ->count(),
             'ultimasEncomendas' => WooOrder::latest('synced_at')->limit(5)->get(),
             'proximasPreparacoes' => $preparacaoHoje->where('feito', false)->take(6),
             'entregasPendentes' => $entregasHoje->where('status', 'pendente')->take(6),
