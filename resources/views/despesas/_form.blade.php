@@ -1,12 +1,14 @@
 @php
+    // Os casts decimal:N devolvem strings ("6.00"), que nao batem certo com os
+    // value dos <select> ("6"). Converte-se aqui para numero.
     $existingItems = old('items', $despesa->exists ? $despesa->items->map(fn($i) => [
         'descricao' => $i->descricao,
-        'quantidade' => $i->quantidade,
+        'quantidade' => (float) $i->quantidade,
         'unidade_compra' => $i->unidade_compra ?? 'un',
-        'unidades_por_quantidade' => $i->unidades_por_quantidade ?? 1,
-        'quantidade_unidades' => $i->quantidade_unidades ?? $i->quantidade,
-        'preco_unitario' => $i->preco_unitario,
-        'iva_percentagem' => $i->iva_percentagem,
+        'unidades_por_quantidade' => (float) ($i->unidades_por_quantidade ?? 1),
+        'quantidade_unidades' => (float) ($i->quantidade_unidades ?? $i->quantidade),
+        'preco_unitario' => (float) $i->preco_unitario,
+        'iva_percentagem' => (float) $i->iva_percentagem,
         'notas' => $i->notas ?? '',
     ])->toArray() : []);
 @endphp
