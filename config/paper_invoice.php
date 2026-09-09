@@ -18,6 +18,18 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Unidade de compra por omissao
+    |--------------------------------------------------------------------------
+    |
+    | Quando o OCR nao consegue ler a coluna da unidade, as linhas ficam com
+    | esta. Na Horta da Maria compra-se quase tudo ao quilo.
+    |
+    */
+
+    'unidade_omissao' => env('DESPESAS_UNIDADE_OMISSAO', 'kg'),
+
     'binaries' => [
         'pdftotext' => env('PDFTOTEXT_BINARY'),
         'pdftoppm'  => env('PDFTOPPM_BINARY'),

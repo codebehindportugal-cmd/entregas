@@ -163,10 +163,12 @@
 (function () {
     'use strict';
 
-    var MAX_UPLOAD_SIDE = 1800;
+    // O OCR do servidor le esta imagem: abaixo dos ~2500px de lado uma tabela
+    // de fatura A4 fica ilegivel e perdem-se linhas.
+    var MAX_UPLOAD_SIDE = 2600;
     var MAX_QR_SIDE = 1800;
     var MAX_IA_SIDE = 1600;
-    var JPEG_QUALITY = 0.82;
+    var JPEG_QUALITY = 0.88;
     var COMPRESSIVEIS = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     var ESPERA_MAX_SUBMIT = 6000;
 

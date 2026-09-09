@@ -545,7 +545,9 @@ class DespesaController extends Controller
             $items[] = [
                 'descricao' => (string) ($produto['description'] ?? ''),
                 'quantidade' => $quantidade,
-                'unidade_compra' => (string) ($produto['unit'] ?? 'un'),
+                'unidade_compra' => ($produto['unit'] ?? '') !== ''
+                    ? (string) $produto['unit']
+                    : (string) config('paper_invoice.unidade_omissao', 'un'),
                 'unidades_por_quantidade' => 1,
                 'quantidade_unidades' => $quantidade,
                 'preco_unitario' => $preco,

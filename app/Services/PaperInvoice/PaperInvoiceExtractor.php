@@ -16,7 +16,7 @@ class PaperInvoiceExtractor
             [$rawText, $qrData] = $this->extractPdf($documentPath, $warnings);
         } else {
             $qrData = $this->readQrCode($documentPath, $warnings);
-            $rawText = $this->runOcr($documentPath, $warnings);
+            $rawText = $this->melhorOcr($documentPath, $warnings);
         }
 
         return $this->parseText($rawText, $qrData, $warnings);
@@ -177,7 +177,55 @@ class PaperInvoiceExtractor
         }
     }
 
-    private function runOcr(string $imagePath, array &$warnings): string
+    /**
+     * Numa foto de uma tabela, o modo de segmentacao do tesseract muda tudo:
+     * ora o --psm 6 apanha mais linhas ora o --psm 4. Corre os dois e fica com
+     * o texto de onde saem mais linhas de produto.
+     */
+    private function melhorOcr(string $imagePath, array &$warnings): string
+    {
+        $melhorTexto = '';
+        $melhorContagem = -1;
+
+        foreach (['6', '4'] as $psm) {
+            $texto = $this->runOcr($imagePath, $warnings, $psm);
+
+            if (trim($texto) === '') {
+                continue;
+            }
+
+            $contagem = count($this->extractColumnProducts($this->linhasNormalizadas($texto)));
+
+            if ($contagem > $melhorContagem) {
+                $melhorContagem = $contagem;
+                $melhorTexto = $texto;
+            }
+
+            // Nao vale a pena insistir se ja saiu uma tabela inteira.
+            if ($contagem >= 5) {
+                break;
+            }
+        }
+
+        return $melhorTexto;
+    }
+
+    private function linhasNormalizadas(string $texto): array
+    {
+        $linhas = [];
+
+        foreach (preg_split('/\R/u', $texto) ?: [] as $linha) {
+            $linha = trim(preg_replace('/\s+/u', ' ', $linha) ?? '');
+
+            if ($linha !== '') {
+                $linhas[] = $linha;
+            }
+        }
+
+        return $linhas;
+    }
+
+    private function runOcr(string $imagePath, array &$warnings, string $psm = '6'): string
     {
         $tesseract = $this->commandPath('tesseract');
 
@@ -190,7 +238,7 @@ class PaperInvoiceExtractor
 
         foreach (array_unique([env('TESSERACT_LANGUAGE', 'por+eng'), 'por+eng', 'eng']) as $language) {
             try {
-                $command = [$tesseract, $imagePath, 'stdout', '-l', $language, '--psm', '6'];
+                $command = [$tesseract, $imagePath, 'stdout', '-l', $language, '--psm', $psm];
                 if ($tessdataDir) {
                     array_splice($command, 3, 0, ['--tessdata-dir', $tessdataDir]);
                 }
@@ -435,6 +483,36 @@ class PaperInvoiceExtractor
         return $unicos;
     }
 
+    /**
+     * Come os numeros soltos no fim da designacao, sem levar o calibre
+     * ("... CAT II CAL 7 9290 7/1 00" -> "... CAT II CAL 7").
+     */
+    private function limparRestosNumericos(string $prefixo): string
+    {
+        $tokens = preg_split('/\s+/u', trim($prefixo)) ?: [];
+
+        while (count($tokens) > 1) {
+            $ultimo = (string) end($tokens);
+            $penultimo = (string) ($tokens[count($tokens) - 2] ?? '');
+
+            if (! preg_match('/^[\d.,\/]+$/u', $ultimo)) {
+                break;
+            }
+
+            $penultimoNumerico = preg_match('/^[\d.,\/]+$/u', $penultimo) === 1;
+            $ehLixo = mb_strlen($ultimo) >= 3 || str_contains($ultimo, '/') || $penultimoNumerico;
+
+            // "CAL 7" e "CAT 450" sao calibre/categoria, nao taras.
+            if (! $ehLixo || preg_match('/^(cal|cat|calibre|cx)$/iu', $penultimo)) {
+                break;
+            }
+
+            array_pop($tokens);
+        }
+
+        return trim(implode(' ', $tokens));
+    }
+
     private function extractColumnProducts(array $lines): array
     {
         $products = [];
@@ -474,7 +552,7 @@ class PaperInvoiceExtractor
         }
 
         arsort($contagem);
-        $dominante = array_key_first($contagem) ?? 'un';
+        $dominante = array_key_first($contagem) ?? '';
 
         foreach ($products as $i => $produto) {
             if (($produto['unit'] ?? '') === '') {
@@ -561,8 +639,9 @@ class PaperInvoiceExtractor
             $prefixo = preg_replace('/\s*\b('.$unidades.')\b.*$/iu', '', $prefixo) ?? $prefixo;
         }
 
-        // Restos numericos no fim (taras sem coluna de unidade).
-        $prefixo = preg_replace('/(?:\s+\d+(?:[.,]\d+)?){2,}\s*$/u', '', $prefixo) ?? $prefixo;
+        // Restos das colunas de taras quando a coluna da unidade nao foi lida
+        // (o OCR devolve coisas como "9290 7/1 00").
+        $prefixo = $this->limparRestosNumericos($prefixo);
 
         return [trim($prefixo), $unidade];
     }
