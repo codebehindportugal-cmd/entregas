@@ -454,6 +454,34 @@ class PaperInvoiceExtractor
             }
         }
 
+        return $this->herdarUnidadeDominante($products);
+    }
+
+    /**
+     * O OCR ora le a coluna da unidade ora nao. Numa fatura em que a maioria
+     * das linhas diz KG, as linhas sem unidade sao KG tambem.
+     */
+    private function herdarUnidadeDominante(array $products): array
+    {
+        $contagem = [];
+
+        foreach ($products as $produto) {
+            $unidade = (string) ($produto['unit'] ?? '');
+
+            if ($unidade !== '') {
+                $contagem[$unidade] = ($contagem[$unidade] ?? 0) + 1;
+            }
+        }
+
+        arsort($contagem);
+        $dominante = array_key_first($contagem) ?? 'un';
+
+        foreach ($products as $i => $produto) {
+            if (($produto['unit'] ?? '') === '') {
+                $products[$i]['unit'] = $dominante;
+            }
+        }
+
         return $products;
     }
 
@@ -502,7 +530,7 @@ class PaperInvoiceExtractor
         return [
             'description' => $this->cleanProductDescription($descricao),
             'quantity' => $quantidade,
-            'unit' => $this->normalizarUnidade($unidadePrefixo !== '' ? $unidadePrefixo : ($m['uni'][0] ?? '')),
+            'unit' => $this->normalizarUnidade($unidadePrefixo !== '' ? $unidadePrefixo : ($m['uni'][0] ?? ''), ''),
             'unitPrice' => $precoUnitario,
             'vatRate' => $iva,
             'lineTotal' => $total,
@@ -526,9 +554,11 @@ class PaperInvoiceExtractor
         $prefixo = preg_replace('/^(?=[A-Z0-9._\/-]*\d)[A-Z0-9][A-Z0-9._\/-]+(?:\s+|$)/u', '', $prefixo) ?? $prefixo;
 
         // Coluna da unidade (e tudo o que venha depois: taras, pesos, lotes).
-        if (preg_match('/\s(KLG|KLGS|KGS|KG|GRS|GR|UNID|UND|UNI|UN|CXS|CX|LTS|LT|EMB|MOLHO|DOC)\b/iu', ' '.$prefixo, $u)) {
+        $unidades = 'K[LI1]?[G6]S?|GRS?|UNID|UND|UNI|UN|CXS?|LTS?|EMB|MOLHOS?|DOC';
+
+        if (preg_match('/\s('.$unidades.')\b/iu', ' '.$prefixo, $u)) {
             $unidade = $u[1];
-            $prefixo = preg_replace('/\s*\b(KLG|KLGS|KGS|KG|GRS|GR|UNID|UND|UNI|UN|CXS|CX|LTS|LT|EMB|MOLHO|DOC)\b.*$/iu', '', $prefixo) ?? $prefixo;
+            $prefixo = preg_replace('/\s*\b('.$unidades.')\b.*$/iu', '', $prefixo) ?? $prefixo;
         }
 
         // Restos numericos no fim (taras sem coluna de unidade).
@@ -537,9 +567,18 @@ class PaperInvoiceExtractor
         return [trim($prefixo), $unidade];
     }
 
-    private function normalizarUnidade(string $unidade): string
+    private function normalizarUnidade(string $unidade, string $omissao = 'un'): string
     {
-        $unidade = strtolower(trim(str_replace('.', '', $unidade)));
+        $unidade = strtolower(trim(str_replace(['.', ' '], '', $unidade)));
+
+        // O OCR troca facilmente KLG por KIG, K1G ou KL6.
+        if (preg_match('/^k[li1]?[g6]s?$/', $unidade)) {
+            return 'kg';
+        }
+
+        if ($unidade === '') {
+            return $omissao;
+        }
 
         return match ($unidade) {
             'kg', 'kgs', 'klg', 'klgs' => 'kg',
@@ -547,7 +586,7 @@ class PaperInvoiceExtractor
             'cx', 'caixa', 'caixas' => 'cx',
             'emb' => 'emb',
             'molho', 'molhos' => 'molho',
-            default => 'un',
+            default => $omissao,
         };
     }
 
