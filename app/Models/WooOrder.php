@@ -17,6 +17,7 @@ class WooOrder extends Model
 
     protected $fillable = [
         'woo_id',
+        'referencia_externa',
         'source_type',
         'ordered_at',
         'status',
@@ -1259,9 +1260,9 @@ class WooOrder extends Model
     public function whatsappPagamentoUrl(): ?string
     {
         $telefone = preg_replace('/\D+/', '', (string) $this->billing_phone);
-        $paymentUrl = $this->paymentUrl();
+        $mensagem = $this->mensagemPagamentoWhatsapp();
 
-        if (blank($telefone) || blank($paymentUrl)) {
+        if (blank($telefone) || blank($mensagem)) {
             return null;
         }
 
@@ -1269,12 +1270,29 @@ class WooOrder extends Model
             $telefone = '351'.$telefone;
         }
 
+        return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
+    }
+
+    /**
+     * O texto do pedido de pagamento, sem o wa.me a volta.
+     *
+     * Existe a parte porque a API do chat devolve a mensagem em texto simples
+     * para eu poder copiar para a conversa que ja tenho aberta com o cliente,
+     * sem abrir outra janela do WhatsApp.
+     */
+    public function mensagemPagamentoWhatsapp(): ?string
+    {
+        $paymentUrl = $this->paymentUrl();
+
+        if (blank($paymentUrl)) {
+            return null;
+        }
+
         $nome = $this->billing_name ?: ($this->prefersEnglish() ? 'there' : 'cliente');
-        $mensagem = $this->prefersEnglish()
+
+        return $this->prefersEnglish()
             ? "Hi {$nome}! How are you? Your Horta da Maria order is ready. To complete it, you can pay through this link: {$paymentUrl} Thank you!"
             : "Ola {$nome}! Tudo bem? Ja deixamos a sua encomenda da Horta da Maria pronta. Para finalizar, pode fazer o pagamento por este link: {$paymentUrl} Obrigado!";
-
-        return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
     }
 
     public function prefersEnglish(): bool

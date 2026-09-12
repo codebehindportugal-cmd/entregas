@@ -102,7 +102,22 @@ class ProdutoController extends Controller
             'tabela_preco_item_id' => ['nullable', 'exists:tabela_preco_itens,id'],
             'custo_quantidade' => ['required', 'numeric', 'min:0'],
             'custo_unidade' => ['required', 'string', 'max:20'],
+            // Como se vende: e isto que decide se "2 de ameixa" sao 2 kg ou 2 embalagens.
+            'unidade_venda' => ['required', 'in:unidade,peso'],
+            'formato_qtd' => ['nullable', 'numeric', 'gt:0'],
+            'peso_medio_kg' => ['nullable', 'numeric', 'gt:0'],
+            'qtd_min' => ['nullable', 'integer', 'min:1'],
+            'qtd_max' => ['nullable', 'integer', 'min:1'],
+            'aliases' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $aoPeso = $data['unidade_venda'] === 'peso';
+
+        if ($aoPeso && blank($data['formato_qtd'] ?? null)) {
+            return back()->withInput()->withErrors([
+                'formato_qtd' => 'Um produto vendido ao peso precisa do tamanho da embalagem em kg (ex.: 0,5).',
+            ]);
+        }
 
         $produto->update([
             ...$data,
@@ -112,6 +127,19 @@ class ProdutoController extends Controller
             'em_epoca' => $request->boolean('em_epoca'),
             'disponivel_compra' => $request->boolean('disponivel_compra'),
             'tabela_preco_item_id' => filled($data['tabela_preco_item_id'] ?? null) ? (int) $data['tabela_preco_item_id'] : null,
+            'unidade_venda' => $data['unidade_venda'],
+            'formato_qtd' => $aoPeso ? (float) $data['formato_qtd'] : 1,
+            'formato_unidade' => $aoPeso ? 'kg' : 'un',
+            'peso_medio_kg' => filled($data['peso_medio_kg'] ?? null) ? (float) $data['peso_medio_kg'] : null,
+            'qtd_min' => max(1, (int) ($data['qtd_min'] ?? 1)),
+            'qtd_max' => filled($data['qtd_max'] ?? null) ? (int) $data['qtd_max'] : null,
+            'aliases' => collect(explode(',', (string) ($data['aliases'] ?? '')))
+                ->map(fn (string $alias): string => trim($alias))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
+            'unidades_confirmadas' => $request->boolean('unidades_confirmadas'),
         ]);
 
         if ($request->boolean('sync_site')) {

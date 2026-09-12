@@ -26,6 +26,7 @@
                     <th class="p-3">Preco site</th>
                     <th class="p-3">Epoca</th>
                     <th class="p-3">Estado compra</th>
+                    <th class="p-3">Como se vende</th>
                     <th class="p-3">Fornecedor / custo</th>
                     <th class="p-3">Margem</th>
                     <th class="p-3 text-right">Acoes</th>
@@ -88,6 +89,35 @@
                                 </span>
                                 <p class="mt-1 text-xs text-slate-500">{{ $produto->stock_status ?: 'sem stock status' }}{{ $produto->purchasable ? ' / compravel' : ' / nao compravel' }}</p>
                             </td>
+                            <td class="p-3 {{ $produto->unidades_confirmadas ? '' : 'bg-amber-50' }}">
+                                <select name="unidade_venda" class="w-40 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
+                                    <option value="unidade" @selected($produto->unidade_venda !== 'peso')>A unidade</option>
+                                    <option value="peso" @selected($produto->unidade_venda === 'peso')>Ao peso (embalagem)</option>
+                                </select>
+                                <label class="mt-2 block text-xs font-medium text-slate-500">Embalagem (kg)
+                                    <input name="formato_qtd" type="number" min="0" step="0.001" value="{{ $produto->unidade_venda === 'peso' ? $produto->formato_qtd : '' }}" placeholder="0,500" class="mt-1 w-28 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
+                                </label>
+                                <label class="mt-2 block text-xs font-medium text-slate-500">Peso medio de 1 un (kg)
+                                    <input name="peso_medio_kg" type="number" min="0" step="0.001" value="{{ $produto->peso_medio_kg }}" placeholder="0,200" class="mt-1 w-28 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
+                                </label>
+                                <div class="mt-2 flex gap-2">
+                                    <label class="block text-xs font-medium text-slate-500">Min
+                                        <input name="qtd_min" type="number" min="1" step="1" value="{{ $produto->qtd_min }}" class="mt-1 w-16 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
+                                    </label>
+                                    <label class="block text-xs font-medium text-slate-500">Max
+                                        <input name="qtd_max" type="number" min="1" step="1" value="{{ $produto->qtd_max }}" class="mt-1 w-16 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
+                                    </label>
+                                </div>
+                                <label class="mt-2 block text-xs font-medium text-slate-500">Como o cliente lhe chama
+                                    <input name="aliases" value="{{ collect($produto->aliases ?? [])->implode(', ') }}" placeholder="ameixas, ameixa preta" class="mt-1 w-52 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
+                                </label>
+                                <label class="mt-2 flex items-center gap-2 text-xs font-medium text-slate-600">
+                                    <input type="hidden" name="unidades_confirmadas" value="0">
+                                    <input name="unidades_confirmadas" value="1" type="checkbox" @checked($produto->unidades_confirmadas) class="rounded border-slate-300">
+                                    Confirmado (o sync deixa de mexer)
+                                </label>
+                                <p class="mt-1 text-xs text-slate-500">Vende-se {{ $produto->descricaoFormato() }}</p>
+                            </td>
                             <td class="p-3">
                                 <select name="tabela_preco_item_id" class="w-72 rounded border border-slate-200 bg-white px-3 py-2 text-slate-950 shadow-sm">
                                     <option value="">Sem fornecedor associado</option>
@@ -120,7 +150,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7" class="p-6 text-center text-slate-500">Ainda nao existem produtos sincronizados do site.</td>
+                        <td colspan="8" class="p-6 text-center text-slate-500">Ainda nao existem produtos sincronizados do site.</td>
                     </tr>
                 @endforelse
             </tbody>

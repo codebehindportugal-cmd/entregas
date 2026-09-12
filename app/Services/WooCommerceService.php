@@ -142,10 +142,14 @@ class WooCommerceService
         $created = 0;
         $updated = 0;
 
+        $inferidor = app(InferidorUnidadesProduto::class);
+
         foreach ($products as $product) {
             $model = WooProduct::firstOrNew(['woo_id' => (int) Arr::get($product, 'id')]);
             $model->exists ? $updated++ : $created++;
             $model->fill($this->productPayload($product));
+            // Como se vende: palpite pelo nome enquanto ninguem confirmar a mao.
+            $inferidor->aplicar($model);
             $model->save();
         }
 
