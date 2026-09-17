@@ -27,6 +27,7 @@ class EncomendaChatService
         private readonly ResolvedorProdutos $resolvedor,
         private readonly ValidadorQuantidadesEncomenda $validador,
         private readonly WooCommerceService $woocommerce,
+        private readonly ClientesB2c $clientes,
     ) {}
 
     /**
@@ -37,7 +38,7 @@ class EncomendaChatService
         $avisos = [];
         $erros = [];
 
-        $cliente = $this->resolverCliente($pedido);
+        $cliente = $this->resolverCliente($pedido, $avisos);
 
         if (blank($cliente['nome']) || blank($cliente['telefone'])) {
             $erros[] = [
@@ -262,27 +263,116 @@ class EncomendaChatService
         return ['linha' => $base, 'avisos' => $avisos, 'erros' => $erros];
     }
 
-    private function resolverCliente(array $pedido): array
+    /**
+     * Quem e o cliente. Os perfis B2C repetem-se (cada encomenda e um), por isso
+     * sem `perfil_woo_order_id` o cliente e encontrado pelo telefone: juntam-se
+     * todas as encomendas com esse numero e o que faltar vem da mais recente
+     * que o tenha.
+     */
+    private function resolverCliente(array $pedido, array &$avisos): array
     {
         $cliente = (array) ($pedido['cliente'] ?? []);
-        $perfil = filled($pedido['perfil_woo_order_id'] ?? null)
-            ? WooOrder::find((int) $pedido['perfil_woo_order_id'])
-            : null;
+        $telefonePedido = $cliente['telefone'] ?? null;
+        $perfil = null;
 
-        $billing = (array) ($perfil?->raw_payload['billing'] ?? []);
-        $shipping = (array) ($perfil?->raw_payload['shipping'] ?? []);
+        if (filled($pedido['perfil_woo_order_id'] ?? null)) {
+            $perfil = $this->perfilDaEncomenda(WooOrder::find((int) $pedido['perfil_woo_order_id']));
+
+            if ($perfil !== null && filled($telefonePedido)
+                && ClientesB2c::normalizarTelefone($telefonePedido) !== ClientesB2c::normalizarTelefone($perfil['telefone'])) {
+                $avisos[] = [
+                    'codigo' => 'PERFIL_TELEFONE_DIFERENTE',
+                    'linha' => null,
+                    'mensagem' => "O telefone {$telefonePedido} nao e o da encomenda #{$perfil['perfil_woo_order_id']} ({$perfil['telefone']}). Confirma que e o mesmo cliente.",
+                ];
+            }
+        } elseif (filled($telefonePedido)) {
+            if (ClientesB2c::normalizarTelefone($telefonePedido) === null) {
+                $avisos[] = [
+                    'codigo' => 'TELEFONE_INVALIDO',
+                    'linha' => null,
+                    'mensagem' => "\"{$telefonePedido}\" nao parece um numero de telefone; nao deu para procurar o cliente.",
+                ];
+            } else {
+                $perfil = $this->clientes->perfil($telefonePedido);
+                $avisos = array_merge($avisos, $this->avisosDoPerfil($perfil, $telefonePedido, $cliente['nome'] ?? null));
+            }
+        }
 
         return [
-            'nome' => $this->primeiro($cliente['nome'] ?? null, $perfil?->billing_name),
-            'telefone' => $this->primeiro($cliente['telefone'] ?? null, $perfil?->billing_phone),
-            'email' => $this->primeiro($cliente['email'] ?? null, $perfil?->billing_email),
-            'morada' => $this->primeiro($cliente['morada'] ?? null, $shipping['address_1'] ?? null, $billing['address_1'] ?? null),
-            'codigo_postal' => $this->primeiro($cliente['codigo_postal'] ?? null, $shipping['postcode'] ?? null, $billing['postcode'] ?? null),
-            'cidade' => $this->primeiro($cliente['cidade'] ?? null, $shipping['city'] ?? null, $billing['city'] ?? null),
-            'idioma' => $this->primeiro($cliente['idioma'] ?? null, $perfil?->customer_language) ?? 'pt',
-            'dia_entrega' => $perfil?->dia_entrega,
-            'perfil_woo_order_id' => $perfil?->id,
+            'nome' => $this->primeiro($cliente['nome'] ?? null, $perfil['nome'] ?? null),
+            'telefone' => $this->primeiro($telefonePedido, $perfil['telefone'] ?? null),
+            'email' => $this->primeiro($cliente['email'] ?? null, $perfil['email'] ?? null),
+            'morada' => $this->primeiro($cliente['morada'] ?? null, $perfil['morada'] ?? null),
+            'codigo_postal' => $this->primeiro($cliente['codigo_postal'] ?? null, $perfil['codigo_postal'] ?? null),
+            'cidade' => $this->primeiro($cliente['cidade'] ?? null, $perfil['cidade'] ?? null),
+            'idioma' => $this->primeiro($cliente['idioma'] ?? null, $perfil['idioma'] ?? null) ?? 'pt',
+            'dia_entrega' => $perfil['dia_entrega'] ?? null,
+            'perfil_woo_order_id' => $perfil['perfil_woo_order_id'] ?? null,
+            'encomendas_anteriores' => $perfil['total_encomendas'] ?? 0,
         ];
+    }
+
+    /** Uma encomenda escolhida a mao, no mesmo formato do perfil por telefone. */
+    private function perfilDaEncomenda(?WooOrder $order): ?array
+    {
+        if ($order === null) {
+            return null;
+        }
+
+        $billing = (array) ($order->raw_payload['billing'] ?? []);
+        $shipping = (array) ($order->raw_payload['shipping'] ?? []);
+
+        return [
+            'perfil_woo_order_id' => $order->id,
+            'nome' => $order->billing_name,
+            'telefone' => $order->billing_phone,
+            'email' => $order->billing_email,
+            'morada' => $this->primeiro($shipping['address_1'] ?? null, $billing['address_1'] ?? null),
+            'codigo_postal' => $this->primeiro($shipping['postcode'] ?? null, $billing['postcode'] ?? null),
+            'cidade' => $this->primeiro($shipping['city'] ?? null, $billing['city'] ?? null),
+            'idioma' => $order->customer_language,
+            'dia_entrega' => $order->dia_entrega,
+            'total_encomendas' => 1,
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function avisosDoPerfil(?array $perfil, string $telefone, ?string $nomePedido): array
+    {
+        if ($perfil === null) {
+            return [[
+                'codigo' => 'CLIENTE_NOVO',
+                'linha' => null,
+                'mensagem' => "Nao ha nenhuma encomenda com o telefone {$telefone}: vai como cliente novo. Confirma o nome e a morada.",
+            ]];
+        }
+
+        $avisos = [[
+            'codigo' => 'CLIENTE_EXISTENTE',
+            'linha' => null,
+            'mensagem' => "Cliente encontrado pelo telefone: {$perfil['nome']}, {$perfil['total_encomendas']} encomenda(s) anterior(es) (a mais recente e a #{$perfil['perfil_woo_order_id']}).",
+        ]];
+
+        if (count($perfil['nomes']) > 1) {
+            $avisos[] = [
+                'codigo' => 'CLIENTE_VARIOS_NOMES',
+                'linha' => null,
+                'mensagem' => "O telefone {$telefone} aparece com varios nomes: ".implode(', ', $perfil['nomes']).'. Usado o mais recente.',
+            ];
+        }
+
+        $conhecido = collect($perfil['nomes'])->contains(fn (string $nome): bool => ClientesB2c::mesmoNome($nome, $nomePedido));
+
+        if (filled($nomePedido) && ! $conhecido) {
+            $avisos[] = [
+                'codigo' => 'CLIENTE_NOME_DIFERENTE',
+                'linha' => null,
+                'mensagem' => "O telefone {$telefone} esta registado como {$perfil['nome']}, mas a encomenda vem em nome de {$nomePedido}. Confirma que e a mesma pessoa.",
+            ];
+        }
+
+        return $avisos;
     }
 
     private function validarCupoes(array $cupoes, array &$avisos, array &$erros): array

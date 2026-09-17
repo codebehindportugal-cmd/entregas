@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AiJobController;
+use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\EncomendaController;
 use App\Http\Controllers\Api\FaturaController;
 use App\Http\Controllers\ClaudeApiController;
@@ -51,6 +52,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('claude.api_token')->group(func
     |
     */
     Route::get('/produtos', [EncomendaController::class, 'produtos'])->name('produtos.index');
+    // Os perfis B2C repetem-se; o cliente identifica-se pelo telefone.
+    Route::get('/clientes', [ClienteController::class, 'show'])->name('clientes.show');
     Route::post('/encomendas/validar', [EncomendaController::class, 'validar'])->name('encomendas.validar');
     Route::post('/encomendas', [EncomendaController::class, 'store'])->name('encomendas.store');
 });

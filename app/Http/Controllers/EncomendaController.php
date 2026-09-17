@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\WooOrder;
 use App\Models\WooProduct;
+use App\Services\ClientesB2c;
 use App\Services\MoloniService;
 use App\Services\WooCommerceService;
 use Illuminate\Http\RedirectResponse;
@@ -116,16 +117,29 @@ class EncomendaController extends Controller
     {
         [$wooProducts, $wooCoupons, $couponLoadError] = $this->woocommerceFormData($service);
         $perfil = $request->filled('perfil') ? WooOrder::find($request->integer('perfil')) : null;
+        // Cada encomenda e um perfil, por isso o mesmo cliente aparecia varias
+        // vezes. Fica so a encomenda mais recente de cada telefone (ou email,
+        // para quem nao tem telefone).
         $perfis = WooOrder::query()
             ->where(function ($query): void {
                 $query->whereNotNull('billing_name')
                     ->orWhereNotNull('billing_phone')
                     ->orWhereNotNull('billing_email');
             })
-            ->orderBy('billing_name')
-            ->orderByDesc('synced_at')
-            ->limit(300)
-            ->get();
+            ->orderByDesc('ordered_at')
+            ->orderByDesc('id')
+            ->limit(2000)
+            ->get()
+            ->unique(fn (WooOrder $order): string => ClientesB2c::normalizarTelefone($order->billing_phone)
+                ?? (filled($order->billing_email) ? 'email:'.mb_strtolower(trim($order->billing_email)) : 'id:'.$order->id))
+            ->sortBy(fn (WooOrder $order): string => mb_strtolower((string) $order->billing_name))
+            ->take(300)
+            ->values();
+
+        // O perfil escolhido tem de continuar na lista, mesmo que nao seja o mais recente do telefone.
+        if ($perfil !== null && ! $perfis->contains('id', $perfil->id)) {
+            $perfis->prepend($perfil);
+        }
 
         return view('encomendas.create', compact('wooProducts', 'wooCoupons', 'couponLoadError', 'perfis', 'perfil'));
     }

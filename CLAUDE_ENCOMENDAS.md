@@ -28,6 +28,9 @@ O WooCommerce so conta linhas inteiras. Uma linha e "1 x Ameixa 500g", nunca
 
 1. **`GET /produtos`** uma vez por conversa, para saber o catalogo e como cada
    produto se vende.
+1. **`GET /clientes?telefone=...`** para saber quem e o cliente. Os perfis B2C
+   repetem-se (cada encomenda e um), por isso o cliente identifica-se sempre
+   pelo telefone.
 2. **Interpretar o texto do cliente** em linhas `{texto, quantidade, unidade}`.
    A unidade so vai preenchida se o cliente a tiver dito.
 3. **`POST /encomendas/validar`**. Se vier `sucesso: false` ou avisos de
@@ -74,6 +77,36 @@ Parametros opcionais: `q` (pesquisa), `apenas_disponiveis` (por defeito `1`).
 do produto e ainda nao foi confirmado no backoffice — nesse caso vale a pena
 confirmar a equivalencia com o Andre antes de criar.
 
+## `GET /clientes?telefone=912345678`
+
+Junta todas as encomendas com esse telefone, seja qual for o formato em que
+ficou gravado (`+351 912 345 678`, `00351912345678` e `912345678` sao o mesmo).
+Cada campo vem da encomenda mais recente que o tenha; a morada vem inteira da
+mesma encomenda.
+
+```json
+{
+  "sucesso": true,
+  "dados": {
+    "encontrado": true,
+    "telefone_normalizado": "912345678",
+    "cliente": {
+      "perfil_woo_order_id": 412, "nome": "Joana Costa", "telefone": "912345678",
+      "email": "joana@exemplo.pt", "morada": "Rua das Flores 10",
+      "codigo_postal": "2500-100", "cidade": "Caldas da Rainha",
+      "idioma": "pt", "dia_entrega": "quarta",
+      "nomes": ["Joana Costa"], "total_encomendas": 3,
+      "encomendas": [{ "id": 412, "woo_id": 987, "tipo": "order", "estado": "completed", "data": "2026-09-10", "total": 11.6, "nome": "Joana Costa" }]
+    }
+  },
+  "avisos": [], "erros": []
+}
+```
+
+Sem resultado: `encontrado: false` e `cliente: null`. Menos de 9 digitos: 422
+`TELEFONE_INVALIDO`. Se o telefone aparecer com varios nomes vem o aviso
+`CLIENTE_VARIOS_NOMES`.
+
 ## `POST /encomendas/validar`
 
 ```json
@@ -100,9 +133,11 @@ confirmar a equivalencia com o Andre antes de criar.
 }
 ```
 
-- `perfil_woo_order_id` e uma encomenda antiga do mesmo cliente: preenche a
-  morada, o email e o idioma que faltarem. Encontra-se em `/api/claude/subscricoes`
-  ou no backoffice.
+- **Basta o telefone.** Sem `perfil_woo_order_id`, o cliente e procurado pelo
+  telefone e o que faltar (nome, email, morada, idioma, dia de entrega) vem das
+  encomendas anteriores dele. O que for mandado em `cliente` ganha sempre.
+- `perfil_woo_order_id` (uma encomenda antiga escolhida a mao) ganha ao
+  telefone. So usar quando o Andre indicar uma encomenda concreta.
 - `woo_product_id` e o `id` do catalogo (nao o `woo_id`) e salta a resolucao por
   nome — usar quando o cliente ja disse qual dos candidatos era.
 - Nome e telefone sao obrigatorios; a morada da so aviso.
@@ -189,6 +224,12 @@ Se o site recusar, vem **502** com `WOOCOMMERCE_FALHOU` e nao fica nada gravado.
 | `PRODUTO_APROXIMADO` | aviso | confirmar que e mesmo aquele produto |
 | `UNIDADE_ASSUMIDA` | aviso | nenhuma (produto a unidade, leitura unica) |
 | `MORADA_EM_FALTA` | aviso | confirmar a morada de entrega |
+| `CLIENTE_EXISTENTE` | aviso | nenhuma — mostrar ao Andre quem e e quantas encomendas tem |
+| `CLIENTE_NOVO` | aviso | nao ha encomendas com esse telefone: confirmar nome e morada |
+| `CLIENTE_NOME_DIFERENTE` | aviso | o telefone esta registado com outro nome: confirmar que e a mesma pessoa |
+| `CLIENTE_VARIOS_NOMES` | aviso | o telefone tem varios nomes; foi usado o mais recente |
+| `PERFIL_TELEFONE_DIFERENTE` | aviso | o `perfil_woo_order_id` tem outro telefone: confirmar |
+| `TELEFONE_INVALIDO` | aviso | o telefone nao tem 9 digitos; nao se procurou o cliente |
 | `SEM_PRECO` | aviso | o total mostrado fica abaixo do real |
 | `UNIDADES_POR_CONFIRMAR` | aviso | ha produtos com o formato por confirmar no backoffice |
 
