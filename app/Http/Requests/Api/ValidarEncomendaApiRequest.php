@@ -42,6 +42,9 @@ class ValidarEncomendaApiRequest extends FormRequest
             'cupoes' => ['nullable', 'array'],
             'cupoes.*' => ['string', 'max:255'],
 
+            // Encomendas ja entregues com produtos que entretanto sairam de stock/epoca.
+            'permitir_indisponiveis' => ['nullable', 'boolean'],
+
             'linhas' => ['required', 'array', 'min:1'],
             'linhas.*.texto' => ['required_without:linhas.*.woo_product_id', 'nullable', 'string', 'max:255'],
             'linhas.*.woo_product_id' => ['nullable', 'integer'],

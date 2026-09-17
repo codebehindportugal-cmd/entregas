@@ -246,4 +246,106 @@ class EncomendaChatApiTest extends TestCase
 
         $this->assertSame(0, WooOrder::count());
     }
+
+    private function nectarinaForaDeStock(): WooProduct
+    {
+        return WooProduct::factory()->create([
+            'name' => 'Nectarina (Uni)',
+            'regular_price' => 0.45,
+            'stock_status' => 'outofstock',
+            'em_epoca' => false,
+        ]);
+    }
+
+    public function test_produto_indisponivel_sem_a_flag_continua_bloqueado(): void
+    {
+        $nectarina = $this->nectarinaForaDeStock();
+
+        $this->postJson(
+            '/api/v1/encomendas/validar',
+            $this->pedidoValido([['woo_product_id' => $nectarina->id, 'texto' => 'nectarinas', 'quantidade' => 4, 'unidade' => 'un']]),
+            $this->comToken(),
+        )
+            ->assertStatus(422)
+            ->assertJsonPath('erros.0.codigo', 'PRODUTO_INDISPONIVEL')
+            ->assertJsonMissingPath('dados.token_confirmacao');
+    }
+
+    public function test_com_a_flag_aceita_produto_indisponivel_por_id(): void
+    {
+        $nectarina = $this->nectarinaForaDeStock();
+
+        $resposta = $this->postJson(
+            '/api/v1/encomendas/validar',
+            $this->pedidoValido([['woo_product_id' => $nectarina->id, 'texto' => 'nectarinas', 'quantidade' => 4, 'unidade' => 'un']])
+                + ['permitir_indisponiveis' => true],
+            $this->comToken(),
+        );
+
+        $resposta->assertOk()
+            ->assertJsonPath('dados.linhas.0.produto.id', $nectarina->id)
+            ->assertJsonPath('dados.linhas.0.quantidade_woo', 4)
+            ->assertJsonPath('dados.total_estimado', 1.8)
+            ->assertJsonPath('dados.permitir_indisponiveis', true);
+
+        $this->assertContains('PRODUTO_SEM_STOCK_ACEITE', collect($resposta->json('avisos'))->pluck('codigo')->all());
+        $this->assertNotEmpty($resposta->json('dados.token_confirmacao'));
+    }
+
+    public function test_com_a_flag_encontra_por_texto_um_produto_que_so_existe_indisponivel(): void
+    {
+        $nectarina = $this->nectarinaForaDeStock();
+
+        $this->postJson(
+            '/api/v1/encomendas/validar',
+            $this->pedidoValido([['texto' => 'nectarina', 'quantidade' => 2, 'unidade' => null]])
+                + ['permitir_indisponiveis' => true],
+            $this->comToken(),
+        )
+            ->assertOk()
+            ->assertJsonPath('dados.linhas.0.produto.id', $nectarina->id);
+    }
+
+    public function test_com_a_flag_um_texto_com_produto_em_stock_continua_a_escolher_o_disponivel(): void
+    {
+        $emStock = $this->maca();
+        WooProduct::factory()->create([
+            'name' => 'Maca Royal Gala Antiga',
+            'stock_status' => 'outofstock',
+        ]);
+
+        $resposta = $this->postJson(
+            '/api/v1/encomendas/validar',
+            $this->pedidoValido([['texto' => 'maca royal gala', 'quantidade' => 2, 'unidade' => null]])
+                + ['permitir_indisponiveis' => true],
+            $this->comToken(),
+        );
+
+        $resposta->assertOk()->assertJsonPath('dados.linhas.0.produto.id', $emStock->id);
+        $this->assertNotContains('PRODUTO_SEM_STOCK_ACEITE', collect($resposta->json('avisos'))->pluck('codigo')->all());
+    }
+
+    public function test_com_a_flag_cria_a_encomenda_com_o_produto_indisponivel(): void
+    {
+        $nectarina = $this->nectarinaForaDeStock();
+        Http::fake(['example.test/*' => Http::response($this->respostaWooCriada(), 201)]);
+
+        $token = $this->postJson(
+            '/api/v1/encomendas/validar',
+            $this->pedidoValido([['woo_product_id' => $nectarina->id, 'texto' => 'nectarinas', 'quantidade' => 4, 'unidade' => 'un']])
+                + ['permitir_indisponiveis' => true],
+            $this->comToken(),
+        )->json('dados.token_confirmacao');
+
+        $this->assertNotEmpty($token);
+
+        $this->postJson('/api/v1/encomendas', [
+            'token_confirmacao' => $token,
+            'referencia_externa' => 'wa-sem-stock',
+            'confirmado' => true,
+        ], $this->comToken())->assertCreated();
+
+        Http::assertSent(fn ($request): bool => collect($request->data()['line_items'] ?? [])
+            ->contains(fn (array $item): bool => (int) ($item['product_id'] ?? 0) === (int) $nectarina->woo_id && (int) $item['quantity'] === 4));
+    }
 }

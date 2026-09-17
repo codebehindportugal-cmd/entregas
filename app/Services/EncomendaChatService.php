@@ -60,9 +60,13 @@ class EncomendaChatService
         $linhas = [];
         $total = 0.0;
 
+        // Para encomendas ja entregues: aceita produtos que entretanto sairam de
+        // stock/epoca. Por omissao fica desligado e tudo funciona como antes.
+        $permitirIndisponiveis = (bool) ($pedido['permitir_indisponiveis'] ?? false);
+
         foreach (array_values($pedido['linhas'] ?? []) as $indice => $linha) {
             $numero = $indice + 1;
-            $resultado = $this->validarLinha($linha, $numero);
+            $resultado = $this->validarLinha($linha, $numero, $permitirIndisponiveis);
 
             $linhas[] = $resultado['linha'];
             $avisos = array_merge($avisos, $resultado['avisos']);
@@ -89,6 +93,7 @@ class EncomendaChatService
             'data_entrega' => $pedido['data_entrega'] ?? null,
             'notas' => $pedido['notas'] ?? null,
             'cupoes' => $cupoes,
+            'permitir_indisponiveis' => $permitirIndisponiveis,
         ];
 
         if ($erros === [] && $gerarToken) {
@@ -178,7 +183,7 @@ class EncomendaChatService
     }
 
     /** @return array{linha: array<string, mixed>, avisos: array<int, mixed>, erros: array<int, mixed>} */
-    private function validarLinha(array $linha, int $numero): array
+    private function validarLinha(array $linha, int $numero, bool $permitirIndisponiveis = false): array
     {
         $texto = (string) ($linha['texto'] ?? '');
         $quantidade = (float) ($linha['quantidade'] ?? 0);
@@ -213,6 +218,13 @@ class EncomendaChatService
 
         if ($produto === null) {
             $resolucao = $this->resolvedor->resolver($texto);
+
+            // So se procura nos indisponiveis quando nao ha nada disponivel com esse
+            // nome: a flag nao pode tornar ambiguo um produto que existe em stock.
+            if ($permitirIndisponiveis && $resolucao['confianca'] === 'nenhuma') {
+                $resolucao = $this->resolvedor->resolver($texto, apenasDisponiveis: false);
+            }
+
             $produto = $resolucao['produto'];
             $base['candidatos'] = $this->formatarCandidatos($resolucao['candidatos']);
 
@@ -234,7 +246,9 @@ class EncomendaChatService
             }
         }
 
-        if (! $produto->compraAtiva()) {
+        if (! $produto->compraAtiva() && $permitirIndisponiveis) {
+            $avisos[] = $this->comLinha($numero, 'PRODUTO_SEM_STOCK_ACEITE', "{$produto->name} nao esta a venda no site; incluido porque permitir_indisponiveis=true.");
+        } elseif (! $produto->compraAtiva()) {
             return [
                 'linha' => $base,
                 'avisos' => $avisos,
