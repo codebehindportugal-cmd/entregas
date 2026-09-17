@@ -221,4 +221,101 @@ class SubscricaoCicloTest extends TestCase
 
         $this->assertFalse($order->precisaDeRenovacao());
     }
+
+    // Caso do Andre (17/09/2026): #16906, quinzenal a quarta, 1a entrega 12/08.
+    // A 26/08 nao se entrega; as seguintes sao 02/09, 16/09 e 30/09.
+
+    public function test_pausa_de_um_dia_recomeca_no_dia_de_entrega_seguinte(): void
+    {
+        Carbon::setTestNow('2026-09-17 10:00:00');
+
+        $order = $this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-08-26']);
+
+        $this->assertSame(['2026-08-12', '2026-09-02', '2026-09-16', '2026-09-30'], $this->datas($order));
+        $this->assertSame(
+            ['total' => 4, 'feitas' => 3, 'por_realizar' => 1, 'proxima' => '2026-09-30'],
+            $order->entregasSubscricao()
+        );
+        $this->assertSame('2026-09-30', $order->fimCicloSubscricao()->toDateString());
+    }
+
+    public function test_pausa_de_uma_semana_recomeca_no_dia_de_entrega_seguinte(): void
+    {
+        Carbon::setTestNow('2026-09-17 10:00:00');
+
+        $order = $this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-09-01']);
+
+        $this->assertSame(['2026-08-12', '2026-09-02', '2026-09-16', '2026-09-30'], $this->datas($order));
+    }
+
+    public function test_pausa_semanal_recomeca_no_dia_de_entrega_seguinte(): void
+    {
+        Carbon::setTestNow('2026-08-20 10:00:00');
+
+        $order = $this->subscricao([
+            'ciclo_entrega' => 'semanal',
+            'pausada_em' => '2026-08-19',
+            'pausada_ate' => '2026-08-19',
+        ]);
+
+        $this->assertSame(['2026-08-12', '2026-08-26', '2026-09-02', '2026-09-09'], $this->datas($order));
+    }
+
+    public function test_pausa_sem_fim_mantem_as_quatro_entregas_no_ciclo(): void
+    {
+        Carbon::setTestNow('2026-09-17 10:00:00');
+
+        $order = $this->subscricao(['pausada_em' => '2026-08-26']);
+
+        $this->assertSame(['2026-08-12'], $this->datas($order));
+        $this->assertSame(
+            ['total' => 4, 'feitas' => 1, 'por_realizar' => 3, 'proxima' => null],
+            $order->entregasSubscricao()
+        );
+        // Sem fim nao ha data de fim de ciclo, nem se pede renovacao.
+        $this->assertNull($order->fimCicloSubscricao());
+        $this->assertFalse($order->cicloTerminado());
+        $this->assertFalse($order->precisaDeRenovacao(0));
+    }
+
+    public function test_pausa_sem_fim_que_comeca_no_futuro_nao_pede_renovacao(): void
+    {
+        Carbon::setTestNow('2026-08-20 10:00:00');
+
+        $order = $this->subscricao(['pausada_em' => '2026-08-25']);
+
+        $this->assertFalse($order->estaPausada());
+        $this->assertFalse($order->precisaDeRenovacao(0));
+        $this->assertSame(3, $order->entregasSubscricao()['por_realizar']);
+    }
+
+    public function test_retomar_a_data_certa_depois_de_uma_pausa_sem_fim(): void
+    {
+        Carbon::setTestNow('2026-09-17 10:00:00');
+
+        // Retomar a 02/09 grava pausada_ate = 01/09 (WooOrder::retomar).
+        $order = $this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-09-01']);
+
+        $this->assertSame(
+            ['total' => 4, 'feitas' => 3, 'por_realizar' => 1, 'proxima' => '2026-09-30'],
+            $order->entregasSubscricao()
+        );
+    }
+
+    public function test_adiar_uma_semana_numa_quinzenal_empurra_as_seguintes(): void
+    {
+        Carbon::setTestNow('2026-08-20 10:00:00');
+
+        $order = $this->subscricao();
+        $order->adiarEntregaDaSubscricaoPara('2026-08-26', '2026-09-02');
+
+        $this->assertSame(['2026-08-12', '2026-09-02', '2026-09-16', '2026-09-30'], $this->datas($order));
+
+        Carbon::setTestNow('2026-09-17 10:00:00');
+
+        $entregas = $order->entregasSubscricao();
+        $this->assertSame(4, $entregas['total']);
+        $this->assertSame(3, $entregas['feitas']);
+        $this->assertSame(1, $entregas['por_realizar']);
+    }
 }

@@ -103,6 +103,9 @@
                             @if($isSubscricao)
                                 <p class="mt-1 inline-block rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">{{ $order->ciclo_entrega === 'quinzenal' ? '15 em 15 dias' : 'Semanal' }}</p>
                             @endif
+                            @if($isSubscricao && $order->estaPausada())
+                                <p class="mt-1 rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200">{{ $order->pausaSemFim() ? 'Pausada sem data de fim' : 'Pausada ate '.$order->pausada_ate?->format('d/m/Y') }}</p>
+                            @endif
                             @if($order->postponed_until)
                                 <p class="mt-1 rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200">Adiada ate {{ $order->postponed_until->format('d/m/Y') }}</p>
                             @endif

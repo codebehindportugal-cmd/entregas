@@ -239,8 +239,8 @@
                     @endif
 
                     <p class="mt-3 text-xs text-slate-400">
-                        As entregas que caem dentro da pausa nao acontecem e as seguintes empurram-se para a frente: o cliente nao perde entregas.
-                        Sem data de fim, fica tudo parado ate carregar em Retomar.
+                        As entregas que caem dentro da pausa nao acontecem e o cliente nao as perde: a seguinte e o primeiro dia de entrega depois da pausa e o ciclo continua dai.
+                        Para saltar so uma entrega, poe o mesmo dia nos dois campos. Sem data de fim, fica tudo parado ate carregar em Retomar.
                     </p>
                 </div>
             @endif

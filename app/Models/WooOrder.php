@@ -146,6 +146,10 @@ class WooOrder extends Model
     /** O ciclo chegou ao fim: a ultima entrega e hoje ou ja passou. */
     public function cicloTerminado(): bool
     {
+        if ($this->isSubscricao() && $this->entregasSemDataPorPausa($this->datasSubscricao()) > 0) {
+            return false;
+        }
+
         $ultima = $this->ultimaEntregaDoCiclo();
 
         return $ultima !== null && $ultima <= now()->startOfDay()->toDateString();
@@ -166,7 +170,7 @@ class WooOrder extends Model
      */
     public function precisaDeRenovacao(?int $janelaDias = null): bool
     {
-        if (! $this->isSubscricao() || $this->renovada_em !== null || $this->estaPausada()) {
+        if (! $this->isSubscricao() || $this->renovada_em !== null || $this->estaPausada() || $this->pausaSemFim()) {
             return false;
         }
 
@@ -408,6 +412,11 @@ class WooOrder extends Model
                 ->filter(fn (string $data) => $data < $postponedUntil)
                 ->last();
 
+        // Pausa sem fim: as entregas que faltam nao se perdem, so ainda nao tem
+        // data. O ciclo continua a ter as 4 — senao aparecia "1 no ciclo, 0 por
+        // realizar" como se a subscricao tivesse acabado.
+        $semData = $this->entregasSemDataPorPausa($datas);
+
         $feitas = $datas->filter(fn (string $data): bool => $this->entregaContaComoFeita(
             $data,
             $dataAdiada,
@@ -427,11 +436,25 @@ class WooOrder extends Model
                 ?? $porRealizar->first());
 
         return [
-            'total' => $datas->count(),
+            'total' => $datas->count() + $semData,
             'feitas' => $feitas->count(),
-            'por_realizar' => $porRealizar->count(),
+            'por_realizar' => $porRealizar->count() + $semData,
             'proxima' => $proxima ?? ($adiamentoJaAplicadoNoCalendario ? null : $postponedUntil),
         ];
+    }
+
+    /** Quantas entregas do ciclo ficaram sem data por causa de uma pausa sem fim. */
+    private function entregasSemDataPorPausa(Collection $datas): int
+    {
+        $numeroEntregas = $this->numeroDeEntregasDoCiclo();
+
+        if ($numeroEntregas === null || ! $this->isSubscricao() || ! $this->pausaSemFim()) {
+            return 0;
+        }
+
+        $noCiclo = $datas->count() % $numeroEntregas;
+
+        return $datas->isEmpty() ? $numeroEntregas : ($noCiclo === 0 ? 0 : $numeroEntregas - $noCiclo);
     }
 
     public function calendarioSubscricao(): Collection
@@ -562,6 +585,11 @@ class WooOrder extends Model
 
     public function fimCicloSubscricao(): ?Carbon
     {
+        // Em pausa sem fim ainda nao se sabe quando o ciclo acaba.
+        if ($this->isSubscricao() && $this->entregasSemDataPorPausa($this->datasSubscricao()) > 0) {
+            return null;
+        }
+
         $ultimaEntrega = $this->datasSubscricao()->last();
 
         if ($ultimaEntrega !== null) {
@@ -917,6 +945,7 @@ class WooOrder extends Model
         }
 
         $pausaSemFim = $this->pausaSemFim();
+        $fimDaPausa = $this->janelaDePausa()[1] ?? null;
         // Ate onde o ciclo roda: hoje, ou o dia da renovacao se ja foi renovada
         // (a partir dai as entregas passam a ser da encomenda nova).
         $referencia = $this->renovada_em?->toDateString() ?? now()->startOfDay()->toDateString();
@@ -938,8 +967,18 @@ class WooOrder extends Model
                     break;
                 }
 
-                // Pausa com fim: a entrega nao conta e o resto do ciclo empurra-se
-                // para a frente — o cliente nao perde entregas.
+                // Pausa com fim: a entrega nao conta e o cliente nao a perde. A
+                // seguinte e o primeiro dia de entrega DEPOIS da pausa e o ciclo
+                // recomeca dai (decisao do Andre, 17/09/2026). Quinzenal a quarta,
+                // 12/08 e pausa a 26/08 (um dia ou ate 01/09): 12/08, 02/09, 16/09,
+                // 30/09 — e nao 09/09, que era saltar o ciclo inteiro.
+                $data = Carbon::parse($fimDaPausa)->addDay()->startOfDay();
+
+                while ($data->dayOfWeek !== $diaSemana) {
+                    $data->addDay();
+                }
+
+                continue;
             } else {
                 $datas->push($data->toDateString());
 
@@ -1105,7 +1144,11 @@ class WooOrder extends Model
 
     private function diasMinimosEntreEntregas(): int
     {
-        return $this->semanasPorCiclo() === 2 ? 7 : 4;
+        // Um ciclo menos 3 dias: adiar uns dias (quarta -> quinta) nao mexe nas
+        // seguintes, adiar uma semana numa quinzenal empurra-as para manterem o
+        // ritmo (26/08 -> 02/09 faz 09/09 passar a 16/09). Antes eram 7 dias na
+        // quinzenal, e a entrega seguinte ficava so uma semana depois.
+        return $this->semanasPorCiclo() * 7 - 3;
     }
 
     public function whatsappRenovacaoUrl(): ?string
