@@ -22,7 +22,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
-
+/storage/backups
 # Ficheiros temporarios do editor / restos de trabalho
 .fuse_hidden*
 _to_delete/
