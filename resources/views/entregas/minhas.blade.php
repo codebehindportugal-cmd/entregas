@@ -20,23 +20,12 @@
             <a href="{{ route('minhas-entregas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Hoje</a>
         </div>
     </form>
-    <form method="post" action="{{ route('minhas-entregas.ordem.update') }}" class="grid gap-4">
-        @csrf
-        @method('put')
-        <input type="hidden" name="data" value="{{ $data }}">
-        @if($registos->isNotEmpty())
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded border border-white/10 bg-[#151E2D] p-4">
-                <p class="text-sm text-slate-300">Defina a ordem da volta de {{ \Illuminate\Support\Carbon::parse($data)->format('d/m/Y') }} com 1, 2, 3... e grave.</p>
-                <button class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Guardar ordem da volta</button>
-            </div>
-        @endif
+    <div class="grid gap-4">
 
         @forelse($registos as $registo)
             <div class="rounded border border-white/10 bg-[#151E2D] p-4">
                 <div class="grid gap-4 sm:grid-cols-[5rem_1fr_auto] sm:items-start">
-                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Ordem
-                        <input name="ordens[{{ $registo->id }}]" type="number" min="1" max="999" value="{{ $registo->ordem }}" placeholder="{{ $loop->iteration }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-center text-lg font-semibold text-white">
-                    </label>
+                    <span class="inline-flex h-12 w-12 items-center justify-center rounded bg-[#3B82F6] text-lg font-semibold text-white">{{ $loop->iteration }}</span>
                     <div>
                         @if($registo->tipo === 'b2c')
                             <a href="{{ route('minhas-entregas.show', $registo) }}" class="font-semibold text-white hover:text-[#22C55E]">#{{ $registo->wooOrder->woo_id }} {{ $registo->wooOrder->billing_name ?: 'Cliente B2C' }}</a>
@@ -67,5 +56,5 @@
         @empty
             <p class="rounded border border-white/10 bg-[#151E2D] p-4 text-slate-400">Nao tem entregas atribuidas para esta data.</p>
         @endforelse
-    </form>
+    </div>
 </x-layouts.app>

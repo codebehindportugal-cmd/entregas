@@ -849,8 +849,8 @@ class EntregaController extends Controller
                 : $atribuicao->corporate?->diaEntregaOriginalParaData($dataSelecionada) === $atribuicao->dia_semana)
             ->values();
 
-        // Ordem definida pelo admin nas Rotas (vale enquanto o colaborador
-        // nao mexer na ordem deste dia).
+        // A ordem da volta e a que o admin definiu nas Rotas; o colaborador
+        // ja nao a pode mudar.
         $ordemRota = $atribuicoes->mapWithKeys(fn (AtribuicaoEntrega $atribuicao): array => [
             ($atribuicao->tipo === 'b2c' ? 'b2c-'.$atribuicao->woo_order_id : 'corporate-'.$atribuicao->corporate_id) => $atribuicao->ordem,
         ]);
@@ -870,8 +870,7 @@ class EntregaController extends Controller
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values())
             ->sortBy(fn (RegistoEntrega $registo): string => sprintf(
                 '%06d-%s',
-                $registo->ordem
-                    ?? $ordemRota->get($registo->tipo === 'b2c' ? 'b2c-'.$registo->woo_order_id : 'corporate-'.$registo->corporate_id)
+                $ordemRota->get($registo->tipo === 'b2c' ? 'b2c-'.$registo->woo_order_id : 'corporate-'.$registo->corporate_id)
                     ?? 999999,
                 mb_strtolower($registo->tipo === 'b2c'
                     ? ($registo->wooOrder?->billing_name ?? '')
@@ -880,47 +879,6 @@ class EntregaController extends Controller
             ->values();
 
         return view('entregas.minhas', compact('registos', 'q', 'status', 'data', 'dia'));
-    }
-
-    public function updateOrdemMinhasEntregas(Request $request): RedirectResponse
-    {
-        $data = $request->validate([
-            'data' => ['required', 'date'],
-            'ordens' => ['nullable', 'array'],
-            'ordens.*' => ['nullable', 'integer', 'min:1', 'max:999'],
-        ]);
-        $dataEntrega = Carbon::parse($data['data'])->toDateString();
-
-        $ids = collect($data['ordens'] ?? [])
-            ->keys()
-            ->map(fn (int|string $id): int => (int) $id)
-            ->filter()
-            ->values();
-
-        if ($ids->isEmpty()) {
-            return back()->with('status', 'Ordem da volta guardada.');
-        }
-
-        $registos = RegistoEntrega::query()
-            ->whereIn('id', $ids)
-            ->where('user_id', auth()->id())
-            ->whereDate('data_entrega', $dataEntrega)
-            ->get()
-            ->keyBy('id');
-
-        foreach ($data['ordens'] ?? [] as $id => $ordem) {
-            $registo = $registos->get((int) $id);
-
-            if ($registo === null) {
-                continue;
-            }
-
-            $registo->update([
-                'ordem' => filled($ordem) ? (int) $ordem : null,
-            ]);
-        }
-
-        return redirect()->route('minhas-entregas.index', ['data' => $dataEntrega])->with('status', 'Ordem da volta guardada.');
     }
 
     public function show(RegistoEntrega $registoEntrega): View
