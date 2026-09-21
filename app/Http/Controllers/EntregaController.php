@@ -85,11 +85,12 @@ class EntregaController extends Controller
 
                     return $atribuicao->corporate?->diaEntregaOriginalParaData($dataB2c) === $atribuicao->dia_semana;
                 })
-                ->sortBy([
-                    ['tipo', 'asc'],
-                    ['corporate_id', 'asc'],
-                    ['woo_order_id', 'asc'],
-                ])
+                ->sortBy(fn (AtribuicaoEntrega $atribuicao): string => sprintf(
+                    '%s|%06d|%s',
+                    mb_strtolower($atribuicao->user?->name ?? ''),
+                    $atribuicao->ordem ?? 999999,
+                    mb_strtolower($this->nomeAtribuicao($atribuicao))
+                ))
                 ->values(),
             'corporates' => $corporatesDoDia,
             'b2cOrders' => $b2cOrders,
@@ -728,7 +729,13 @@ class EntregaController extends Controller
 
     public function updateAtribuicao(StoreAtribuicaoEntregaRequest $request, AtribuicaoEntrega $atribuicao): RedirectResponse
     {
+        // Mudou de colaborador ou de dia: a posicao antiga nao faz sentido na
+        // outra rota, vai para o fim ate o admin a ordenar.
+        $mudouRota = (int) $atribuicao->user_id !== (int) $request->validated('user_id')
+            || $atribuicao->dia_semana !== $request->validated('dia_semana');
+
         $atribuicao->update([
+            'ordem' => $mudouRota ? null : $atribuicao->ordem,
             'tipo' => $request->validated('tipo'),
             'corporate_id' => $request->validated('tipo') === 'corporate' ? $request->validated('corporate_id') : null,
             'woo_order_id' => $request->validated('tipo') === 'b2c' ? $request->validated('woo_order_id') : null,
@@ -746,6 +753,68 @@ class EntregaController extends Controller
         $atribuicao->delete();
 
         return back()->with('status', 'Atribuicao removida.');
+    }
+
+    /**
+     * O admin define a ordem da rota de um colaborador num dia da semana.
+     * Fica guardada na atribuicao e vale para todas as semanas; as ordens
+     * que o colaborador tenha mexido nas proximas voltas desse dia sao
+     * limpas para a nova ordem aparecer logo.
+     */
+    public function updateOrdemRota(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'dia_semana' => ['required', 'in:'.implode(',', self::DIAS)],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'ordens' => ['required', 'array'],
+            'ordens.*' => ['nullable', 'integer', 'min:1', 'max:999'],
+        ]);
+
+        $userId = (int) $data['user_id'];
+        $dia = $data['dia_semana'];
+
+        $atribuicoes = AtribuicaoEntrega::query()
+            ->whereIn('id', collect($data['ordens'])->keys()->map(fn ($id): int => (int) $id))
+            ->where('user_id', $userId)
+            ->where('dia_semana', $dia)
+            ->get()
+            ->keyBy('id');
+
+        DB::transaction(function () use ($data, $atribuicoes, $userId, $dia): void {
+            foreach ($data['ordens'] as $id => $ordem) {
+                $atribuicoes->get((int) $id)?->update([
+                    'ordem' => filled($ordem) ? (int) $ordem : null,
+                ]);
+            }
+
+            $corporateIds = $atribuicoes->where('tipo', 'corporate')->pluck('corporate_id')->filter()->values();
+            $wooOrderIds = $atribuicoes->where('tipo', 'b2c')->pluck('woo_order_id')->filter()->values();
+
+            if ($corporateIds->isEmpty() && $wooOrderIds->isEmpty()) {
+                return;
+            }
+
+            RegistoEntrega::query()
+                ->where('user_id', $userId)
+                ->whereDate('data_entrega', '>=', now()->toDateString())
+                ->whereNotNull('ordem')
+                ->where(function ($query) use ($corporateIds, $wooOrderIds): void {
+                    $query->where(fn ($query) => $query->where('tipo', 'corporate')->whereIn('corporate_id', $corporateIds))
+                        ->orWhere(fn ($query) => $query->where('tipo', 'b2c')->whereIn('woo_order_id', $wooOrderIds));
+                })
+                ->get()
+                ->filter(fn (RegistoEntrega $registo): bool => (self::DIAS[Carbon::parse($registo->data_entrega)->dayOfWeek] ?? null) === $dia)
+                ->each(fn (RegistoEntrega $registo) => $registo->update(['ordem' => null]));
+        });
+
+        return back()->with('status', 'Ordem da rota guardada.');
+    }
+
+    private function nomeAtribuicao(AtribuicaoEntrega $atribuicao): string
+    {
+        return $atribuicao->tipo === 'b2c'
+            ? ($atribuicao->wooOrder?->billing_name ?? '')
+            : trim(($atribuicao->corporate?->empresa ?? '').' '.($atribuicao->corporate?->sucursal ?? ''));
     }
 
     public function minhasEntregas(): View
@@ -780,6 +849,12 @@ class EntregaController extends Controller
                 : $atribuicao->corporate?->diaEntregaOriginalParaData($dataSelecionada) === $atribuicao->dia_semana)
             ->values();
 
+        // Ordem definida pelo admin nas Rotas (vale enquanto o colaborador
+        // nao mexer na ordem deste dia).
+        $ordemRota = $atribuicoes->mapWithKeys(fn (AtribuicaoEntrega $atribuicao): array => [
+            ($atribuicao->tipo === 'b2c' ? 'b2c-'.$atribuicao->woo_order_id : 'corporate-'.$atribuicao->corporate_id) => $atribuicao->ordem,
+        ]);
+
         $registos = $atribuicoes->map(function (AtribuicaoEntrega $atribuicao) use ($data) {
             if ($atribuicao->tipo === 'b2c') {
                 return $this->firstOrCreateRegistoB2c($atribuicao, $data);
@@ -795,7 +870,9 @@ class EntregaController extends Controller
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values())
             ->sortBy(fn (RegistoEntrega $registo): string => sprintf(
                 '%06d-%s',
-                $registo->ordem ?? 999999,
+                $registo->ordem
+                    ?? $ordemRota->get($registo->tipo === 'b2c' ? 'b2c-'.$registo->woo_order_id : 'corporate-'.$registo->corporate_id)
+                    ?? 999999,
                 mb_strtolower($registo->tipo === 'b2c'
                     ? ($registo->wooOrder?->billing_name ?? '')
                     : ($registo->corporate?->empresa ?? ''))

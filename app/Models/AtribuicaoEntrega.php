@@ -19,6 +19,11 @@ class AtribuicaoEntrega extends Model
         'woo_order_id',
         'user_id',
         'dia_semana',
+        'ordem',
+    ];
+
+    protected $casts = [
+        'ordem' => 'integer',
     ];
 
     public function corporate(): BelongsTo

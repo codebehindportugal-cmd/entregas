@@ -129,6 +129,7 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/encomendas/{encomenda}/produtos-fatura', [FaturacaoController::class, 'produtosB2c'])->name('encomendas.produtos-fatura');
         Route::post('/empresas/faturar', [FaturacaoController::class, 'empresas'])->name('corporates.faturar');
         Route::delete('/encomendas/{encomenda}', [EncomendaController::class, 'destroy'])->name('encomendas.destroy');
+        Route::put('/entregas/ordem', [EntregaController::class, 'updateOrdemRota'])->name('entregas.ordem.update');
         Route::post('/entregas/atribuicoes', [EntregaController::class, 'storeAtribuicao'])->name('entregas.atribuicoes.store');
         Route::post('/entregas/atribuicoes/massa', [EntregaController::class, 'storeAtribuicoesBulk'])->name('entregas.atribuicoes.bulk');
         Route::put('/entregas/atribuicoes/{atribuicao}', [EntregaController::class, 'updateAtribuicao'])->name('entregas.atribuicoes.update');
