@@ -190,7 +190,10 @@ class CompostoCabazService
         }
 
         $frutas = $this->resolver->frutasEpoca($periodo);
-        $concreto = trim(implode(' + ', $frutas));
+        // "Ameixa", "Ameixa e Uva", "Ameixa, Uva e Figo".
+        $concreto = count($frutas) > 1
+            ? implode(', ', array_slice($frutas, 0, -1)).' e '.end($frutas)
+            : trim(implode('', $frutas));
 
         if ($concreto === '') {
             return $nomeArtigo;

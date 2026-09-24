@@ -285,7 +285,7 @@ class FaturacaoService
             $linhasEmpresa = [];
 
             // 1) Cabaz de fruta = artigo composto.
-            $linhaEmpresa = $this->linhaCabazEmpresa($empresa, $periodoYm, $taxId, $taxValue);
+            $linhaEmpresa = $this->linhaCabazEmpresa($empresa, $periodoYm, $taxId, $taxValue, $cicloInicio->toDateString().'..'.$cicloFim->toDateString());
 
             if ($linhaEmpresa !== null) {
                 $linhasEmpresa[] = $linhaEmpresa['moloni'];
@@ -375,8 +375,11 @@ class FaturacaoService
      *
      * @return array{moloni:array,resumo:array,total_com_iva:float}|null
      */
-    private function linhaCabazEmpresa(Corporate $empresa, string $periodo, ?int $taxId, float $taxValue): ?array
+    private function linhaCabazEmpresa(Corporate $empresa, string $periodo, ?int $taxId, float $taxValue, ?string $periodoFruta = null): ?array
     {
+        // Fruta da epoca: juncao das frutas de cada semana do ciclo (ex.: "Ameixa + Uva").
+        $periodoFruta ??= $periodo;
+
         [$precoUnit, $qtd, $composicao] = $this->baseCabazEmpresa($empresa, $periodo, $taxId, $taxValue);
 
         if ($precoUnit <= 0 || $qtd <= 0) {
@@ -408,7 +411,7 @@ class FaturacaoService
             valorAcordadoLiquido: $valorAcordadoLiquido,
             taxId: $taxId,
             taxValue: $taxValue,
-            periodo: $periodo,
+            periodo: $periodoFruta,
             referenciaComposto: $referenciaComposto,
             qtyPai: $qtdLinha,
         );
@@ -463,7 +466,7 @@ class FaturacaoService
                 'sem_correspondencia' => $filhos['sem_correspondencia'],
                 'preco_unit_com_iva' => round($precoUnit, 2),
                 'total_com_iva' => $totalComIva,
-                'fruta_epoca' => $this->resolver->frutasEpoca($periodo),
+                'fruta_epoca' => $this->resolver->frutasEpoca($periodoFruta),
                 'produtos' => $composicao['resumo'],
             ],
             'total_com_iva' => $totalComIva,

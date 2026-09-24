@@ -6,18 +6,22 @@ use App\Models\Setting;
 use App\Support\CabazProdutoResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 /**
- * Gestao da FRUTA DA EPOCA: qual e o fruto concreto de cada mes.
+ * Gestao da FRUTA DA EPOCA: que fruta(s) concreta(s) se estao a entregar.
  *
- * O nome guardado aqui e o que aparece nas guias de transporte e nas faturas
- * Moloni (designacao do cabaz e nome da linha-filha do artigo composto), em vez
- * do generico "Fruta da epoca". Fica no Setting faturacao_mapa_produtos, com um
- * bloco "default" e blocos por periodo (YYYY-MM).
+ * Pode definir-se por MES (YYYY-MM) ou por SEMANA (YYYY-Www, manda sobre o mes)
+ * e pode haver varias frutas ao mesmo tempo ("Ameixa, Uva"). O nome aparece nas
+ * guias (fruta da semana da entrega) e nas faturas (juncao das semanas do ciclo),
+ * na linha-filha do artigo composto: "Fruta da epoca 250g (...) — Ameixa e Uva".
+ * Fica no Setting faturacao_mapa_produtos, com um bloco "default" e blocos por periodo.
  */
 class FrutaEpocaController extends Controller
 {
+    private const PERIODO_REGEX = '/^(default|\d{4}-\d{2}|\d{4}-W\d{2})$/';
+
     public function index(): View
     {
         $mapa = $this->mapa();
@@ -26,54 +30,77 @@ class FrutaEpocaController extends Controller
             ->filter(fn ($bloco, $chave): bool => is_array($bloco) && isset($bloco['fruta_epoca']))
             ->map(fn (array $bloco, string $chave): array => [
                 'periodo' => $chave,
+                'tipo' => $this->tipo($chave),
                 'label' => $this->label($chave),
                 'nome' => (string) ($bloco['fruta_epoca']['nome'] ?? ''),
                 'referencia' => (string) ($bloco['fruta_epoca']['referencia'] ?? ''),
+                'ordem' => $this->ordem($chave),
             ])
-            ->sortByDesc(fn (array $linha): string => $linha['periodo'] === 'default' ? '0000-00' : $linha['periodo'])
+            ->sortByDesc('ordem')
             ->values();
 
-        $mesAtual = now()->format('Y-m');
-        $resolver = new CabazProdutoResolver;
+        $hoje = now()->startOfDay();
+        $mesAtual = $hoje->format('Y-m');
+        $semanaAtual = CabazProdutoResolver::chaveSemana($hoje);
+        $frutas = (new CabazProdutoResolver)->frutasEpoca($hoje->toDateString());
 
         return view('fruta-epoca.index', [
             'periodos' => $periodos,
             'mesAtual' => $mesAtual,
-            'labelMesAtual' => $this->label($mesAtual),
-            'atual' => $resolver->resolver('fruta_epoca', $mesAtual)['nome'],
-            'temOverrideAtual' => isset($mapa[$mesAtual]['fruta_epoca']['nome']),
+            'semanaAtual' => $semanaAtual,
+            'labelSemanaAtual' => $this->label($semanaAtual),
+            'atual' => $frutas !== [] ? implode(', ', $frutas) : 'Fruta da epoca',
+            'origemAtual' => isset($mapa[$semanaAtual]['fruta_epoca']['nome'])
+                ? 'semana'
+                : (isset($mapa[$mesAtual]['fruta_epoca']['nome']) ? 'mes' : null),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'periodo' => ['required', 'string', 'regex:/^(default|\d{4}-\d{2})$/'],
+            'tipo' => ['nullable', 'in:mes,semana'],
+            'periodo' => ['nullable', 'string', 'regex:/^(default|\d{4}-\d{2})$/'],
+            'semana' => ['nullable', 'string', 'regex:/^\d{4}-W\d{2}$/'],
             'nome' => ['required', 'string', 'max:255'],
             'referencia' => ['nullable', 'string', 'max:255'],
         ], [
-            'periodo.regex' => 'O periodo tem de ser um mes (AAAA-MM) ou "default".',
+            'periodo.regex' => 'O mes tem de ser AAAA-MM.',
+            'semana.regex' => 'A semana tem de ser AAAA-Wnn.',
         ]);
 
+        $periodo = ($data['tipo'] ?? 'mes') === 'semana' ? ($data['semana'] ?? null) : ($data['periodo'] ?? null);
+
+        if (blank($periodo)) {
+            return back()->withInput()->withErrors(['periodo' => ($data['tipo'] ?? 'mes') === 'semana' ? 'Escolhe a semana.' : 'Escolhe o mes.']);
+        }
+
+        // Normaliza a lista: "ameixa ,uva" -> "Ameixa, Uva".
+        $nomes = array_values(array_filter(array_map(
+            fn (string $n): string => mb_convert_case(trim($n), MB_CASE_TITLE, 'UTF-8'),
+            preg_split('/\s*[,;\/+]\s*|\s+e\s+/u', trim($data['nome'])) ?: [],
+        ), fn (string $n): bool => $n !== ''));
+        $nome = implode(', ', $nomes);
+
         $mapa = $this->mapa();
-        $mapa[$data['periodo']]['fruta_epoca']['nome'] = trim($data['nome']);
+        $mapa[$periodo]['fruta_epoca']['nome'] = $nome;
 
         if (filled($data['referencia'] ?? null)) {
-            $mapa[$data['periodo']]['fruta_epoca']['referencia'] = trim($data['referencia']);
+            $mapa[$periodo]['fruta_epoca']['referencia'] = trim($data['referencia']);
         } else {
-            unset($mapa[$data['periodo']]['fruta_epoca']['referencia']);
+            unset($mapa[$periodo]['fruta_epoca']['referencia']);
         }
 
         $this->guardar($mapa);
 
         return redirect()->route('fruta-epoca.index')
-            ->with('status', 'Fruta da epoca de '.$this->label($data['periodo']).' definida como: '.trim($data['nome']).'.');
+            ->with('status', 'Fruta da epoca de '.$this->label($periodo).': '.$nome.'.');
     }
 
     public function destroy(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'periodo' => ['required', 'string', 'regex:/^(default|\d{4}-\d{2})$/'],
+            'periodo' => ['required', 'string', 'regex:'.self::PERIODO_REGEX],
         ]);
 
         $mapa = $this->mapa();
@@ -111,18 +138,53 @@ class FrutaEpocaController extends Controller
         7 => 'Julho', 8 => 'Agosto', 9 => 'Setembro', 10 => 'Outubro', 11 => 'Novembro', 12 => 'Dezembro',
     ];
 
+    private function tipo(string $periodo): string
+    {
+        return match (true) {
+            $periodo === 'default' => 'defeito',
+            (bool) preg_match('/^\d{4}-W\d{2}$/', $periodo) => 'semana',
+            default => 'mes',
+        };
+    }
+
+    /** Segunda-feira da semana ISO "2026-W39". */
+    private function segundaDaSemana(string $semana): ?Carbon
+    {
+        if (! preg_match('/^(\d{4})-W(\d{2})$/', $semana, $m)) {
+            return null;
+        }
+
+        return now()->setISODate((int) $m[1], (int) $m[2])->startOfWeek(Carbon::MONDAY)->startOfDay();
+    }
+
+    /** Chave para ordenar a tabela (mais recente primeiro). */
+    private function ordem(string $periodo): string
+    {
+        if ($periodo === 'default') {
+            return '0000-00-00';
+        }
+
+        if (($segunda = $this->segundaDaSemana($periodo)) !== null) {
+            return $segunda->format('Y-m-d').'b';
+        }
+
+        return $periodo.'-00';
+    }
+
     private function label(string $periodo): string
     {
         if ($periodo === 'default') {
             return 'Todos os meses (por defeito)';
         }
 
+        if (($segunda = $this->segundaDaSemana($periodo)) !== null) {
+            return 'Semana de '.$segunda->format('d/m').' a '.$segunda->copy()->addDays(6)->format('d/m/Y');
+        }
+
         if (! preg_match('/^(\d{4})-(\d{2})$/', $periodo, $m)) {
             return $periodo;
         }
 
-        $mes = (int) $m[2];
-
-        return (self::MESES[$mes] ?? $periodo).' de '.$m[1];
+        return (self::MESES[(int) $m[2]] ?? $periodo).' de '.$m[1];
     }
 }

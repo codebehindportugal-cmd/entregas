@@ -10,8 +10,8 @@ use RuntimeException;
 /**
  * Emite Guias de Transporte (Moloni billsOfLading) para as entregas corporate.
  * Usa o MESMO artigo composto da fatura (o Moloni expande os componentes) e
- * mete o valor da ficha na linha. A designacao leva as quantidades exatas do
- * dia (obrigatorio por lei). Matricula + expedicao "Nossa Viatura".
+ * mete o valor da ficha na linha. As quantidades exatas do dia vao nas
+ * linhas-filhas (obrigatorio por lei). Matricula + expedicao "Nossa Viatura".
  * Chamada automaticamente quando a preparacao do dia e marcada como feita.
  */
 class GuiaTransporteService
@@ -101,33 +101,21 @@ class GuiaTransporteService
             throw new RuntimeException("Nao existe no Moloni um artigo com a referencia '{$referenciaGuia}' para a guia. Cria o artigo ou define MOLONI_GUIA_REFERENCIA / a referencia na ficha da empresa.");
         }
 
-        // Designacao com as QUANTIDADES EXATAS do dia (da ficha).
-        $partes = [];
+        // Quantidades do dia (da ficha). Vao nas linhas-filhas do composto.
         $quantidadesDia = [];
 
         foreach ($corporate->frutasParaDia($dia) as $chave => $quantidade) {
             $quantidade = (float) $quantidade;
 
-            if ($quantidade <= 0) {
-                continue;
-            }
-
-            $quantidadesDia[(string) $chave] = $quantidade;
-
-            $label = $this->resolver->resolver((string) $chave, $data->format('Y-m'))['nome'];
-
-            if (in_array((string) $chave, self::KG_KEYS, true)) {
-                $partes[] = ((int) round($quantidade * 1000)).'g '.$label;
-            } else {
-                $partes[] = ((int) round($quantidade)).' '.$label;
+            if ($quantidade > 0) {
+                $quantidadesDia[(string) $chave] = $quantidade;
             }
         }
 
-        $designacao = (string) $artigo['name'];
-
-        if ($partes !== []) {
-            $designacao .= ' - '.implode(' + ', $partes);
-        }
+        // Igual a fatura (André, 24/09/2026): a linha leva o NOME DO ARTIGO
+        // ("Mix Frutas Corporativo"); as quantidades estao nas linhas-filhas e a
+        // fruta da epoca sai com a(s) fruta(s) da semana da entrega.
+        $designacao = trim((string) $artigo['name']);
 
         $taxValue = (float) config('moloni.default_tax_value', 6);
         $incluiIva = (bool) config('moloni.precos_incluem_iva', true);
@@ -161,7 +149,8 @@ class GuiaTransporteService
             valorAcordadoLiquido: round($valorLiquido, 4),
             taxId: $taxId,
             taxValue: $taxValue,
-            periodo: $data->format('Y-m'),
+            // Dia da entrega: a fruta da epoca e a da SEMANA (senao a do mes).
+            periodo: $data->toDateString(),
             referenciaComposto: $referenciaGuia,
             qtyPai: 1.0,
         );

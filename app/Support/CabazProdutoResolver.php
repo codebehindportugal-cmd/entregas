@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Setting;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -15,7 +16,14 @@ use Throwable;
  *  - "kiwi"                          -> o calibre/nome real (ex.: Kiwi calibre 39)
  *
  * Os mapeamentos ficam guardados num Setting (key = faturacao_mapa_produtos)
- * em JSON, com um bloco "default" e blocos opcionais por mes (YYYY-MM):
+ * em JSON, com um bloco "default" e blocos opcionais por mes (YYYY-MM) e por
+ * SEMANA ISO (YYYY-Www, ex.: 2026-W39). A semana manda sobre o mes.
+ *
+ * O "periodo" pedido pode ser:
+ *  - YYYY-MM                 -> mes
+ *  - YYYY-MM-DD              -> um dia (guia): semana desse dia > mes > default
+ *  - YYYY-MM-DD..YYYY-MM-DD  -> um intervalo (ciclo da fatura): a fruta da epoca
+ *                               e a JUNCAO das frutas de cada semana do intervalo
  * {
  *   "default": {
  *     "fruta_epoca": { "nome": "Fruta da epoca", "referencia": "FRUTA-EPOCA" },
@@ -85,6 +93,25 @@ class CabazProdutoResolver
      */
     public function frutasEpoca(?string $periodo = null): array
     {
+        // Intervalo (ciclo da fatura): junta as frutas de cada semana.
+        if ($periodo !== null && preg_match('/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/', $periodo, $m)) {
+            $dia = Carbon::parse($m[1])->startOfDay();
+            $fim = Carbon::parse($m[2])->startOfDay();
+            $todas = [];
+
+            for ($i = 0; $dia->lte($fim) && $i < 60; $i++, $dia->addDays(7)) {
+                foreach ($this->frutasEpoca($dia->toDateString()) as $nome) {
+                    $todas[mb_strtolower($nome)] ??= $nome;
+                }
+            }
+
+            // O nome generico ("Fruta da epoca", do default) nao se junta a
+            // frutas concretas de outras semanas.
+            $concretas = array_filter($todas, fn (string $n): bool => ! preg_match('/^fruta\s+da\s+[ée]poca$/iu', trim($n)));
+
+            return array_values($concretas !== [] ? $concretas : $todas);
+        }
+
         $override = $this->mapeamento('fruta_epoca', $periodo) ?? [];
 
         $nomes = [];
@@ -138,16 +165,45 @@ class CabazProdutoResolver
     private function mapeamento(string $chave, ?string $periodo): ?array
     {
         $mapa = $this->mapa();
+        $resultado = [];
 
-        $periodoMap = $periodo !== null ? ($mapa[$periodo][$chave] ?? null) : null;
-        $defaultMap = $mapa['default'][$chave] ?? null;
+        // Do mais geral para o mais especifico: default < mes < semana.
+        foreach (array_merge(['default'], self::chavesPeriodo($periodo)) as $bloco) {
+            $valor = $mapa[$bloco][$chave] ?? null;
 
-        $resultado = array_merge(
-            is_array($defaultMap) ? $defaultMap : [],
-            is_array($periodoMap) ? $periodoMap : [],
-        );
+            if (is_array($valor)) {
+                $resultado = array_merge($resultado, $valor);
+            }
+        }
 
         return $resultado !== [] ? $resultado : null;
+    }
+
+    /**
+     * Blocos do mapa que se aplicam a um periodo, do mais geral para o mais
+     * especifico. Dia -> [mes, semana]; intervalo -> os do primeiro dia.
+     *
+     * @return array<int,string>
+     */
+    public static function chavesPeriodo(?string $periodo): array
+    {
+        if ($periodo === null || $periodo === '') {
+            return [];
+        }
+
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})(\.\..*)?$/', $periodo, $m)) {
+            $dia = Carbon::parse($m[1]);
+
+            return [$dia->format('Y-m'), self::chaveSemana($dia)];
+        }
+
+        return [$periodo];
+    }
+
+    /** Chave da semana ISO de um dia, no formato do <input type="week">: 2026-W39. */
+    public static function chaveSemana(Carbon $dia): string
+    {
+        return $dia->format('o').'-W'.$dia->format('W');
     }
 
     private function mapa(): array
