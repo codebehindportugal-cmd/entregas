@@ -589,6 +589,28 @@ class EntregaController extends Controller
         ]);
 
         $aviso = null;
+        $avisos = [];
+
+        // Guias ja registadas que foram APAGADAS ou ANULADAS no Moloni deixam de
+        // bloquear: limpa-se o registo e emite-se outra. Se ainda existirem,
+        // diz-se que ja existem (antes nao dizia nada).
+        if ($feito && $item->tipo === 'corporate' && $item->corporate) {
+            foreach (['guia_document_id' => 'guia de transporte', 'remessa_document_id' => 'guia de remessa'] as $campo => $nomeDoc) {
+                if (! $item->{$campo}) {
+                    continue;
+                }
+
+                $valido = $guias->documentoValido((int) $item->{$campo});
+
+                if ($valido === false) {
+                    $item->update([$campo => null]);
+                } elseif ($valido === true) {
+                    $avisos[] = 'A '.$nomeDoc.' desta entrega ja tinha sido emitida (#'.$item->{$campo}.'). Para emitir outra, apaga ou anula essa no Moloni e volta a marcar.';
+                } else {
+                    $avisos[] = 'Nao consegui confirmar no Moloni a '.$nomeDoc.' #'.$item->{$campo}.' — nao foi emitida outra.';
+                }
+            }
+        }
 
         // Ao terminar a preparacao de uma entrega corporate, emite a guia de
         // transporte com os produtos do dia (uma vez).
@@ -605,6 +627,7 @@ class EntregaController extends Controller
 
                     $resultado = $guias->emitirGuiaCorporate($item->corporate, $data, $matriculaGuia);
                     $item->update(['guia_document_id' => $resultado['document_id']]);
+                    $avisos[] = 'Guia de transporte emitida (#'.$resultado['document_id'].').';
                 } catch (\Throwable $e) {
                     $aviso = 'Preparacao marcada, mas a guia de transporte falhou: '.$e->getMessage();
                 }
@@ -628,8 +651,11 @@ class EntregaController extends Controller
 
         $redirect = $this->redirectBackToAnchor($anchor);
 
-        if ($aviso !== null) {
-            return $redirect->with('status', $aviso);
+        if ($aviso !== null || $avisos !== []) {
+            return $redirect->with('status', trim(implode(' ', array_filter(array_merge(
+                [$aviso ?? 'Preparacao marcada como feita.'],
+                $avisos,
+            )))));
         }
 
         return $redirect->with('status', $feito ? 'Preparacao marcada como feita.' : 'Preparacao marcada como por fazer.');

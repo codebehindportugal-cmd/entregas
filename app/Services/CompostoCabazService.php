@@ -114,7 +114,7 @@ class CompostoCabazService
             $preco = (float) $filho['price'];
             $bruto += $preco * $qtd;
 
-            $nomeLinha = $this->nomeLinha($chave, (string) $filho['name'], $periodo);
+            $nomeLinha = $this->nomeLinha($chave, (string) $filho['name'], $periodo, $qtd);
 
             $linhas[] = [
                 'product_id' => (int) $filho['product_id'],
@@ -183,32 +183,73 @@ class CompostoCabazService
      * A fruta do mes vem do mapeamento faturacao_mapa_produtos
      * (`php artisan moloni:fruta-epoca "Ameixa"`).
      */
-    private function nomeLinha(string $chave, string $nomeArtigo, ?string $periodo): string
+    private function nomeLinha(string $chave, string $nomeArtigo, ?string $periodo, float $qtd = 0.0): string
     {
         if ($chave !== 'fruta_epoca') {
             return $nomeArtigo;
         }
 
         $frutas = $this->resolver->frutasEpoca($periodo);
-        // "Ameixa", "Ameixa e Uva", "Ameixa, Uva e Figo".
-        $concreto = count($frutas) > 1
-            ? implode(', ', array_slice($frutas, 0, -1)).' e '.end($frutas)
-            : trim(implode('', $frutas));
 
-        if ($concreto === '') {
+        if ($frutas === []) {
             return $nomeArtigo;
         }
 
-        // Ja esta la o nome concreto? Nao repete. Ignora o que esta entre
-        // parenteses, que no artigo do Moloni e a lista de frutas possiveis
-        // ("Fruta da epoca 250g (morango ou clementina ou ...)").
+        // Ja esta la o nome concreto (uma so fruta)? Nao repete. Ignora o que
+        // esta entre parenteses, que no artigo do Moloni e a lista de frutas
+        // possiveis ("Fruta da epoca 250g (morango ou clementina ou ...)").
         $semParenteses = (string) preg_replace('/\([^)]*\)/', ' ', $nomeArtigo);
 
-        if (str_contains($this->normalizar($semParenteses), $this->normalizar($concreto))) {
+        if (count($frutas) === 1 && str_contains($this->normalizar($semParenteses), $this->normalizar($frutas[0]))) {
             return $nomeArtigo;
         }
 
+        // Varias frutas: a quantidade reparte-se em partes iguais (André,
+        // 24/09/2026: "normalmente metade metade") e diz-se quanto e de cada:
+        // "— 91 Ameixa e 91 Uva". Uma so fruta: "— Ameixa".
+        $partes = count($frutas) > 1 && $qtd > 0
+            ? array_map(
+                fn (string $fruta, float $q): string => $this->formatarQtd($q).' '.$fruta,
+                $frutas,
+                $this->repartir($qtd, count($frutas)),
+            )
+            : $frutas;
+
+        $concreto = count($partes) > 1
+            ? implode(', ', array_slice($partes, 0, -1)).' e '.end($partes)
+            : $partes[0];
+
         return $nomeArtigo.' — '.$concreto;
+    }
+
+    /**
+     * Reparte uma quantidade em N partes iguais. Unidades inteiras: o que sobra
+     * vai para as primeiras (7 em 2 -> 4 + 3). Nao inteiras: 2 casas decimais.
+     *
+     * @return array<int,float>
+     */
+    private function repartir(float $qtd, int $n): array
+    {
+        if (abs($qtd - round($qtd)) < 0.0001) {
+            $total = (int) round($qtd);
+            $base = intdiv($total, $n);
+            $resto = $total % $n;
+
+            return array_map(fn (int $i): float => (float) ($base + ($i < $resto ? 1 : 0)), range(0, $n - 1));
+        }
+
+        $parte = round($qtd / $n, 2);
+        $partes = array_fill(0, $n, $parte);
+        $partes[0] = round($qtd - $parte * ($n - 1), 2);
+
+        return $partes;
+    }
+
+    private function formatarQtd(float $q): string
+    {
+        return abs($q - round($q)) < 0.0001
+            ? (string) (int) round($q)
+            : rtrim(rtrim(number_format($q, 2, ',', ''), '0'), ',');
     }
 
     /**
