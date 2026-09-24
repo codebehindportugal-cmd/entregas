@@ -37,6 +37,7 @@ class SepaController extends Controller
                 'pendentes' => $pendentes,
                 'sugeridos' => $this->sepa->mesesSugeridos($m, $data),
                 'em_atraso' => count($this->sepa->mesesPendentes($m, now())),
+                'numero' => $this->sepa->numeroPedido($m, $data),
             ];
         });
 
@@ -74,6 +75,10 @@ class SepaController extends Controller
             'data_cobranca' => ['required', 'date_format:Y-m-d'],
             'n_meses' => ['required', 'integer', 'min:1', 'max:24'],
             'valor' => ['required', 'numeric', 'min:0.01', 'max:999999'],
+            'msg_id' => ['required', 'string', 'max:35', 'regex:/^[A-Za-z0-9\-]+$/'],
+        ], [
+            'msg_id.required' => 'Indica o número do pedido (o mesmo que vais pôr no formulário do banco).',
+            'msg_id.regex' => 'O número do pedido só pode ter letras, números e hífen.',
         ]);
 
         try {
@@ -83,13 +88,14 @@ class SepaController extends Controller
                 (int) $data['n_meses'],
                 (float) str_replace(',', '.', (string) $data['valor']),
                 $request->user()?->name,
+                $data['msg_id'],
             );
         } catch (RuntimeException $e) {
             return back()->withInput()->withErrors(['sepa' => $e->getMessage()]);
         }
 
         return redirect()->route('sepa.index')
-            ->with('status', 'Ficheiro gerado: '.$mandato->nome_devedor.' — '.$cobranca->descricao.' — '
+            ->with('status', 'Ficheiro gerado: '.$mandato->nome_devedor.' — nº do pedido '.$cobranca->msg_id.' — '.$cobranca->descricao.' — '
                 .number_format((float) $cobranca->valor, 2, ',', ' ').' € a '.$cobranca->data_cobranca->format('d/m/Y').'.')
             ->with('descarregar', $cobranca->id);
     }
@@ -148,6 +154,7 @@ class SepaController extends Controller
             'nif' => ['nullable', 'string', 'max:20'],
             'iban' => ['required', 'string', 'max:40'],
             'bic' => ['nullable', 'string', 'max:11'],
+            'codigo_pedido' => ['nullable', 'string', 'max:10', 'alpha_num'],
             'mandato_ref' => ['required', 'string', 'max:35', Rule::unique('sepa_mandatos', 'mandato_ref')->ignore($mandato?->id)],
             'data_assinatura' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'valor_mensal' => ['required', 'numeric', 'min:0.01'],

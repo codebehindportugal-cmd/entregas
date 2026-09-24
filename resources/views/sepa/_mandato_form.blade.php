@@ -17,6 +17,10 @@
         <input name="mandato_ref" value="{{ old('mandato_ref', $m?->mandato_ref) }}" required maxlength="35" class="{{ $input }}">
         <span class="mt-1 block text-xs text-slate-500">A que está no mandato assinado (nos ficheiros atuais é o NIF).</span>
     </label>
+    <label class="text-sm font-medium text-slate-700">Código no nº do pedido
+        <input name="codigo_pedido" value="{{ old('codigo_pedido', $m?->codigo_pedido) }}" maxlength="10" class="{{ $input }} font-mono" placeholder="Ex.: 26">
+        <span class="mt-1 block text-xs text-slate-500">O nº do pedido fica código + ano + dia + mês da cobrança (26 a 06/10/2026 → 26260610).</span>
+    </label>
     <label class="text-sm font-medium text-slate-700">IBAN do cliente *
         <input name="iban" value="{{ old('iban', $m?->iban) }}" required maxlength="40" class="{{ $input }} uppercase font-mono"
                placeholder="PT50 ...">

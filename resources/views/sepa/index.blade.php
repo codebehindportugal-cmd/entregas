@@ -64,8 +64,9 @@
                                       data-ultimo="{{ $m->ultimo_mes_cobrado }}"
                                       data-valor="{{ (float) $m->valor_mensal }}"
                                       data-max="{{ (int) $m->max_meses_por_cobranca }}"
+                                      data-codigo="{{ preg_replace('/[^A-Za-z0-9]/', '', (string) $m->codigo_pedido) }}"
                                       data-meses-usados='@json($m->cobrancas->pluck('mes_cobranca')->values())'
-                                      onsubmit="return confirm('Gerar o ficheiro de ' + this.querySelector('[data-resumo]').textContent + '?');">
+                                      onsubmit="return confirm('Gerar o ficheiro nº ' + this.querySelector('[name=msg_id]').value + ' de ' + this.querySelector('[data-resumo]').textContent + '?');">
                                     @csrf
                                     <label class="text-xs font-medium text-slate-600">Data de cobrança
                                         <input name="data_cobranca" type="date" required
@@ -79,6 +80,13 @@
                                                 <option value="{{ $n }}" @selected($n === $l['sugeridos'])>{{ $n }}</option>
                                             @endforeach
                                         </select>
+                                    </label>
+                                    <input type="hidden" name="form_mandato" value="{{ $m->id }}">
+                                    <label class="text-xs font-medium text-slate-600">Nº do pedido
+                                        <input name="msg_id" type="text" required maxlength="35" pattern="[A-Za-z0-9\-]+" inputmode="numeric"
+                                               value="{{ (string) old('form_mandato') === (string) $m->id ? old('msg_id') : $l['numero'] }}"
+                                               placeholder="Ex.: 26252305"
+                                               class="mt-1 block w-32 rounded border border-slate-200 px-2 py-1.5 font-mono text-slate-950">
                                     </label>
                                     <label class="text-xs font-medium text-slate-600">Valor (€)
                                         <input name="valor" type="number" step="0.01" min="0.01" required
@@ -107,6 +115,7 @@
             <thead class="bg-emerald-50 text-slate-700">
                 <tr>
                     <th class="p-3">Cobrança</th>
+                    <th class="p-3">Nº do pedido</th>
                     <th class="p-3">Cliente</th>
                     <th class="p-3">Meses</th>
                     <th class="p-3 text-right">Valor</th>
@@ -118,10 +127,11 @@
                 @forelse($cobrancas as $c)
                     <tr class="border-t border-slate-100">
                         <td class="p-3 whitespace-nowrap font-semibold">{{ $c->data_cobranca->format('d/m/Y') }}</td>
+                        <td class="p-3 font-mono font-semibold text-slate-900">{{ $c->msg_id }}</td>
                         <td class="p-3">{{ $c->mandato?->nome_devedor }}</td>
                         <td class="p-3">{{ $c->descricao }}</td>
                         <td class="p-3 text-right whitespace-nowrap">{{ number_format((float) $c->valor, 2, ',', ' ') }} €</td>
-                        <td class="p-3 text-xs text-slate-500">{{ $c->created_at->format('d/m/Y H:i') }}@if($c->gerado_por) · {{ $c->gerado_por }}@endif<br><span class="font-mono">{{ $c->msg_id }}</span></td>
+                        <td class="p-3 text-xs text-slate-500">{{ $c->created_at->format('d/m/Y H:i') }}@if($c->gerado_por) · {{ $c->gerado_por }}@endif</td>
                         <td class="p-3">
                             <div class="flex gap-2">
                                 <a href="{{ route('sepa.cobrancas.xml', $c) }}" class="rounded border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50">XML</a>
@@ -135,7 +145,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="6" class="p-4 text-slate-400">Ainda não foi gerado nenhum ficheiro.</td></tr>
+                    <tr><td colspan="7" class="p-4 text-slate-400">Ainda não foi gerado nenhum ficheiro.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -234,7 +244,14 @@
                 atualizarResumo();
             };
 
-            data.addEventListener('change', () => atualizarMeses(true));
+            const numero = form.querySelector('[name=msg_id]'), codigo = form.dataset.codigo || '';
+            const atualizarNumero = () => {
+                if (!codigo || !data.value) return;
+                const [a, m, d] = data.value.split('-');
+                numero.value = codigo + a.slice(2) + d + m;
+            };
+
+            data.addEventListener('change', () => { atualizarNumero(); atualizarMeses(true); });
             sel.addEventListener('change', () => { valor.value = (mensal * parseInt(sel.value, 10)).toFixed(2); atualizarResumo(); });
             valor.addEventListener('input', atualizarResumo);
             atualizarMeses(false);

@@ -163,6 +163,18 @@ class SepaService
         return null;
     }
 
+    /**
+     * Numero do pedido (MsgId) como o Andre o monta no formulario do banco:
+     * codigo do cliente + AA + DD + MM da data de cobranca.
+     * Ex.: Uriage (26) a 06/10/2026 -> 26260610. Sem codigo, devolve ''.
+     */
+    public function numeroPedido(SepaMandato $mandato, Carbon $data): string
+    {
+        $codigo = preg_replace('/[^A-Za-z0-9]/', '', (string) $mandato->codigo_pedido) ?? '';
+
+        return $codigo === '' ? '' : $codigo.$data->format('y').$data->format('d').$data->format('m');
+    }
+
     /** "Junho 2026", "Junho e Julho 2026", "Dezembro 2026 a Janeiro 2027"... */
     public function descreverMeses(string $inicio, string $fim): string
     {
@@ -188,7 +200,7 @@ class SepaService
      *
      * @throws RuntimeException com uma mensagem para mostrar ao utilizador
      */
-    public function gerar(SepaMandato $mandato, Carbon $data, int $nMeses, float $valor, ?string $utilizador = null): SepaCobranca
+    public function gerar(SepaMandato $mandato, Carbon $data, int $nMeses, float $valor, ?string $utilizador = null, ?string $numeroPedido = null): SepaCobranca
     {
         $data = $data->copy()->startOfDay();
 
@@ -224,9 +236,24 @@ class SepaService
         $fim = end($meses);
         $credor = $this->credor();
 
-        $msgId = $this->textoSepa(Str::upper($credor['prefixo']).str_replace('-', '', $mesCobranca).preg_replace('/[^A-Za-z0-9]/', '', $mandato->mandato_ref), 35);
-        if (SepaCobranca::query()->where('msg_id', $msgId)->exists()) {
-            $msgId = substr($msgId, 0, 31).strtoupper(Str::random(4));
+        // Numero do pedido (MsgId): e o numero que o Andre poe no formulario do
+        // banco, muda em cada envio. Sem numero, gera-se um automatico.
+        $numeroPedido = trim((string) $numeroPedido);
+        if ($numeroPedido !== '') {
+            if (! preg_match('/^[A-Za-z0-9\-]{1,35}$/', $numeroPedido)) {
+                throw new RuntimeException('O número do pedido só pode ter letras, números e hífen (máx. 35).');
+            }
+            $usado = SepaCobranca::query()->with('mandato')->where('msg_id', $numeroPedido)->first();
+            if ($usado !== null) {
+                throw new RuntimeException('O número de pedido '.$numeroPedido.' já foi usado na cobrança de '
+                    .($usado->mandato?->nome_devedor ?? '?').' de '.$usado->data_cobranca->format('d/m/Y').'. O banco não aceita números repetidos.');
+            }
+            $msgId = $numeroPedido;
+        } else {
+            $msgId = $this->textoSepa(Str::upper($credor['prefixo']).str_replace('-', '', $mesCobranca).preg_replace('/[^A-Za-z0-9]/', '', $mandato->mandato_ref), 35);
+            if (SepaCobranca::query()->where('msg_id', $msgId)->exists()) {
+                $msgId = substr($msgId, 0, 31).strtoupper(Str::random(4));
+            }
         }
         $endToEnd = $this->textoSepa('HM-'.$mandato->mandato_ref.'-'.str_replace('-', '', $inicio).($inicio !== $fim ? '-'.str_replace('-', '', $fim) : ''), 35);
         $descricao = $this->textoSepa(trim($credor['descricao'].' - '.$this->descreverMeses($inicio, $fim), ' -'), 140);

@@ -15,6 +15,7 @@ class SepaMandato extends Model
         'iban',
         'bic',
         'mandato_ref',
+        'codigo_pedido',
         'data_assinatura',
         'valor_mensal',
         'ultimo_mes_cobrado',
