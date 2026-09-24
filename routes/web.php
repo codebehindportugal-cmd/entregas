@@ -81,6 +81,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/faturas', [FaturasController::class, 'index'])->name('faturas.index');
         Route::get('/faturas/{fatura}/pdf', [FaturasController::class, 'pdf'])->name('faturas.pdf');
         Route::post('/faturas/{fatura}/enviada', [FaturasController::class, 'enviada'])->name('faturas.enviada');
+        Route::delete('/faturas/{fatura}', [FaturasController::class, 'destroy'])->name('faturas.destroy');
         Route::get('/definicoes-moloni', [DefinicoesMoloniController::class, 'index'])->name('definicoes-moloni.index');
         Route::put('/definicoes-moloni', [DefinicoesMoloniController::class, 'update'])->name('definicoes-moloni.update');
         Route::get('/sepa', [SepaController::class, 'index'])->name('sepa.index');

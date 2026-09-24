@@ -101,6 +101,21 @@
                                     <button class="rounded bg-[#22C55E] px-3 py-1 text-xs font-semibold text-[#0A0F1A]">Marcar enviada</button>
                                 @endif
                             </form>
+                            <form method="post" action="{{ route('faturas.destroy', $fatura) }}" class="mt-2"
+                                  onsubmit="return confirm('Eliminar a fatura #{{ $fatura->document_id }}?\n\nSe ainda for rascunho, é apagada no Moloni. Se já estiver fechada, o Moloni não deixa — terás de a anular lá.');">
+                                @csrf
+                                @method('delete')
+                                <button class="rounded border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">Eliminar</button>
+                            </form>
+                            @if((int) session('remover_so_app') === $fatura->id)
+                                <form method="post" action="{{ route('faturas.destroy', $fatura) }}" class="mt-2"
+                                      onsubmit="return confirm('Remover a #{{ $fatura->document_id }} só da app? Faz isto só depois de a anulares no Moloni.');">
+                                    @csrf
+                                    @method('delete')
+                                    <input type="hidden" name="so_app" value="1">
+                                    <button class="rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white">Remover só da app</button>
+                                </form>
+                            @endif
                         </td>
                     </tr>
                 @empty

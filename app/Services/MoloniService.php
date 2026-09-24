@@ -80,6 +80,35 @@ class MoloniService
         return (int) ($resposta['status'] ?? 1) !== 2;
     }
 
+    /**
+     * Apaga uma fatura no Moloni. So funciona com RASCUNHOS: uma fatura fechada
+     * nao se pode apagar (tem de ser anulada no Moloni).
+     *
+     * @return array{ok:bool,mensagem:string}
+     */
+    public function apagarFatura(int $documentId): array
+    {
+        $resposta = $this->request('invoices/delete', ['document_id' => $documentId]);
+
+        if (! is_array($resposta)) {
+            return ['ok' => false, 'mensagem' => 'O Moloni não respondeu.'];
+        }
+
+        if (isset($resposta['errors']) && filled($resposta['errors'])) {
+            $mensagem = collect((array) $resposta['errors'])->flatten()->filter(fn ($m) => is_string($m))->implode('; ');
+
+            return ['ok' => false, 'mensagem' => $mensagem ?: 'o Moloni recusou.'];
+        }
+
+        if ((int) ($resposta['valid'] ?? 0) !== 1) {
+            Log::warning('Moloni invoices/delete sem valid=1', ['document_id' => $documentId, 'resposta' => $resposta]);
+
+            return ['ok' => false, 'mensagem' => 'o Moloni recusou (provavelmente a fatura já está fechada).'];
+        }
+
+        return ['ok' => true, 'mensagem' => 'apagada no Moloni'];
+    }
+
     // ------------------------------------------------------------------
     //  Emissao de documentos
     // ------------------------------------------------------------------
