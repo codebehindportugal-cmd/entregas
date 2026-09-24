@@ -53,6 +53,33 @@ class MoloniService
         return (int) ($resposta['document_id'] ?? 0) === $documentId;
     }
 
+    /**
+     * O documento ainda conta? false = apagado no Moloni ou ANULADO (status 2);
+     * true = existe (rascunho ou fechado); null = o Moloni nao respondeu.
+     */
+    public function documentoValido(int $documentId): ?bool
+    {
+        if ($documentId <= 0) {
+            return false;
+        }
+
+        $resposta = $this->request('documents/getOne', ['document_id' => $documentId]);
+
+        if (! is_array($resposta)) {
+            return null;
+        }
+
+        if (isset($resposta['errors']) && filled($resposta['errors'])) {
+            return false;
+        }
+
+        if ((int) ($resposta['document_id'] ?? 0) !== $documentId) {
+            return false;
+        }
+
+        return (int) ($resposta['status'] ?? 1) !== 2;
+    }
+
     // ------------------------------------------------------------------
     //  Emissao de documentos
     // ------------------------------------------------------------------

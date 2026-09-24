@@ -528,21 +528,37 @@ class FaturacaoService
         $ancora = Carbon::parse($empresa->ciclo_inicio)->startOfDay();
         $ultimo = $ancora->copy();
 
-        $faturados = CorporateFatura::query()
+        // Faturas da app para esta sucursal, no mesmo alinhamento de 4 semanas,
+        // da mais recente para a mais antiga. A mais recente que ainda exista
+        // (e nao esteja anulada) no Moloni e a ultima faturada; as apagadas ou
+        // anuladas no Moloni deixam de contar e o registo local e limpo.
+        $faturas = CorporateFatura::query()
             ->whereJsonContains('corporate_ids', $empresa->id)
             ->whereNotNull('ciclo_ref')
-            ->pluck('ciclo_ref');
+            ->get()
+            ->filter(function (CorporateFatura $f) use ($ancora): bool {
+                try {
+                    $data = Carbon::parse($f->ciclo_ref)->startOfDay();
+                } catch (\Throwable) {
+                    return false;
+                }
+                $dias = (int) round(($data->getTimestamp() - $ancora->getTimestamp()) / 86400);
 
-        foreach ($faturados as $ref) {
-            try {
-                $data = Carbon::parse($ref)->startOfDay();
-            } catch (\Throwable) {
+                return $dias > 0 && $dias % 28 === 0;
+            })
+            ->sortByDesc('ciclo_ref');
+
+        foreach ($faturas as $fatura) {
+            $valido = $this->moloni->documentoValido((int) $fatura->document_id);
+
+            if ($valido === false) {
+                $fatura->delete();
+
                 continue;
             }
-            $dias = (int) round(($data->getTimestamp() - $ancora->getTimestamp()) / 86400);
-            if ($dias > 0 && $dias % 28 === 0 && $data->gt($ultimo)) {
-                $ultimo = $data;
-            }
+
+            $ultimo = Carbon::parse($fatura->ciclo_ref)->startOfDay();
+            break;
         }
 
         $inicio = $ultimo->copy()->addDays(28);
