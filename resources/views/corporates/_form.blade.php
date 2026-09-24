@@ -106,7 +106,7 @@
         </label>
         <label class="text-sm text-slate-300">Inicio do ciclo de faturacao
             <input name="ciclo_inicio" type="date" value="{{ old('ciclo_inicio', optional($corporate->ciclo_inicio)->format('Y-m-d')) }}" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
-            <span class="mt-1 block text-xs text-slate-500">A partir daqui conta o ciclo de 4 semanas (referencia interna da fatura).</span>
+            <span class="mt-1 block text-xs text-slate-500">Inicio do ciclo da ULTIMA fatura ja emitida. A proxima fatura e o ciclo de 4 semanas seguinte (ex.: 27/07 -> 24/08 a 20/09).</span>
         </label>
         <label class="text-sm text-slate-300">Referencia do cliente
             <input name="referencia_cliente" type="text" value="{{ old('referencia_cliente', $corporate->referencia_cliente) }}" placeholder="Ex.: nr. de fornecedor" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">

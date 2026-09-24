@@ -208,12 +208,18 @@ class FaturacaoService
     {
         $customerId = $this->moloni->obterOuCriarCliente($this->clienteDeCorporate($referencia));
 
-        // Ciclo de faturacao: 4 semanas a contar da ultima fatura do cliente no
-        // Moloni (ultima data + 4 semanas). Sem historico, cai para o ciclo da
-        // empresa ou para a data de referencia.
-        $ultimaFatura = $this->moloni->ultimaFaturaData($customerId);
+        // Ciclo de faturacao (André, 24/09/2026): ciclos SEMPRE de 4 semanas e
+        // continuos. Se a ficha tem "Inicio do ciclo de faturacao", essa data e o
+        // inicio do ciclo da ULTIMA fatura ja emitida; a proxima e o ciclo
+        // seguinte (+28 dias), ou o seguinte ao ultimo que a app ja faturou para
+        // esta sucursal. So sem essa data se usa a ultima fatura do cliente no
+        // Moloni (que e por NIF e desalinhava sucursais).
+        $cicloSucursal = $this->proximoCicloDaSucursal($referencia);
+        $ultimaFatura = $cicloSucursal === null ? $this->moloni->ultimaFaturaData($customerId) : null;
 
-        if ($ultimaFatura !== null) {
+        if ($cicloSucursal !== null) {
+            [$cicloInicio, $cicloFim] = $cicloSucursal;
+        } elseif ($ultimaFatura !== null) {
             $cicloInicio = $ultimaFatura->copy()->startOfDay()->addDay();
             $cicloFim = $ultimaFatura->copy()->startOfDay()->addWeeks(4);
         } else {
@@ -504,6 +510,44 @@ class FaturacaoService
         }
 
         return $out;
+    }
+
+    /**
+     * Proximo ciclo de 4 semanas a faturar para a sucursal, ancorado no campo
+     * "Inicio do ciclo de faturacao" (= inicio do ciclo da ultima fatura emitida).
+     * Faturas ja emitidas pela app neste mesmo alinhamento fazem o ciclo avancar.
+     *
+     * @return array{0:Carbon,1:Carbon}|null  [inicio, fim] ou null se a ficha nao tem inicio
+     */
+    public function proximoCicloDaSucursal(Corporate $empresa): ?array
+    {
+        if (blank($empresa->ciclo_inicio)) {
+            return null;
+        }
+
+        $ancora = Carbon::parse($empresa->ciclo_inicio)->startOfDay();
+        $ultimo = $ancora->copy();
+
+        $faturados = CorporateFatura::query()
+            ->whereJsonContains('corporate_ids', $empresa->id)
+            ->whereNotNull('ciclo_ref')
+            ->pluck('ciclo_ref');
+
+        foreach ($faturados as $ref) {
+            try {
+                $data = Carbon::parse($ref)->startOfDay();
+            } catch (\Throwable) {
+                continue;
+            }
+            $dias = (int) round(($data->getTimestamp() - $ancora->getTimestamp()) / 86400);
+            if ($dias > 0 && $dias % 28 === 0 && $data->gt($ultimo)) {
+                $ultimo = $data;
+            }
+        }
+
+        $inicio = $ultimo->copy()->addDays(28);
+
+        return [$inicio, $inicio->copy()->addDays(27)];
     }
 
     /**
