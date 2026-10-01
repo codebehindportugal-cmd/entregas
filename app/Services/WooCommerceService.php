@@ -603,6 +603,14 @@ class WooCommerceService
             $payload['first_delivery_at'] = $model->first_delivery_at->toDateString();
         }
 
+        // A morada de entrega posta a mao no perfil ganha a do WooCommerce.
+        $moradaManual = is_array($model->raw_payload['_hdm_morada'] ?? null) ? $model->raw_payload['_hdm_morada'] : null;
+
+        if ($moradaManual !== null && is_array($payload['raw_payload'] ?? null)) {
+            $payload['raw_payload']['shipping'] = array_replace((array) ($payload['raw_payload']['shipping'] ?? []), $moradaManual);
+            $payload['raw_payload']['_hdm_morada'] = $moradaManual;
+        }
+
         $payload = $this->preserveFilledLocalArrays($model, $payload, [
             'delivery_dates',
             'cancelled_delivery_dates',

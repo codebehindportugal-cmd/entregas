@@ -69,6 +69,78 @@ class WooOrderProfileTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_set_the_delivery_address_in_the_profile(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = WooOrder::factory()->create([
+            'source_type' => 'order',
+            'ciclo_entrega' => 'semanal',
+            'raw_payload' => ['id' => 1, 'billing' => ['first_name' => 'Ana', 'email' => 'ana@example.test'], 'shipping' => []],
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('encomendas.show', $order))
+            ->assertOk()
+            ->assertSee('name="morada"', false)
+            ->assertSee('name="codigo_postal"', false)
+            ->assertSee('Sem morada');
+
+        $this->actingAs($admin)->put(route('encomendas.profile.update', $order), [
+            'source_type' => 'order',
+            'ciclo_entrega' => 'semanal',
+            'morada' => 'Rua das Flores 12, 2 Esq',
+            'morada_2' => 'Porta verde',
+            'codigo_postal' => '2500 123',
+            'localidade' => 'Caldas da Rainha',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $order->refresh();
+
+        $this->assertSame([
+            'address_1' => 'Rua das Flores 12, 2 Esq',
+            'address_2' => 'Porta verde',
+            'postcode' => '2500-123',
+            'city' => 'Caldas da Rainha',
+        ], $order->moradaEntrega());
+        $this->assertSame('ana@example.test', $order->raw_payload['billing']['email']);
+
+        $this->actingAs($admin)
+            ->get(route('encomendas.show', $order))
+            ->assertSee('value="Rua das Flores 12, 2 Esq"', false)
+            ->assertSee('2500-123 Caldas da Rainha');
+    }
+
+    public function test_profile_rejects_an_invalid_postcode(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = WooOrder::factory()->create(['source_type' => 'order', 'ciclo_entrega' => 'semanal']);
+
+        $this->actingAs($admin)->put(route('encomendas.profile.update', $order), [
+            'source_type' => 'order',
+            'ciclo_entrega' => 'semanal',
+            'morada' => 'Rua X',
+            'codigo_postal' => 'abc',
+        ])->assertSessionHasErrors('codigo_postal');
+    }
+
+    public function test_profile_without_address_fields_keeps_the_address(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $order = WooOrder::factory()->create([
+            'source_type' => 'order',
+            'ciclo_entrega' => 'semanal',
+            'raw_payload' => ['shipping' => ['address_1' => 'Rua Velha 3', 'postcode' => '2500-001', 'city' => 'Caldas']],
+        ]);
+
+        $this->actingAs($admin)->put(route('encomendas.profile.update', $order), [
+            'source_type' => 'order',
+            'ciclo_entrega' => 'semanal',
+            'billing_name' => 'Outra',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Rua Velha 3', $order->refresh()->moradaEntrega()['address_1']);
+    }
+
     public function test_admin_can_postpone_regular_b2c_order_delivery_date(): void
     {
         $admin = User::factory()->admin()->create();

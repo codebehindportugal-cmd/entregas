@@ -313,6 +313,30 @@ class WooCommerceServiceTest extends TestCase
         $this->assertSame(['2026-06-10'], $payload['cancelled_delivery_dates']);
     }
 
+    public function test_sync_keeps_delivery_address_set_by_hand_in_the_profile(): void
+    {
+        $order = new WooOrder();
+        $order->raw_payload = ['shipping' => [], 'billing' => []];
+        $order->definirMoradaEntrega(['address_1' => 'Rua Nova 5', 'postcode' => '2500-100', 'city' => 'Caldas da Rainha']);
+        $order->exists = true;
+
+        $payload = $this->preserveLocalScheduling($order, [
+            'status' => 'processing',
+            'raw_payload' => [
+                'id' => 9,
+                'shipping' => ['first_name' => 'Ana', 'address_1' => '', 'postcode' => '', 'city' => ''],
+                'billing' => ['address_1' => 'Rua Antiga 1', 'postcode' => '1000-001', 'city' => 'Lisboa'],
+            ],
+        ]);
+
+        $this->assertSame('Rua Nova 5', $payload['raw_payload']['shipping']['address_1']);
+        $this->assertSame('2500-100', $payload['raw_payload']['shipping']['postcode']);
+        $this->assertSame('Caldas da Rainha', $payload['raw_payload']['shipping']['city']);
+        $this->assertSame('Ana', $payload['raw_payload']['shipping']['first_name']);
+        // A morada de faturacao do WooCommerce nao se mexe.
+        $this->assertSame('Rua Antiga 1', $payload['raw_payload']['billing']['address_1']);
+    }
+
     private function payloadFromWooOrder(array $order): array
     {
         $method = new ReflectionMethod(WooCommerceService::class, 'payload');

@@ -256,9 +256,28 @@ class EncomendaController extends Controller
             'renovacao_automatica' => ['nullable', 'boolean'],
             'profile_preferences' => ['nullable', 'string'],
             'customer_notes' => ['nullable', 'string'],
+            'morada' => ['nullable', 'string', 'max:255'],
+            'morada_2' => ['nullable', 'string', 'max:255'],
+            'codigo_postal' => ['nullable', 'string', 'max:20', 'regex:/^\s*\d{4}(\s*-?\s*\d{3})?\s*$/'],
+            'localidade' => ['nullable', 'string', 'max:255'],
+        ], [
+            'codigo_postal.regex' => 'O codigo postal tem de ser 0000-000.',
         ]);
 
         $data['renovacao_automatica'] = $request->boolean('renovacao_automatica');
+
+        // A morada so muda se o formulario a trouxer (outros formularios usam esta rota).
+        if ($request->hasAny(['morada', 'codigo_postal', 'localidade'])) {
+            $cp = preg_replace('/\s+/', '', (string) ($data['codigo_postal'] ?? ''));
+            $encomenda->definirMoradaEntrega([
+                'address_1' => $data['morada'] ?? '',
+                'address_2' => $data['morada_2'] ?? '',
+                'postcode' => preg_match('/^(\d{4})(\d{3})$/', $cp, $m) ? $m[1].'-'.$m[2] : $cp,
+                'city' => $data['localidade'] ?? '',
+            ]);
+        }
+
+        unset($data['morada'], $data['morada_2'], $data['codigo_postal'], $data['localidade']);
 
         $encomenda->update($data);
 

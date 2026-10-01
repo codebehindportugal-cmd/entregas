@@ -61,6 +61,8 @@
                     <p><span class="text-slate-500">Encomenda:</span> #{{ $encomenda->woo_id }}</p>
                     <p><span class="text-slate-500">Telefone:</span> {{ $encomenda->billing_phone ?: 'Sem telefone' }}</p>
                     <p><span class="text-slate-500">Email:</span> {{ $encomenda->billing_email ?: 'Sem email' }}</p>
+                    @php($moradaContacto = $encomenda->moradaEntrega())
+                    <p><span class="text-slate-500">Morada:</span> {{ $moradaContacto['address_1'] !== '' ? trim($moradaContacto['address_1'].' '.$moradaContacto['address_2']).', '.trim($moradaContacto['postcode'].' '.$moradaContacto['city']) : 'Sem morada' }}</p>
                     <p><span class="text-slate-500">Idioma:</span> {{ $encomenda->customer_language === 'en' ? 'Ingles' : 'Portugues' }}</p>
                     <p><span class="text-slate-500">Fatura Moloni:</span> {{ $encomenda->moloniDocumentId() ? '#'.$encomenda->moloniDocumentId() : 'Por gerar' }}</p>
                     <p><span class="text-slate-500">Tipo:</span> {{ $encomenda->source_type === 'subscription' ? 'Subscricao' : 'Encomenda' }}</p>
@@ -361,6 +363,20 @@
                     </label>
                     <label class="block text-sm text-slate-300 md:col-span-2">Email
                         <input name="billing_email" type="email" value="{{ old('billing_email', $encomenda->billing_email) }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    @php($moradaEntrega = $encomenda->moradaEntrega())
+                    <label class="block text-sm text-slate-300 md:col-span-2">Morada de entrega
+                        <input name="morada" value="{{ old('morada', $moradaEntrega['address_1']) }}" placeholder="Rua, numero, andar" autocomplete="address-line1" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300 md:col-span-2">Complemento <span class="text-slate-500">(opcional)</span>
+                        <input name="morada_2" value="{{ old('morada_2', $moradaEntrega['address_2']) }}" placeholder="Lote, porta, referencias" autocomplete="address-line2" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    </label>
+                    <label class="block text-sm text-slate-300">Codigo postal
+                        <input name="codigo_postal" value="{{ old('codigo_postal', $moradaEntrega['postcode']) }}" placeholder="0000-000" inputmode="numeric" autocomplete="postal-code" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                        @error('codigo_postal')<span class="mt-1 block text-xs text-red-300">{{ $message }}</span>@enderror
+                    </label>
+                    <label class="block text-sm text-slate-300">Localidade
+                        <input name="localidade" value="{{ old('localidade', $moradaEntrega['city']) }}" autocomplete="address-level2" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
                     </label>
                     <label class="block text-sm text-slate-300">Idioma das mensagens
                         <select name="customer_language" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">

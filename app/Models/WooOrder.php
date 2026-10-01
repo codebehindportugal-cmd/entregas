@@ -1242,6 +1242,46 @@ class WooOrder extends Model
         return 'https://wa.me/'.$telefone.'?text='.rawurlencode($mensagem);
     }
 
+    /**
+     * Morada de entrega: a de envio, ou a de faturacao se a de envio estiver
+     * vazia (e o que as Rotas, o Mapa e as zonas usam).
+     *
+     * @return array{address_1: string, address_2: string, postcode: string, city: string}
+     */
+    public function moradaEntrega(): array
+    {
+        $payload = is_array($this->raw_payload) ? $this->raw_payload : [];
+        $shipping = (array) ($payload['shipping'] ?? []);
+        $bloco = filled($shipping['address_1'] ?? null) ? $shipping : (array) ($payload['billing'] ?? []);
+
+        return [
+            'address_1' => (string) ($bloco['address_1'] ?? ''),
+            'address_2' => (string) ($bloco['address_2'] ?? ''),
+            'postcode' => (string) ($bloco['postcode'] ?? ''),
+            'city' => (string) ($bloco['city'] ?? ''),
+        ];
+    }
+
+    /**
+     * Guarda a morada de entrega posta a mao no perfil. Fica tambem em
+     * `_hdm_morada` para a sincronizacao com o WooCommerce nao a apagar.
+     */
+    public function definirMoradaEntrega(array $morada): void
+    {
+        $morada = collect(['address_1', 'address_2', 'postcode', 'city'])
+            ->mapWithKeys(fn (string $campo): array => [$campo => trim((string) ($morada[$campo] ?? ''))])
+            ->all();
+        $payload = is_array($this->raw_payload) ? $this->raw_payload : [];
+
+        if ($morada === $this->moradaEntrega()) {
+            return;
+        }
+
+        $payload['shipping'] = array_replace((array) ($payload['shipping'] ?? []), $morada);
+        $payload['_hdm_morada'] = $morada;
+        $this->raw_payload = $payload;
+    }
+
     public function paymentUrl(): ?string
     {
         $url = $this->raw_payload['payment_url'] ?? null;
