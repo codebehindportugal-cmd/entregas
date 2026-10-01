@@ -15,6 +15,7 @@ use App\Models\Viatura;
 use App\Models\WooOrder;
 use App\Models\Zona;
 use App\Services\EntregasDoDia;
+use App\Services\Geolocalizador;
 use App\Services\OrganizadorDeVoltas;
 use App\Services\ListaCabazResolver;
 use App\Services\ComprasService;
@@ -215,18 +216,16 @@ class EntregaController extends Controller
 
     private function linhaEntregaB2c(WooOrder $order, ?AtribuicaoEntrega $atribuicao): array
     {
-        $shipping = (array) ($order->raw_payload['shipping'] ?? []);
-        $billing = (array) ($order->raw_payload['billing'] ?? []);
-        $campo = fn (string $chave): string => trim((string) (($shipping[$chave] ?? null) ?: ($billing[$chave] ?? '')));
+        $endereco = $order->enderecoDeEntrega();
 
         return [
             'chave' => 'b'.$order->id,
             'tipo' => 'b2c',
             'id' => $order->id,
             'nome' => '#'.$order->woo_id.' '.($order->billing_name ?: 'Sem nome'),
-            'morada' => trim($campo('address_1').' '.$campo('address_2')) ?: null,
-            'cp' => $campo('postcode'),
-            'localidade' => $campo('city'),
+            'morada' => $endereco['morada'],
+            'cp' => $endereco['cp'],
+            'localidade' => $endereco['localidade'],
             'detalhe' => $order->billing_phone ?: $order->billing_email,
         ] + $this->zonaDaLinha($atribuicao);
     }
@@ -953,14 +952,27 @@ class EntregaController extends Controller
         })->values();
     }
 
-    /** As paragens no formato do organizador: id da atribuicao, codigo postal e horario. */
-    private function paraOrganizar(\Illuminate\Support\Collection $paragens): \Illuminate\Support\Collection
+    /**
+     * As paragens no formato do organizador: id da atribuicao, codigo postal,
+     * horario e onde fica a morada. Ao ver a pagina so se usam as moradas ja
+     * localizadas; ao organizar procuram-se as que faltam.
+     */
+    private function paraOrganizar(\Illuminate\Support\Collection $paragens, bool $procurarMoradas = false): \Illuminate\Support\Collection
     {
-        return $paragens->map(fn (array $paragem): array => [
-            'chave' => $paragem['atribuicao']->id,
-            'cp' => $paragem['cp'] ?: $this->codigoPostalNaMorada($paragem['morada']),
-            'horario' => $paragem['horario'] ?? null,
-        ])->values();
+        $geo = app(Geolocalizador::class);
+
+        return $paragens->map(function (array $paragem) use ($geo, $procurarMoradas): array {
+            $cp = $paragem['cp'] ?: $this->codigoPostalNaMorada($paragem['morada']);
+            $coord = $geo->coordenadas($paragem['morada'] ?? null, $cp, $paragem['localidade'] ?? null, $procurarMoradas);
+
+            return [
+                'chave' => $paragem['atribuicao']->id,
+                'cp' => $cp,
+                'horario' => $paragem['horario'] ?? null,
+                'lat' => $coord[0] ?? null,
+                'lng' => $coord[1] ?? null,
+            ];
+        })->values();
     }
 
     /**
@@ -991,7 +1003,7 @@ class EntregaController extends Controller
                 // Uma volta por pessoa (em semanas com feriado a mesma zona pode
                 // ter as entregas de dois dias, feitas por pessoas diferentes).
                 foreach ($atribuicoesDaZona->groupBy(fn (AtribuicaoEntrega $a): int => $this->quemFaz($a, $dataDia)) as $grupo) {
-                    $ordem = $organizador->organizar($this->paraOrganizar($this->paragensDaZona($grupo)), $zona?->partida_cp);
+                    $ordem = $organizador->organizar($this->paraOrganizar($this->paragensDaZona($grupo), procurarMoradas: true), $zona?->partida_cp);
                     $porId = $grupo->keyBy('id');
 
                     foreach ($ordem as $paragem) {

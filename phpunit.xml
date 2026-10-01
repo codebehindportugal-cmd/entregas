@@ -32,5 +32,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="ENTREGAS_GEOCODER_URL" value=""/>
+        <env name="ENTREGAS_OSRM_URL" value=""/>
     </php>
 </phpunit>

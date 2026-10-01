@@ -26,3 +26,10 @@ Schedule::command('subscricoes:renovar')
     ->dailyAt('07:00')
     ->withoutOverlapping()
     ->runInBackground();
+
+// Onde ficam as moradas das proximas entregas (OpenStreetMap), para as voltas
+// serem organizadas pela distancia real. So procura as que ainda faltam.
+Schedule::command('entregas:geolocalizar')
+    ->hourlyAt(20)
+    ->withoutOverlapping()
+    ->runInBackground();

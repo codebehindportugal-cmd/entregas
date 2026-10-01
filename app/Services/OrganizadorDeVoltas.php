@@ -10,10 +10,13 @@ use Illuminate\Support\Collection;
  * antes de abrirem (9h por defeito) nem depois de fecharem (18h por defeito,
  * ou a hora do horario da empresa, ex.: "ate 17:30").
  *
- * As distancias sao em linha reta entre o centro dos codigos postais
- * (config/codigos_postais.php), por isso as horas sao estimativas.
+ * As distancias sao os minutos de carro pela estrada (OSRM) entre as
+ * moradas de cada paragem ('lat'/'lng', vindas do Geolocalizador). Paragens
+ * sem morada localizada usam o centro do codigo postal
+ * (config/codigos_postais.php); se o OSRM nao responder, usa-se a linha reta.
  *
- * Cada paragem e um array com pelo menos 'chave', 'cp' e 'horario'.
+ * Cada paragem e um array com pelo menos 'chave', 'cp' e 'horario', e
+ * opcionalmente 'lat' e 'lng'.
  */
 class OrganizadorDeVoltas
 {
@@ -28,11 +31,23 @@ class OrganizadorDeVoltas
     /** De onde sai a volta que se esta a organizar (null = o armazem). */
     private ?array $partida = null;
 
+    /** Minutos pela estrada entre os pontos da volta (null = linha reta). */
+    private ?array $tempos = null;
+
+    /** @var array<string, int> posicao de cada ponto em $tempos */
+    private array $indice = [];
+
+    public function __construct(private ?TemposDeEstrada $estrada = null)
+    {
+        $this->estrada ??= app(TemposDeEstrada::class);
+    }
+
     /** @return Collection<int, array> as paragens pela ordem da volta, com as horas previstas */
     public function organizar(Collection $paragens, ?string $partidaCp = null): Collection
     {
         $this->partida = self::coordenadas($partidaCp);
         [$comLocal, $semLocal] = $this->preparar($paragens)->partition(fn (array $p): bool => $p['_coord'] !== null);
+        $this->carregarTempos($comLocal);
         $saida = $this->horaDeSaida($comLocal);
 
         // Se com esta hora de saida alguma entrega cedo (ate as 7h, 8h...) nao
@@ -48,6 +63,8 @@ class OrganizadorDeVoltas
             $saida = max(self::SAIDA_MAIS_CEDO, $saida - (int) ceil($atraso / 5) * 5);
         }
 
+        $saida = $this->semEsperarNaPrimeira($ordem, $saida);
+
         // Sem codigo postal nao se sabe onde ficam: vao para o fim.
         return $this->horas($ordem->concat($semLocal)->values(), $saida);
     }
@@ -58,6 +75,7 @@ class OrganizadorDeVoltas
         $this->partida = self::coordenadas($partidaCp);
         $preparadas = $this->preparar($paragens);
         $comLocal = $preparadas->filter(fn (array $p): bool => $p['_coord'] !== null)->values();
+        $this->carregarTempos($comLocal);
         $saida = $this->horaDeSaida($comLocal);
 
         for ($tentativa = 0; $tentativa < 8; $tentativa++) {
@@ -70,7 +88,50 @@ class OrganizadorDeVoltas
             $saida = max(self::SAIDA_MAIS_CEDO, $saida - (int) ceil($atraso / 5) * 5);
         }
 
-        return $this->horas($preparadas, $saida);
+        return $this->horas($preparadas, $this->semEsperarNaPrimeira($comLocal, $saida));
+    }
+
+    /**
+     * A hora de saida calculada antes de ordenar e a pensar na paragem mais
+     * longe; com a volta ja feita, sai-se so a tempo de chegar a primeira
+     * quando abre (sem ficar a espera a porta), se isso nao atrasar nenhuma.
+     */
+    private function semEsperarNaPrimeira(Collection $ordem, int $saida): int
+    {
+        $primeira = $ordem->first(fn (array $p): bool => $p['_coord'] !== null);
+
+        // Se a primeira e uma entrega cedo, a saida ja foi acertada para ela.
+        if ($primeira === null || $primeira['_fecha'] <= self::LIMITE_CEDO) {
+            return $saida;
+        }
+
+        $chegar = intdiv(max($primeira['_abre'], self::abrePadrao()) - $this->viagem($this->origem(), $primeira['_coord']), 5) * 5;
+
+        if ($chegar <= $saida) {
+            return $saida;
+        }
+
+        return $this->atrasoTotal($ordem, $chegar) <= $this->atrasoTotal($ordem, $saida) ? $chegar : $saida;
+    }
+
+    private function atrasoTotal(Collection $ordem, int $saida): int
+    {
+        $t = $saida;
+        $pos = $this->origem();
+        $atraso = 0;
+
+        foreach ($ordem as $p) {
+            if ($p['_coord'] === null) {
+                continue;
+            }
+
+            $inicio = max($t + $this->viagem($pos, $p['_coord']), $p['_abre']);
+            $atraso += max(0, $inicio - $p['_fecha']);
+            $t = $inicio + $this->servico();
+            $pos = $p['_coord'];
+        }
+
+        return $atraso;
     }
 
     /** O maior atraso (minutos) nas entregas que tem de ser feitas cedo. */
@@ -112,8 +173,14 @@ class OrganizadorDeVoltas
         );
         $texto = mb_strtolower(trim((string) $horario));
 
-        if ($texto === '' || in_array($texto, ['ind', 'indiferente', '-', 'qualquer'], true)) {
+        if ($texto === '') {
             return [$abre, $fecha];
+        }
+
+        // Indiferente: entrega-se a qualquer hora (ex.: logo a seguir a uma
+        // entrega cedo no mesmo sitio), so nao depois de fechar.
+        if (in_array($texto, ['ind', 'ind.', 'indiferente', '-', 'qualquer', 'qualquer hora'], true)) {
+            return [0, $fecha];
         }
 
         preg_match_all('/(\d{1,2})(?:\s*[:h.]\s*(\d{2}))?/u', $texto, $m, PREG_SET_ORDER);
@@ -167,6 +234,11 @@ class OrganizadorDeVoltas
         return sprintf('%02d:%02d', intdiv($minutos, 60) % 24, $minutos % 60);
     }
 
+    private static function abrePadrao(): int
+    {
+        return self::minutos((string) (config('entregas.janela_padrao', ['09:00'])[0] ?? '09:00'));
+    }
+
     private static function minutos(string $hora): int
     {
         [$h, $m] = array_pad(explode(':', $hora), 2, 0);
@@ -179,7 +251,11 @@ class OrganizadorDeVoltas
         return $paragens->values()->map(function (array $p): array {
             [$abre, $fecha] = self::janela($p['horario'] ?? null);
 
-            return $p + ['_coord' => self::coordenadas($p['cp'] ?? null), '_abre' => $abre, '_fecha' => $fecha];
+            $coord = isset($p['lat'], $p['lng']) && $p['lat'] !== null && $p['lng'] !== null
+                ? [(float) $p['lat'], (float) $p['lng']]
+                : self::coordenadas($p['cp'] ?? null);
+
+            return $p + ['_coord' => $coord, '_abre' => $abre, '_fecha' => $fecha];
         });
     }
 
@@ -205,7 +281,7 @@ class OrganizadorDeVoltas
 
         $saida = $cedo->isNotEmpty()
             ? $cedo->map(fn (array $p): int => $p['_fecha'] - $this->viagem($origem, $p['_coord']) - 10)->min()
-            : ($paragens->isEmpty() ? 8 * 60 : $paragens->map(fn (array $p): int => $p['_abre'] - $this->viagem($origem, $p['_coord']))->min());
+            : ($paragens->isEmpty() ? 8 * 60 : $paragens->map(fn (array $p): int => max($p['_abre'], self::abrePadrao()) - $this->viagem($origem, $p['_coord']))->min());
 
         return max(self::SAIDA_MAIS_CEDO, intdiv((int) $saida, 5) * 5);
     }
@@ -223,7 +299,8 @@ class OrganizadorDeVoltas
             $melhor = INF;
 
             foreach ($resto as $i => $p) {
-                $inicio = max($t + $this->viagem($pos, $p['_coord']), $p['_abre']);
+                $viagem = $this->viagem($pos, $p['_coord']);
+                $inicio = max($t + $viagem, $p['_abre']);
 
                 if ($inicio > $p['_fecha']) {
                     continue;
@@ -244,7 +321,9 @@ class OrganizadorDeVoltas
                     }
                 }
 
-                $custo = ($inicio - $t) + ($estraga ? 100000 : 0) + $p['_fecha'] / 10000;
+                // Se se chega antes de abrirem a espera iguala as distancias: a
+                // viagem desempata (vai-se a mais perto).
+                $custo = ($inicio - $t) + ($estraga ? 100000 : 0) + $viagem / 100 + $p['_fecha'] / 10000;
 
                 if ($custo < $melhor) {
                     $melhor = $custo;
@@ -271,7 +350,7 @@ class OrganizadorDeVoltas
         $atual = $ordem->values()->all();
         $n = count($atual);
 
-        if ($n < 3) {
+        if ($n < 2) {
             return collect($atual);
         }
 
@@ -323,16 +402,19 @@ class OrganizadorDeVoltas
         return collect($atual);
     }
 
-    /** Hora a que acaba a volta, com muito peso nos minutos de atraso. */
+    /** Hora a que acaba a volta mais os minutos a conduzir, com muito peso nos minutos de atraso. */
     private function custo(array $ordem, int $saida): float
     {
         $t = $saida;
         $pos = $this->origem();
         $atraso = 0;
         $somaHoras = 0;
+        $conducao = 0;
 
         foreach ($ordem as $p) {
-            $inicio = max($t + $this->viagem($pos, $p['_coord']), $p['_abre']);
+            $viagem = $this->viagem($pos, $p['_coord']);
+            $conducao += $viagem;
+            $inicio = max($t + $viagem, $p['_abre']);
             $atraso += max(0, $inicio - $p['_fecha']);
             $somaHoras += $inicio;
             $t = $inicio + $this->servico();
@@ -341,7 +423,9 @@ class OrganizadorDeVoltas
 
         // Um pouco de peso em entregar cedo: entre duas voltas parecidas, faz
         // primeiro os sitios com muitas entregas juntas e fica com folga no fim.
-        return $t + $somaHoras * 0.1 + $atraso * self::PENALIZACAO_ATRASO;
+        // Os minutos ao volante contam a parte: com a saida fixa, uma volta que
+        // anda mais e depois espera a porta acabava a mesma hora que a curta.
+        return $t + $conducao + $somaHoras * 0.1 + $atraso * self::PENALIZACAO_ATRASO;
     }
 
     private function horas(Collection $ordem, int $saida): Collection
@@ -366,11 +450,44 @@ class OrganizadorDeVoltas
         })->values();
     }
 
-    /** Minutos de carro entre dois pontos (estimativa). */
+    /** Pede ao OSRM os minutos entre a partida e todas as paragens da volta. */
+    private function carregarTempos(Collection $paragens): void
+    {
+        $this->tempos = null;
+        $this->indice = [];
+        $pontos = [];
+
+        foreach ($paragens->pluck('_coord')->prepend($this->origem()) as $coord) {
+            $chave = self::chaveDoPonto($coord);
+
+            if (! isset($this->indice[$chave])) {
+                $this->indice[$chave] = count($pontos);
+                $pontos[] = $coord;
+            }
+        }
+
+        $this->tempos = count($pontos) > 1 ? $this->estrada?->matriz($pontos) : null;
+    }
+
+    private static function chaveDoPonto(array $coord): string
+    {
+        return sprintf('%.5f,%.5f', $coord[0], $coord[1]);
+    }
+
+    /** Minutos de carro entre dois pontos (pela estrada, ou estimativa). */
     private function viagem(?array $a, ?array $b): int
     {
         if ($a === null || $b === null) {
             return 15;
+        }
+
+        if ($this->tempos !== null) {
+            $i = $this->indice[self::chaveDoPonto($a)] ?? null;
+            $j = $this->indice[self::chaveDoPonto($b)] ?? null;
+
+            if ($i !== null && $j !== null && isset($this->tempos[$i][$j])) {
+                return $this->tempos[$i][$j];
+            }
         }
 
         $raio = 6371;

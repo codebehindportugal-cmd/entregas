@@ -10,7 +10,8 @@ class OrganizadorDeVoltasTest extends TestCase
     public function test_le_os_horarios_das_empresas(): void
     {
         $this->assertSame([9 * 60, 18 * 60], OrganizadorDeVoltas::janela(null));
-        $this->assertSame([9 * 60, 18 * 60], OrganizadorDeVoltas::janela('Ind'));
+        // Indiferente: a qualquer hora, so nao depois de fecharem.
+        $this->assertSame([0, 18 * 60], OrganizadorDeVoltas::janela('Ind'));
         $this->assertSame([0, 8 * 60], OrganizadorDeVoltas::janela('até ás 8h'));
         $this->assertSame([0, 7 * 60 + 31], OrganizadorDeVoltas::janela('até ás 7:31'));
         $this->assertSame([0, 7 * 60], OrganizadorDeVoltas::janela('7h'));
@@ -44,7 +45,8 @@ class OrganizadorDeVoltasTest extends TestCase
         $porChave = $volta->keyBy('chave');
         $this->assertLessThanOrEqual('07:00', $porChave['oriente7']['hora_prevista']);
         $this->assertLessThanOrEqual('08:00', $porChave['saldanha8']['hora_prevista']);
-        foreach (['mafra', 'coruche', 'benavente', 'alverca', 'benfica'] as $chave) {
+        // Sem horario nao se entrega antes de abrirem; "ind" pode ser mais cedo.
+        foreach (['mafra', 'coruche', 'alverca', 'benfica'] as $chave) {
             $this->assertGreaterThanOrEqual('09:00', $porChave[$chave]['hora_prevista'], $chave);
         }
         $this->assertLessThanOrEqual('17:30', $porChave['coruche']['hora_prevista']);
@@ -94,5 +96,67 @@ class OrganizadorDeVoltasTest extends TestCase
 
         // A simulacao pela mesma ordem tambem sai a tempo.
         $this->assertCount(0, app(OrganizadorDeVoltas::class)->simular($volta->map(fn ($p) => ['chave' => $p['chave'], 'cp' => $p['cp'], 'horario' => $p['horario']]))->where('atrasada', true));
+    }
+
+    public function test_ind_no_mesmo_sitio_de_uma_entrega_cedo_vai_logo_a_seguir(): void
+    {
+        $volta = app(OrganizadorDeVoltas::class)->organizar(collect([
+            ['chave' => 'vic', 'cp' => '1990-095', 'horario' => 'até ás 8h'],
+            ['chave' => 'benfica', 'cp' => '1500-001', 'horario' => 'ind'],
+            ['chave' => 'cloud', 'cp' => '1990-095', 'horario' => 'ind'],
+            ['chave' => 'uriage', 'cp' => '1990-027', 'horario' => 'Ind'],
+        ]));
+
+        $this->assertSame(['vic', 'cloud', 'uriage'], $volta->pluck('chave')->take(3)->all());
+        $this->assertLessThan('08:30', $volta->firstWhere('chave', 'cloud')['hora_prevista']);
+        $this->assertCount(0, $volta->where('atrasada', true));
+    }
+
+    public function test_usa_a_morada_e_os_tempos_pela_estrada(): void
+    {
+        config(['entregas.osrm_url' => 'https://osrm.test']);
+
+        // Tres paragens com o mesmo codigo postal mas moradas diferentes: pela
+        // linha reta seriam o mesmo sitio. Pela estrada, A -> C -> B.
+        $paragens = collect([
+            ['chave' => 'a', 'cp' => '1050-001', 'horario' => null, 'lat' => 38.70, 'lng' => -9.10],
+            ['chave' => 'b', 'cp' => '1050-002', 'horario' => null, 'lat' => 38.80, 'lng' => -9.20],
+            ['chave' => 'c', 'cp' => '1050-003', 'horario' => null, 'lat' => 38.75, 'lng' => -9.15],
+        ]);
+
+        // Pontos: 0 armazem, 1 a, 2 b, 3 c (segundos).
+        \Illuminate\Support\Facades\Http::fake(['osrm.test/*' => \Illuminate\Support\Facades\Http::response([
+            'code' => 'Ok',
+            'durations' => [
+                [0, 3600, 5000, 4000],
+                [3600, 0, 3000, 600],
+                [5000, 3000, 0, 600],
+                [4000, 600, 600, 0],
+            ],
+        ])]);
+
+        $volta = app(OrganizadorDeVoltas::class)->organizar($paragens);
+
+        $this->assertSame(['a', 'c', 'b'], $volta->pluck('chave')->all());
+        // Armazem -> a: 60 min * 1.15 + 3 = 72 min antes das 9h.
+        $this->assertSame('07:45', $volta->first()['saida']);
+        $this->assertSame('09:00', $volta->first()['hora_prevista']);
+        // a (9:00 + 7 min) -> c: 10 min * 1.15 + 3 = 15 min.
+        $this->assertSame('09:22', $volta->firstWhere('chave', 'c')['hora_prevista']);
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
+    }
+
+    public function test_sem_resposta_da_estrada_usa_a_linha_reta(): void
+    {
+        config(['entregas.osrm_url' => 'https://osrm.test']);
+        \Illuminate\Support\Facades\Http::fake(['osrm.test/*' => \Illuminate\Support\Facades\Http::response('erro', 500)]);
+
+        $volta = app(OrganizadorDeVoltas::class)->organizar(collect([
+            ['chave' => 'oriente7', 'cp' => '1990-096', 'horario' => '7h'],
+            ['chave' => 'benfica', 'cp' => '1500-001', 'horario' => null],
+        ]));
+
+        $this->assertSame('oriente7', $volta->first()['chave']);
+        $this->assertCount(0, $volta->where('atrasada', true));
     }
 }

@@ -28,4 +28,19 @@ return [
 
     // Minutos parados em cada entrega, para as horas previstas.
     'minutos_por_paragem' => (int) env('ENTREGAS_MINUTOS_POR_PARAGEM', 7),
+
+    // Onde fica cada morada (Nominatim / OpenStreetMap, gratis). Vazio: so o
+    // centro do codigo postal. O Nominatim pede um User-Agent que identifique
+    // quem pede.
+    'geocoder_url' => env('ENTREGAS_GEOCODER_URL', 'https://nominatim.openstreetmap.org'),
+    'geocoder_user_agent' => env('ENTREGAS_GEOCODER_USER_AGENT', 'gestao.hortadamaria.com (entregas)'),
+
+    // Minutos de carro pela estrada entre as paragens (OSRM, gratis). Vazio:
+    // linha reta entre os pontos.
+    'osrm_url' => env('ENTREGAS_OSRM_URL', 'https://router.project-osrm.org'),
+
+    // A carrinha demora mais que o tempo do OSRM (que e para um carro com a
+    // estrada livre), e em cada paragem e preciso estacionar.
+    'fator_tempo_estrada' => (float) env('ENTREGAS_FATOR_TEMPO_ESTRADA', 1.15),
+    'minutos_estacionar' => (int) env('ENTREGAS_MINUTOS_ESTACIONAR', 3),
 ];

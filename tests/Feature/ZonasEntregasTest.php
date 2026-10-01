@@ -422,6 +422,44 @@ class ZonasEntregasTest extends TestCase
             ->assertSee('sai das Caldas');
     }
 
+    public function test_organizar_procura_as_moradas_e_usa_os_tempos_pela_estrada(): void
+    {
+        config(['entregas.geocoder_url' => 'https://nominatim.test', 'entregas.osrm_url' => 'https://osrm.test']);
+
+        // Mesmo codigo postal: pela linha reta seriam o mesmo sitio.
+        $longe = $this->empresa('Longe Lda', '1990-001');
+        $perto = $this->empresa('Perto Lda', '1990-002');
+        foreach ([$longe, $perto] as $i => $empresa) {
+            AtribuicaoEntrega::create(['tipo' => 'corporate', 'corporate_id' => $empresa->id, 'zona_id' => $this->lisboa->id, 'dia_semana' => 'Quarta', 'ordem' => $i + 1]);
+        }
+
+        \Illuminate\Support\Facades\Http::fake([
+            'nominatim.test/*' => function ($request) {
+                return \Illuminate\Support\Facades\Http::response(str_contains(urldecode($request->url()), '1990-001')
+                    ? [['lat' => '38.80', 'lon' => '-9.10']]
+                    : [['lat' => '38.70', 'lon' => '-9.10']]);
+            },
+            // Pontos: armazem, longe, perto.
+            'osrm.test/*' => \Illuminate\Support\Facades\Http::response(['code' => 'Ok', 'durations' => [
+                [0, 6000, 3000],
+                [6000, 0, 1800],
+                [3000, 1800, 0],
+            ]]),
+        ]);
+
+        // Ver a pagina nao procura moradas.
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))->assertOk();
+        \Illuminate\Support\Facades\Http::assertNotSent(fn ($request) => str_contains($request->url(), 'nominatim'));
+
+        $this->actingAs($this->admin)
+            ->post(route('entregas.organizar'), ['dia_semana' => 'Quarta', 'zona_id' => $this->lisboa->id])
+            ->assertSessionHasNoErrors();
+
+        $ordem = AtribuicaoEntrega::where('zona_id', $this->lisboa->id)->orderBy('ordem')->get()->map(fn ($a) => $a->corporate->empresa)->all();
+        $this->assertSame(['Perto Lda', 'Longe Lda'], $ordem);
+        $this->assertSame(2, \App\Models\Localizacao::whereNotNull('lat')->count());
+    }
+
     public function test_rotas_de_outra_semana_e_partida_da_zona(): void
     {
         $this->entrega('Sonae', $this->norte);

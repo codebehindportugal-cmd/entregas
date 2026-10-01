@@ -1542,4 +1542,24 @@ class WooOrder extends Model
 
         return null;
     }
+
+    /**
+     * Morada, codigo postal e localidade de entrega (a de envio, ou a de
+     * faturacao quando a de envio vem vazia).
+     *
+     * @return array{morada: ?string, cp: string, localidade: string}
+     */
+    public function enderecoDeEntrega(): array
+    {
+        $payload = is_array($this->raw_payload) ? $this->raw_payload : [];
+        $shipping = (array) ($payload['shipping'] ?? []);
+        $billing = (array) ($payload['billing'] ?? []);
+        $campo = fn (string $chave): string => trim((string) (($shipping[$chave] ?? null) ?: ($billing[$chave] ?? '')));
+
+        return [
+            'morada' => trim($campo('address_1').' '.$campo('address_2')) ?: null,
+            'cp' => $campo('postcode'),
+            'localidade' => $campo('city'),
+        ];
+    }
 }
