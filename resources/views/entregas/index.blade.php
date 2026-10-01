@@ -1,217 +1,311 @@
+@php
+    // Uma cor por colaborador, para ligar o selo na lista a rota respetiva.
+    $paleta = ['#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#A855F7', '#14B8A6', '#F97316', '#EAB308', '#06B6D4', '#EF4444'];
+    $cores = $rotas->values()->mapWithKeys(fn ($rota, $i) => [$rota['user']->id => $paleta[$i % count($paleta)]]);
+    $porAtribuir = $entregas->whereNull('user_id')->count();
+    $totalEmpresas = $entregas->where('tipo', 'corporate')->count();
+    $totalB2c = $entregas->where('tipo', 'b2c')->count();
+@endphp
+
 <x-layouts.app title="Entregas">
-    <x-page-title title="Entregas" subtitle="Atribuicoes por dia da semana" />
-    <form method="get" class="mb-5 flex flex-wrap gap-2">
-        <input type="hidden" name="q" value="{{ $q }}">
-        <input type="hidden" name="user_id" value="{{ $userId }}">
+    <x-page-title title="Rotas" subtitle="Atribuir as entregas do dia a cada colaborador" />
+
+    {{-- Dias --}}
+    <nav class="mb-4 flex flex-wrap gap-2">
         @foreach($dias as $diaOption)
-            <button name="dia" value="{{ $diaOption }}" class="rounded px-4 py-2 text-sm {{ $dia === $diaOption ? 'bg-[#3B82F6] text-white' : 'bg-white/10 text-slate-300' }}">{{ $diaOption }}</button>
+            <a href="{{ route('entregas.index', ['dia' => $diaOption]) }}"
+               class="rounded px-4 py-2 text-sm {{ $dia === $diaOption ? 'bg-[#3B82F6] font-semibold text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15' }}">{{ $diaOption }}</a>
         @endforeach
-    </form>
-    <form method="get" class="mb-6 grid gap-3 rounded border border-white/10 bg-[#151E2D] p-4 lg:grid-cols-[2fr_1fr_auto]">
-        <input type="hidden" name="dia" value="{{ $dia }}">
-        <label class="text-sm text-slate-300">Pesquisar
-            <input name="q" value="{{ $q }}" placeholder="Empresa, cliente B2C, telefone..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-        </label>
-        <label class="text-sm text-slate-300">Colaborador
-            <select name="user_id" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                <option value="0">Todos</option>
-                @foreach($colaboradores as $colaborador)
-                    <option value="{{ $colaborador->id }}" @selected($userId === $colaborador->id)>{{ $colaborador->name }}</option>
-                @endforeach 
-            </select>
-        </label>
-        <div class="flex items-end gap-2">
-            <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Filtrar</button>
-            <a href="{{ route('entregas.index', ['dia' => $dia]) }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Limpar</a>
-        </div>
-    </form>
-    <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
-        <h2 class="mb-4 text-lg font-semibold text-white">Atribuir em massa</h2>
-        <form method="post" action="{{ route('entregas.atribuicoes.bulk') }}" class="space-y-4">
-            @csrf
-            <input type="hidden" name="dia_semana" value="{{ $dia }}">
-            <div class="grid gap-4 lg:grid-cols-[1fr_auto]">
-                <select name="user_id" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                    @foreach($colaboradores as $colaborador)
-                        <option value="{{ $colaborador->id }}">{{ $colaborador->name }}</option>
-                    @endforeach
-                </select>
-                <button @disabled($corporates->isEmpty() && $b2cOrders->isEmpty()) class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A] disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300">Atribuir selecionadas</button>
-            </div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Empresas</p>
-            <div class="grid max-h-96 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
-                @forelse($corporates as $corporate)
-                    @php($atribuida = $atribuicoes->firstWhere('corporate_id', $corporate->id))
-                    <label class="flex gap-3 rounded border border-white/10 bg-[#0A0F1A] p-3 text-sm">
-                        <input name="corporate_ids[]" type="checkbox" value="{{ $corporate->id }}" class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
-                        <span>
-                            <span class="block font-semibold text-white">{{ $corporate->empresa }}</span>
-                            <span class="block text-xs text-slate-400">{{ $corporate->sucursal ?: $corporate->moradaParaEntrega() }}</span>
-                            @if($atribuida)
-                                <span class="mt-2 inline-block rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Atual: {{ $atribuida->user->name }}</span>
-                            @else
-                                <span class="mt-2 inline-block rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200">Sem colaborador</span>
-                            @endif
-                        </span>
-                    </label>
-                @empty
-                    <p class="rounded border border-white/10 bg-[#0A0F1A] p-4 text-slate-400">Sem empresas com entrega neste dia.</p>
-                @endforelse
-            </div>
-            <p class="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Clientes B2C para {{ \Illuminate\Support\Carbon::parse($dataB2c)->format('d/m/Y') }}</p>
-            <div class="grid max-h-96 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
-                @forelse($b2cOrders as $order)
-                    @php($atribuida = $atribuicoes->firstWhere('woo_order_id', $order->id))
-                    <label class="flex gap-3 rounded border border-white/10 bg-[#0A0F1A] p-3 text-sm">
-                        <input name="woo_order_ids[]" type="checkbox" value="{{ $order->id }}" class="mt-1 rounded border-white/10 bg-[#0A0F1A]">
-                        <span>
-                            <span class="block font-semibold text-white">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</span>
-                            <span class="block text-xs text-slate-400">{{ $order->billing_phone ?: $order->billing_email }}</span>
-                            @if($atribuida)
-                                <span class="mt-2 inline-block rounded bg-[#3B82F6]/15 px-2 py-1 text-xs text-blue-200">Atual: {{ $atribuida->user->name }}</span>
-                            @else
-                                <span class="mt-2 inline-block rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200">Sem colaborador</span>
-                            @endif
-                        </span>
-                    </label>
-                @empty
-                    <p class="rounded border border-white/10 bg-[#0A0F1A] p-4 text-slate-400">Sem encomendas B2C para este dia.</p>
-                @endforelse
-            </div>
-        </form>
+    </nav>
+
+    {{-- Resumo do dia --}}
+    <div class="mb-6 flex flex-wrap items-center gap-2 rounded border border-white/10 bg-[#151E2D] p-4 text-sm">
+        <span class="mr-2 text-slate-300">
+            <strong class="text-white">{{ $entregas->count() }}</strong> entregas para {{ \Illuminate\Support\Carbon::parse($dataDia)->format('d/m') }}
+        </span>
+        @if($porAtribuir > 0)
+            <span class="rounded bg-[#F59E0B]/15 px-2 py-1 font-semibold text-amber-200">{{ $porAtribuir }} por atribuir</span>
+        @elseif($entregas->isNotEmpty())
+            <span class="rounded bg-[#22C55E]/15 px-2 py-1 font-semibold text-green-200">Tudo atribuído</span>
+        @endif
+        <span class="mx-1 hidden h-5 w-px bg-white/10 sm:inline-block"></span>
+        @foreach($rotas as $rota)
+            <a href="#rota-{{ $rota['user']->id }}" class="inline-flex items-center gap-2 rounded bg-white/5 px-2 py-1 text-slate-200 hover:bg-white/10">
+                <span class="h-2.5 w-2.5 rounded-full" style="background: {{ $cores[$rota['user']->id] }}"></span>
+                {{ $rota['user']->name }}
+                <strong class="text-white">{{ $rota['paragens']->count() }}</strong>
+            </a>
+        @endforeach
     </div>
 
-    <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
-        <h2 class="mb-4 text-lg font-semibold text-white">Atribuicao individual corporate</h2>
-        <form method="post" action="{{ route('entregas.atribuicoes.store') }}" class="grid gap-4 lg:grid-cols-4">
-            @csrf
-            <input type="hidden" name="tipo" value="corporate">
-            <input type="hidden" name="dia_semana" value="{{ $dia }}">
-            <select name="corporate_id" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                @forelse($corporates as $corporate)
-                    <option value="{{ $corporate->id }}">{{ $corporate->empresa }}{{ $corporate->sucursal ? ' - '.$corporate->sucursal : '' }}</option>
-                @empty
-                    <option value="">Sem empresas com entrega neste dia</option>
-                @endforelse
-            </select>
-            <select name="user_id" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                @foreach($colaboradores as $colaborador)
-                    <option value="{{ $colaborador->id }}">{{ $colaborador->name }}</option>
-                @endforeach
-            </select>
-            <button @disabled($corporates->isEmpty()) class="rounded bg-[#3B82F6] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300">Atribuir uma</button>
-        </form>
-    </div>
-    <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
-        <h2 class="mb-4 text-lg font-semibold text-white">Atribuicao individual B2C</h2>
-        <form method="post" action="{{ route('entregas.atribuicoes.store') }}" class="grid gap-4 lg:grid-cols-4">
-            @csrf
-            <input type="hidden" name="tipo" value="b2c">
-            <input type="hidden" name="dia_semana" value="{{ $dia }}">
-            <select name="woo_order_id" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                @forelse($b2cOrders as $order)
-                    <option value="{{ $order->id }}">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</option>
-                @empty
-                    <option value="">Sem encomendas B2C neste dia</option>
-                @endforelse
-            </select>
-            <select name="user_id" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                @foreach($colaboradores as $colaborador)
-                    <option value="{{ $colaborador->id }}">{{ $colaborador->name }}</option>
-                @endforeach
-            </select>
-            <button @disabled($b2cOrders->isEmpty()) class="rounded bg-[#3B82F6] px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300">Atribuir B2C</button>
-        </form>
-    </div>
-    @php($podeOrdenar = blank($q))
-    <div class="grid gap-6">
-        @forelse($atribuicoes->groupBy('user_id') as $rotaUserId => $rota)
-            <section class="rounded border border-white/10 bg-[#151E2D] p-5" data-rota>
-                <form id="ordem-rota-{{ $rotaUserId }}" method="post" action="{{ route('entregas.ordem.update') }}">
-                    @csrf
-                    @method('put')
-                    <input type="hidden" name="dia_semana" value="{{ $dia }}">
-                    <input type="hidden" name="user_id" value="{{ $rotaUserId }}">
-                </form>
-                <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h2 class="text-lg font-semibold text-white">Rota de {{ $rota->first()->user?->name ?? 'Sem colaborador' }} &middot; {{ $dia }}</h2>
-                        <p class="text-sm text-slate-400">{{ $rota->count() }} {{ $rota->count() === 1 ? 'entrega' : 'entregas' }}.
-                            @if($podeOrdenar)
-                                Arraste pela pega ou use as setas para pôr pela ordem da volta e grave.
-                            @else
-                                Limpe a pesquisa para poder ordenar a rota.
-                            @endif
-                        </p>
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+
+        {{-- ─────────── Entregas do dia ─────────── --}}
+        <section class="rounded border border-white/10 bg-[#151E2D] lg:sticky lg:top-4" data-entregas>
+            <form id="form-atribuir" method="post" action="{{ route('entregas.atribuicoes.bulk') }}">
+                @csrf
+                <input type="hidden" name="dia_semana" value="{{ $dia }}">
+            </form>
+
+            <div class="space-y-3 border-b border-white/10 p-4">
+                <div class="flex items-baseline justify-between gap-3">
+                    <h2 class="text-lg font-semibold text-white">Entregas do dia</h2>
+                    <span class="text-xs text-slate-400">ordenadas por código postal</span>
+                </div>
+
+                <input type="search" placeholder="Procurar nome, morada, código postal, telefone…" autocomplete="off"
+                       class="w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white placeholder:text-slate-500" data-filtro-texto>
+
+                <div class="flex flex-wrap gap-2 text-sm">
+                    <div class="inline-flex overflow-hidden rounded border border-white/10" role="group" aria-label="Estado">
+                        <button type="button" class="px-3 py-1.5" data-filtro-estado="pendentes">Por atribuir <span class="opacity-70">{{ $porAtribuir }}</span></button>
+                        <button type="button" class="border-l border-white/10 px-3 py-1.5" data-filtro-estado="todas">Todas <span class="opacity-70">{{ $entregas->count() }}</span></button>
                     </div>
-                    @if($podeOrdenar)
-                        <div class="flex items-center gap-3">
-                            <span class="hidden rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200" data-rota-alterada>Por guardar</span>
-                            <button form="ordem-rota-{{ $rotaUserId }}" class="rounded bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#0A0F1A]">Guardar ordem</button>
-                        </div>
+                    <div class="inline-flex overflow-hidden rounded border border-white/10" role="group" aria-label="Tipo">
+                        <button type="button" class="px-3 py-1.5" data-filtro-tipo="">Tudo</button>
+                        <button type="button" class="border-l border-white/10 px-3 py-1.5" data-filtro-tipo="corporate">Empresas <span class="opacity-70">{{ $totalEmpresas }}</span></button>
+                        <button type="button" class="border-l border-white/10 px-3 py-1.5" data-filtro-tipo="b2c">B2C <span class="opacity-70">{{ $totalB2c }}</span></button>
+                    </div>
+                </div>
+
+                <label class="flex items-center gap-2 text-sm text-slate-300">
+                    <input type="checkbox" class="rounded border-white/10 bg-[#0A0F1A]" data-selecionar-visiveis>
+                    Selecionar as que estão à vista
+                </label>
+            </div>
+
+            <div class="max-h-[60vh] overflow-y-auto p-2 lg:max-h-[calc(100vh-22rem)]" data-lista-entregas>
+                @foreach($entregas as $entrega)
+                    <label class="flex cursor-pointer gap-3 rounded p-2.5 hover:bg-white/5 has-[:checked]:bg-[#3B82F6]/15"
+                           data-entrega
+                           data-tipo="{{ $entrega['tipo'] }}"
+                           data-atribuida="{{ $entrega['user_id'] ? '1' : '0' }}"
+                           data-busca="{{ mb_strtolower(implode(' ', array_filter([$entrega['nome'], $entrega['morada'], $entrega['cp'], $entrega['localidade'], $entrega['detalhe'], $entrega['user_nome']]))) }}">
+                        <input type="checkbox" form="form-atribuir"
+                               name="{{ $entrega['tipo'] === 'corporate' ? 'corporate_ids[]' : 'woo_order_ids[]' }}"
+                               value="{{ $entrega['id'] }}"
+                               class="mt-1 shrink-0 rounded border-white/10 bg-[#0A0F1A]" data-entrega-check>
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-start justify-between gap-2">
+                                <span class="font-semibold text-white">{{ $entrega['nome'] }}</span>
+                                @if($entrega['user_id'])
+                                    <span class="inline-flex shrink-0 items-center gap-1.5 rounded bg-white/5 px-2 py-0.5 text-xs text-slate-200">
+                                        <span class="h-2 w-2 rounded-full" style="background: {{ $cores[$entrega['user_id']] ?? '#64748B' }}"></span>{{ $entrega['user_nome'] }}
+                                    </span>
+                                @else
+                                    <span class="shrink-0 rounded bg-[#F59E0B]/15 px-2 py-0.5 text-xs text-amber-200">Por atribuir</span>
+                                @endif
+                            </span>
+                            <span class="mt-0.5 block truncate text-xs text-slate-400">
+                                @if($entrega['cp'] || $entrega['localidade'])
+                                    <span class="font-semibold text-slate-200">{{ trim($entrega['cp'].' '.$entrega['localidade']) }}</span>
+                                    @if($entrega['morada']) · @endif
+                                @endif
+                                {{ $entrega['morada'] ?: ($entrega['cp'] || $entrega['localidade'] ? '' : 'Morada por definir') }}
+                            </span>
+                            <span class="mt-0.5 block text-xs text-slate-500">
+                                {{ $entrega['tipo'] === 'corporate' ? 'Empresa' : 'B2C' }}@if($entrega['detalhe']) · {{ $entrega['detalhe'] }}@endif
+                            </span>
+                        </span>
+                    </label>
+                @endforeach
+
+                <p class="hidden p-6 text-center text-sm text-slate-400" data-lista-vazia>
+                    @if($entregas->isEmpty())
+                        Sem entregas neste dia.
+                    @else
+                        <span data-vazia-pendentes>Está tudo atribuído. 🎉<br><button type="button" class="mt-2 underline" data-filtro-estado="todas">Ver todas</button></span>
+                        <span data-vazia-filtro>Nenhuma entrega corresponde à pesquisa.</span>
                     @endif
+                </p>
+            </div>
+
+            {{-- Barra de atribuir --}}
+            <div class="sticky bottom-0 rounded-b border-t border-white/10 bg-[#151E2D] p-3 shadow-[0_-6px_12px_-8px_rgba(0,0,0,0.25)]">
+                <p class="text-sm text-slate-400" data-barra-vazia>Marque as entregas e depois carregue no colaborador.</p>
+                <div class="hidden space-y-2" data-barra-ativa>
+                    <div class="flex items-center justify-between gap-2 text-sm">
+                        <span class="text-white"><strong data-contagem>0</strong> selecionadas — atribuir a:</span>
+                        <button type="button" class="text-slate-400 underline hover:text-slate-200" data-limpar-selecao>Limpar</button>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach($colaboradores as $colaborador)
+                            <button form="form-atribuir" name="user_id" value="{{ $colaborador->id }}"
+                                    class="inline-flex items-center gap-2 rounded bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20">
+                                <span class="h-2.5 w-2.5 rounded-full" style="background: {{ $cores[$colaborador->id] ?? '#64748B' }}"></span>{{ $colaborador->name }}
+                            </button>
+                        @endforeach
+                    </div>
                 </div>
-                <div class="grid gap-2" data-rota-lista>
-                    @foreach($rota as $atribuicao)
-                        <div class="rounded border border-white/10 bg-[#0A0F1A] p-3" data-rota-item>
-                            @if($podeOrdenar)
-                                <input type="hidden" form="ordem-rota-{{ $rotaUserId }}" name="ordens[{{ $atribuicao->id }}]" value="{{ $loop->iteration }}" data-rota-ordem>
-                            @endif
-                            <div class="grid gap-3 lg:grid-cols-[auto_1fr_2fr_auto] lg:items-center">
-                                <div class="flex items-center gap-2">
-                                    @if($podeOrdenar)
-                                        <span class="cursor-grab select-none rounded bg-white/10 px-2 py-1 text-slate-300" title="Arrastar" data-rota-pega>&#8942;&#8942;</span>
-                                    @endif
-                                    <span class="inline-flex h-8 min-w-8 items-center justify-center rounded bg-[#3B82F6] px-2 text-sm font-semibold text-white" data-rota-numero>{{ $loop->iteration }}</span>
-                                    @if($podeOrdenar)
-                                        <button type="button" class="rounded bg-white/10 px-2 py-1 text-sm text-slate-200" title="Subir" data-rota-subir>&uarr;</button>
-                                        <button type="button" class="rounded bg-white/10 px-2 py-1 text-sm text-slate-200" title="Descer" data-rota-descer>&darr;</button>
-                                    @endif
-                                </div>
-                                <div>
-                                    @if($atribuicao->tipo === 'b2c')
-                                        <p class="font-semibold text-white">#{{ $atribuicao->wooOrder->woo_id }} {{ $atribuicao->wooOrder->billing_name ?: 'Sem nome' }}</p>
-                                        <p class="text-sm text-slate-400">B2C - {{ $atribuicao->wooOrder->billing_phone ?: $atribuicao->wooOrder->billing_email }}</p>
-                                    @else
-                                        <p class="font-semibold text-white">{{ $atribuicao->corporate->empresa }}{{ $atribuicao->corporate->sucursal ? ' - '.$atribuicao->corporate->sucursal : '' }}</p>
-                                        <p class="text-sm text-slate-400">{{ $atribuicao->corporate->moradaParaEntrega() ?: 'Morada por definir' }}{{ $atribuicao->corporate->horario_entrega ? ' · '.$atribuicao->corporate->horario_entrega : '' }}</p>
-                                    @endif
-                                </div>
-                                <form method="post" action="{{ route('entregas.atribuicoes.update', $atribuicao) }}" class="grid gap-3 sm:grid-cols-[1fr_auto]">
-                                    @csrf
-                                    @method('put')
-                                    <input type="hidden" name="tipo" value="{{ $atribuicao->tipo }}">
-                                    <input type="hidden" name="corporate_id" value="{{ $atribuicao->corporate_id }}">
-                                    <input type="hidden" name="woo_order_id" value="{{ $atribuicao->woo_order_id }}">
-                                    <input type="hidden" name="dia_semana" value="{{ $dia }}">
-                                    <select name="user_id" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
-                                        @foreach($colaboradores as $colaborador)
-                                            <option value="{{ $colaborador->id }}" @selected($atribuicao->user_id === $colaborador->id)>{{ $colaborador->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <button class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Atualizar</button>
-                                </form>
-                                <form method="post" action="{{ route('entregas.atribuicoes.destroy', $atribuicao) }}">
-                                    @csrf
-                                    @method('delete')
-                                    <button class="w-full rounded bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-200 hover:bg-red-500/25">Remover</button>
-                                </form>
-                            </div>
+            </div>
+        </section>
+
+        {{-- ─────────── Rotas ─────────── --}}
+        <div class="grid gap-4">
+            @foreach($rotas as $rota)
+                @php($user = $rota['user'])
+                @php($paragens = $rota['paragens'])
+                <section id="rota-{{ $user->id }}" class="scroll-mt-4 rounded border border-white/10 bg-[#151E2D]" style="border-left: 4px solid {{ $cores[$user->id] }}" data-rota>
+                    <form id="ordem-rota-{{ $user->id }}" method="post" action="{{ route('entregas.ordem.update') }}">
+                        @csrf
+                        @method('put')
+                        <input type="hidden" name="dia_semana" value="{{ $dia }}">
+                        <input type="hidden" name="user_id" value="{{ $user->id }}">
+                    </form>
+
+                    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                        <div>
+                            <h2 class="text-base font-semibold text-white">{{ $user->name }}@unless($user->ativo) <span class="text-xs font-normal text-slate-400">(inativo)</span>@endunless</h2>
+                            <p class="text-xs text-slate-400">
+                                {{ $paragens->count() }} {{ $paragens->count() === 1 ? 'entrega' : 'entregas' }}
+                                @if($paragens->count() > 1) · arraste ou use as setas para pôr pela ordem da volta @endif
+                            </p>
                         </div>
-                    @endforeach
-                </div>
-            </section>
-        @empty
-            <p class="rounded border border-white/10 bg-[#151E2D] p-4 text-slate-400">Sem atribuicoes para este dia.</p>
-        @endforelse
+                        @if($paragens->count() > 1)
+                            <div class="flex items-center gap-2">
+                                <span class="hidden rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200" data-rota-alterada>Ordem por guardar</span>
+                                <button form="ordem-rota-{{ $user->id }}" class="rounded bg-[#22C55E] px-3 py-1.5 text-sm font-semibold text-[#0A0F1A]">Guardar ordem</button>
+                            </div>
+                        @endif
+                    </header>
+
+                    @if($paragens->isEmpty())
+                        <p class="p-4 text-sm text-slate-400">Sem entregas. Marque-as na lista e carregue em <strong class="text-slate-200">{{ $user->name }}</strong>.</p>
+                    @else
+                        <ol class="divide-y divide-white/5" data-rota-lista>
+                            @foreach($paragens as $paragem)
+                                @php($atribuicao = $paragem['atribuicao'])
+                                <li class="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5" data-rota-item>
+                                    <input type="hidden" form="ordem-rota-{{ $user->id }}" name="ordens[{{ $atribuicao->id }}]" value="{{ $loop->iteration }}" data-rota-ordem>
+
+                                    <div class="flex shrink-0 items-center gap-1">
+                                        <span class="hidden cursor-grab select-none px-1 text-slate-500 hover:text-slate-200 sm:inline" title="Arrastar" data-rota-pega>&#8942;&#8942;</span>
+                                        <span class="inline-flex h-7 min-w-7 items-center justify-center rounded px-1.5 text-sm font-semibold text-white" style="background: {{ $cores[$user->id] }}" data-rota-numero>{{ $loop->iteration }}</span>
+                                        <span class="flex flex-col">
+                                            <button type="button" class="px-1 text-xs leading-none text-slate-400 hover:text-white" title="Subir" data-rota-subir>&#9650;</button>
+                                            <button type="button" class="px-1 text-xs leading-none text-slate-400 hover:text-white" title="Descer" data-rota-descer>&#9660;</button>
+                                        </span>
+                                    </div>
+
+                                    <div class="min-w-0 flex-1 basis-48">
+                                        <p class="truncate font-semibold text-white">{{ $paragem['nome'] }}</p>
+                                        <p class="truncate text-xs text-slate-400">
+                                            @if($paragem['cp'] || $paragem['localidade'])<span class="text-slate-200">{{ trim($paragem['cp'].' '.$paragem['localidade']) }}</span> · @endif{{ $paragem['morada'] ?: 'Morada por definir' }}@if($paragem['tipo'] === 'corporate' && $paragem['detalhe']) · {{ $paragem['detalhe'] }}@endif
+                                        </p>
+                                    </div>
+
+                                    <div class="ml-auto flex shrink-0 items-center gap-1">
+                                    <form method="post" action="{{ route('entregas.atribuicoes.update', $atribuicao) }}">
+                                        @csrf
+                                        @method('put')
+                                        <input type="hidden" name="tipo" value="{{ $atribuicao->tipo }}">
+                                        <input type="hidden" name="corporate_id" value="{{ $atribuicao->corporate_id }}">
+                                        <input type="hidden" name="woo_order_id" value="{{ $atribuicao->woo_order_id }}">
+                                        <input type="hidden" name="dia_semana" value="{{ $atribuicao->dia_semana }}">
+                                        <select name="user_id" title="Passar para outro colaborador"
+                                                class="max-w-32 rounded border border-white/10 bg-[#0A0F1A] px-2 py-1 text-xs text-slate-200" data-mover>
+                                            <option value="{{ $user->id }}" selected>Passar para…</option>
+                                            @foreach($colaboradores as $colaborador)
+                                                @continue($colaborador->id === $user->id)
+                                                <option value="{{ $colaborador->id }}">{{ $colaborador->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </form>
+
+                                    <form method="post" action="{{ route('entregas.atribuicoes.destroy', $atribuicao) }}"
+                                          data-remover="{{ $paragem['nome'] }}">
+                                        @csrf
+                                        @method('delete')
+                                        <button class="rounded px-2 py-1 text-slate-500 hover:bg-red-500/15 hover:text-red-200" title="Tirar desta rota">&#10005;</button>
+                                    </form>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ol>
+                    @endif
+                </section>
+            @endforeach
+        </div>
     </div>
 
     <script>
         (() => {
+            /* ── Lista de entregas: filtros e selecao ── */
+            const painel = document.querySelector('[data-entregas]');
+            const linhas = [...painel.querySelectorAll('[data-entrega]')];
+            const texto = painel.querySelector('[data-filtro-texto]');
+            const selVisiveis = painel.querySelector('[data-selecionar-visiveis]');
+            const vazia = painel.querySelector('[data-lista-vazia]');
+            const barraVazia = painel.querySelector('[data-barra-vazia]');
+            const barraAtiva = painel.querySelector('[data-barra-ativa]');
+            const contagem = painel.querySelector('[data-contagem]');
+
+            const guardado = (() => { try { return JSON.parse(sessionStorage.getItem('rotas-filtros') || '{}'); } catch { return {}; } })();
+            const filtros = {
+                estado: guardado.estado ?? ({{ $porAtribuir }} > 0 ? 'pendentes' : 'todas'),
+                tipo: guardado.tipo ?? '',
+            };
+
+            const visiveis = () => linhas.filter((l) => ! l.hidden);
+
+            const atualizarSelecao = () => {
+                const n = linhas.filter((l) => l.querySelector('[data-entrega-check]').checked).length;
+                contagem.textContent = n;
+                barraVazia.classList.toggle('hidden', n > 0);
+                barraAtiva.classList.toggle('hidden', n === 0);
+                const vis = visiveis();
+                const marcadas = vis.filter((l) => l.querySelector('[data-entrega-check]').checked).length;
+                selVisiveis.checked = vis.length > 0 && marcadas === vis.length;
+                selVisiveis.indeterminate = marcadas > 0 && marcadas < vis.length;
+            };
+
+            const aplicar = () => {
+                const termos = texto.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+                linhas.forEach((l) => {
+                    l.hidden = (filtros.estado === 'pendentes' && l.dataset.atribuida === '1')
+                        || (filtros.tipo && l.dataset.tipo !== filtros.tipo)
+                        || ! termos.every((t) => l.dataset.busca.includes(t));
+                });
+                painel.querySelectorAll('[data-filtro-estado]').forEach((b) => marcarBotao(b, b.dataset.filtroEstado === filtros.estado));
+                painel.querySelectorAll('[data-filtro-tipo]').forEach((b) => marcarBotao(b, b.dataset.filtroTipo === filtros.tipo));
+                const nenhuma = visiveis().length === 0;
+                vazia.classList.toggle('hidden', ! nenhuma);
+                const soPendentes = filtros.estado === 'pendentes' && ! termos.length && ! filtros.tipo;
+                vazia.querySelector('[data-vazia-pendentes]')?.classList.toggle('hidden', ! soPendentes);
+                vazia.querySelector('[data-vazia-filtro]')?.classList.toggle('hidden', soPendentes);
+                try { sessionStorage.setItem('rotas-filtros', JSON.stringify(filtros)); } catch {}
+                atualizarSelecao();
+            };
+
+            function marcarBotao(botao, ativo) {
+                if (botao.closest('[data-lista-vazia]')) return;
+                botao.classList.toggle('bg-[#3B82F6]', ativo);
+                botao.classList.toggle('text-white', ativo);
+                botao.classList.toggle('text-slate-300', ! ativo);
+            }
+
+            painel.querySelectorAll('[data-filtro-estado]').forEach((b) => b.addEventListener('click', () => { filtros.estado = b.dataset.filtroEstado; aplicar(); }));
+            painel.querySelectorAll('[data-filtro-tipo]').forEach((b) => b.addEventListener('click', () => { filtros.tipo = b.dataset.filtroTipo; aplicar(); }));
+            texto.addEventListener('input', aplicar);
+            linhas.forEach((l) => l.querySelector('[data-entrega-check]').addEventListener('change', atualizarSelecao));
+            selVisiveis.addEventListener('change', () => {
+                visiveis().forEach((l) => { l.querySelector('[data-entrega-check]').checked = selVisiveis.checked; });
+                atualizarSelecao();
+            });
+            painel.querySelector('[data-limpar-selecao]').addEventListener('click', () => {
+                linhas.forEach((l) => { l.querySelector('[data-entrega-check]').checked = false; });
+                atualizarSelecao();
+            });
+
+            aplicar();
+
+            /* ── Rotas: ordenar ── */
+            let ordemPorGuardar = false;
+
             document.querySelectorAll('[data-rota]').forEach((rota) => {
                 const lista = rota.querySelector('[data-rota-lista]');
                 const aviso = rota.querySelector('[data-rota-alterada]');
-                if (! lista || ! rota.querySelector('[data-rota-pega]')) return;
+                if (! lista) return;
 
                 const renumerar = () => {
                     lista.querySelectorAll('[data-rota-item]').forEach((item, i) => {
@@ -219,6 +313,7 @@
                         item.querySelector('[data-rota-ordem]').value = i + 1;
                     });
                     aviso?.classList.remove('hidden');
+                    ordemPorGuardar = true;
                 };
 
                 let arrastado = null;
@@ -261,6 +356,38 @@
                         });
                     lista.insertBefore(arrastado, alvo ?? null);
                 });
+
+                rota.querySelector(`form[id^="ordem-rota-"]`).addEventListener('submit', () => { ordemPorGuardar = false; });
+            });
+
+            const perderOrdem = () => ! ordemPorGuardar || confirm('Há uma ordem de rota por guardar que se vai perder. Continuar?');
+
+            /* ── Passar para outro colaborador / tirar da rota ── */
+            document.querySelectorAll('[data-mover]').forEach((select) => {
+                const original = select.value;
+                select.addEventListener('change', () => {
+                    if (select.value === original) return;
+                    if (! perderOrdem()) { select.value = original; return; }
+                    ordemPorGuardar = false;
+                    select.form.submit();
+                });
+            });
+
+            document.querySelectorAll('[data-remover]').forEach((form) => form.addEventListener('submit', (e) => {
+                if (! confirm(`Tirar "${form.dataset.remover}" desta rota? Volta a ficar por atribuir.`) || ! perderOrdem()) {
+                    e.preventDefault();
+                    return;
+                }
+                ordemPorGuardar = false;
+            }));
+
+            document.getElementById('form-atribuir').addEventListener('submit', (e) => {
+                if (! perderOrdem()) { e.preventDefault(); return; }
+                ordemPorGuardar = false;
+            });
+
+            window.addEventListener('beforeunload', (e) => {
+                if (ordemPorGuardar) { e.preventDefault(); e.returnValue = ''; }
             });
         })();
     </script>
