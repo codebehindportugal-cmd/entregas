@@ -135,6 +135,50 @@ class SubscricaoMudarDatasTest extends TestCase
         $this->assertSame(['2026-09-16', '2026-09-23', '2026-10-07', '2026-10-14'], $this->datas($order));
     }
 
+    public function test_adiar_uma_entrega_para_o_proprio_dia_salta_essa_entrega(): void
+    {
+        // Escolher a entrega de 07/10 e pedir para a adiar "para 07/10" deixava-a
+        // "Adiada" no mesmo dia e o ciclo nao ganhava mais uma entrega no fim.
+        $order = $this->subscricao();
+        $this->preparada($order, '2026-09-16', '2026-09-23', '2026-09-30');
+
+        $this->actingAs($this->admin)
+            ->put(route('encomendas.postpone', $order), ['delivery_date' => '2026-10-07', 'postponed_until' => '2026-10-07'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['2026-09-16', '2026-09-23', '2026-09-30', '2026-10-14'], $this->datas($order));
+        $this->assertResumo($order, feitas: 3, porRealizar: 1, proxima: '2026-10-14');
+    }
+
+    public function test_adiar_a_proxima_entrega_para_o_proprio_dia_empurra_as_restantes(): void
+    {
+        $order = $this->subscricao(['first_delivery_at' => '2026-09-23']);
+        $this->preparada($order, '2026-09-23', '2026-09-30');
+
+        $this->actingAs($this->admin)
+            ->put(route('encomendas.postpone', $order), ['delivery_date' => '', 'postponed_until' => '2026-10-07'])
+            ->assertSessionHasNoErrors();
+
+        $this->assertCalendario($order, [
+            '2026-09-23' => 'entregue',
+            '2026-09-30' => 'entregue',
+            '2026-10-14' => 'adiada',
+            '2026-10-21' => 'por_realizar',
+        ]);
+        $this->assertResumo($order, feitas: 2, porRealizar: 2, proxima: '2026-10-14');
+    }
+
+    public function test_a_entrega_adiada_pode_voltar_a_ser_escolhida_para_adiar(): void
+    {
+        $order = $this->subscricao(['first_delivery_at' => '2026-09-23', 'postponed_until' => '2026-10-07']);
+        $this->preparada($order, '2026-09-23', '2026-09-30');
+
+        $this->actingAs($this->admin)->get(route('encomendas.show', $order))
+            ->assertOk()
+            ->assertSee('<option value="2026-10-07">07/10/2026 (adiada)</option>', false)
+            ->assertSee('name="postponed_until" type="date" value=""', false);
+    }
+
     public function test_marcar_entrega_em_atraso_como_feita(): void
     {
         $order = $this->subscricao();

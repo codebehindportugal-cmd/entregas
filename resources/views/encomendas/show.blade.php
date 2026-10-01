@@ -265,12 +265,14 @@
                     @if($encomenda->isSubscricao())
                         <select name="delivery_date" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                             <option value="">Proxima entrega em aberto</option>
-                            @foreach($calendarioEntregas->whereIn('status', ['por_realizar', 'em_atraso']) as $entregaCalendario)
-                                <option value="{{ $entregaCalendario['data_key'] }}">{{ $entregaCalendario['data']->format('d/m/Y') }}{{ $entregaCalendario['status'] === 'em_atraso' ? ' (em atraso)' : '' }}</option>
+                            @foreach($calendarioEntregas->whereIn('status', ['por_realizar', 'em_atraso', 'adiada']) as $entregaCalendario)
+                                <option value="{{ $entregaCalendario['data_key'] }}">{{ $entregaCalendario['data']->format('d/m/Y') }}{{ match ($entregaCalendario['status']) { 'em_atraso' => ' (em atraso)', 'adiada' => ' (adiada)', default => '' } }}</option>
                             @endforeach
                         </select>
                     @endif
-                    <input name="postponed_until" type="date" value="{{ optional($encomenda->postponed_until)->toDateString() }}" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
+                    {{-- Na subscricao o campo comeca vazio: pre-preenchido com o adiamento
+                         atual, "Guardar" voltava a adiar outra entrega para esse dia. --}}
+                    <input name="postponed_until" type="date" value="{{ $encomenda->isSubscricao() ? '' : optional($encomenda->postponed_until)->toDateString() }}" title="Nova data da entrega" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                     <button class="rounded bg-[#F59E0B]/20 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-[#F59E0B]/30">Guardar adiamento</button>
                 </form>
 

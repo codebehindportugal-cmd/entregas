@@ -354,7 +354,21 @@ class EncomendaController extends Controller
             }
         }
 
-        if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {
+        $ehSubscricao = $encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true);
+
+        // Adiar uma entrega para o proprio dia dela nao adia nada (ficava
+        // "Adiada" no mesmo dia e o ciclo nao ganhava a entrega do fim). Quem
+        // faz isso quer saltar essa entrega: passa para o ciclo seguinte e as
+        // restantes andam com ela.
+        if ($ehSubscricao && $saltarSemanas === 0 && filled($destino)) {
+            $entregaEmCausa = ($data['delivery_date'] ?? null) ?: $encomenda->proximaEntregaPorRealizar();
+
+            if ($entregaEmCausa !== null && \Illuminate\Support\Carbon::parse($destino)->toDateString() === \Illuminate\Support\Carbon::parse($entregaEmCausa)->toDateString()) {
+                $destino = $encomenda->dataAdiadaEmSemanas($entregaEmCausa, $encomenda->semanasDeAdiamentoSugeridas()) ?? $destino;
+            }
+        }
+
+        if ($ehSubscricao) {
             if (filled($data['delivery_date'] ?? null)) {
                 $encomenda->adiarEntregaDaSubscricaoPara($data['delivery_date'], $destino);
             } else {
