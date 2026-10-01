@@ -48,6 +48,11 @@ class StoreFaturaApiRequest extends FormRequest
             'valor' => ['nullable', 'numeric', 'min:0'],
             'categoria' => ['nullable', 'string', 'max:50'],
             'notas' => ['nullable', 'string'],
+            // 01/10/2026: a matricula do carro (qualquer formato) e de onde vem
+            // a despesa — a gestao.ateneya.com manda o id do documento dela.
+            'viatura' => ['nullable', 'string', 'max:20'],
+            'origem' => ['nullable', 'string', 'max:50'],
+            'origem_ref' => ['nullable', 'string', 'max:100', 'required_with:origem'],
 
             'linhas' => ['required', 'array', 'min:1'],
             'linhas.*.descricao' => ['required', 'string', 'max:255'],

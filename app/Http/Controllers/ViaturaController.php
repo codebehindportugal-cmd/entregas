@@ -16,7 +16,12 @@ class ViaturaController extends Controller
     public function index(): View
     {
         return view('viaturas.index', [
+            // O que cada carro gastou este ano (combustivel, portagens,
+            // reparacoes...) — as despesas ligadas a ele, com IVA (01/10/2026).
+            'ano' => now()->year,
             'viaturas' => Viatura::query()
+                ->withSum(['despesas as gasto_ano' => fn ($q) => $q->whereYear('data', now()->year)], 'valor')
+                ->withCount(['despesas as despesas_ano' => fn ($q) => $q->whereYear('data', now()->year)])
                 ->orderByDesc('ativo')
                 ->orderBy('ordem')
                 ->orderBy('matricula')

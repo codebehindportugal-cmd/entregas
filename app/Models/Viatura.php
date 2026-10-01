@@ -28,6 +28,29 @@ class Viatura extends Model
         ];
     }
 
+    public function despesas(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Despesa::class);
+    }
+
+    /** "12-ab 34" e "12AB34" sao o mesmo carro: so letras e numeros, em maiusculas. */
+    public static function normalizarMatricula(?string $matricula): string
+    {
+        return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $matricula));
+    }
+
+    /** A viatura com esta matricula, escrita de qualquer maneira. */
+    public static function daMatricula(?string $matricula): ?self
+    {
+        $alvo = self::normalizarMatricula($matricula);
+
+        if ($alvo === '') {
+            return null;
+        }
+
+        return self::query()->get()->first(fn (self $v) => self::normalizarMatricula($v->matricula) === $alvo);
+    }
+
     public function scopeAtiva(Builder $query): Builder
     {
         return $query->where('ativo', true);

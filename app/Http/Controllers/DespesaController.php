@@ -22,15 +22,8 @@ use Throwable;
 
 class DespesaController extends Controller
 {
-    const CATEGORIAS = [
-        'sementes'          => 'Sementes',
-        'fertilizantes'     => 'Fertilizantes',
-        'fitofarmaceuticos' => 'Fitofarmacêuticos',
-        'combustivel'       => 'Combustível',
-        'mao_obra'          => 'Mão de obra',
-        'equipamento'       => 'Equipamento',
-        'outro'             => 'Outro',
-    ];
+    /** As categorias vivem no modelo (01/10/2026); fica o nome antigo para quem o use. */
+    const CATEGORIAS = Despesa::CATEGORIAS;
 
     const TAXAS_IVA = [0, 6, 13, 23];
 
@@ -46,7 +39,7 @@ class DespesaController extends Controller
         $fim = $inicio->copy()->endOfMonth();
 
         $query = Despesa::query()
-            ->with(['items', 'aiJobs' => fn ($query) => $query->latest()])
+            ->with(['items', 'viatura', 'aiJobs' => fn ($query) => $query->latest()])
             ->whereBetween('data', [$inicio->toDateString(), $fim->toDateString()])
             ->when(filled($search), fn ($q) => $q->where(function ($q) use ($search): void {
                 $q->where('titulo', 'like', "%{$search}%")
@@ -98,6 +91,8 @@ class DespesaController extends Controller
 
         return view('despesas.create', [
             'despesa' => new Despesa,
+            'categorias' => Despesa::CATEGORIAS,
+            'viaturas' => \App\Models\Viatura::query()->orderByDesc('ativo')->orderBy('ordem')->orderBy('matricula')->get(),
             'taxasIva' => self::TAXAS_IVA,
         ]);
     }
@@ -155,6 +150,8 @@ class DespesaController extends Controller
 
         $data = $request->validate([
             'titulo' => ['required', 'string', 'max:255'],
+            'categoria' => ['nullable', 'string', 'in:'.implode(',', array_keys(Despesa::CATEGORIAS))],
+            'viatura_id' => ['nullable', 'integer', 'exists:viaturas,id'],
             'numero_fatura' => ['nullable', 'string', 'max:100'],
             'fornecedor' => ['nullable', 'string', 'max:255'],
             'valor' => ['nullable', 'numeric', 'min:0'],
@@ -204,7 +201,8 @@ class DespesaController extends Controller
                 'fornecedor' => $data['fornecedor'] ?? null,
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
-                'categoria' => 'entrada_produtos',
+                'categoria' => $data['categoria'] ?? 'entrada_produtos',
+                'viatura_id' => $data['viatura_id'] ?? null,
                 'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);
@@ -244,6 +242,8 @@ class DespesaController extends Controller
         $despesa->load('items', 'aiJobs');
 
         return view('despesas.edit', [
+            'categorias' => Despesa::CATEGORIAS,
+            'viaturas' => \App\Models\Viatura::query()->orderByDesc('ativo')->orderBy('ordem')->orderBy('matricula')->get(),
             'despesa' => $despesa,
             'taxasIva' => self::TAXAS_IVA,
         ]);
@@ -255,6 +255,8 @@ class DespesaController extends Controller
 
         $data = $request->validate([
             'titulo' => ['required', 'string', 'max:255'],
+            'categoria' => ['nullable', 'string', 'in:'.implode(',', array_keys(Despesa::CATEGORIAS))],
+            'viatura_id' => ['nullable', 'integer', 'exists:viaturas,id'],
             'numero_fatura' => ['nullable', 'string', 'max:100'],
             'fornecedor' => ['nullable', 'string', 'max:255'],
             'valor' => ['nullable', 'numeric', 'min:0'],
@@ -307,7 +309,11 @@ class DespesaController extends Controller
                 'fornecedor' => $data['fornecedor'] ?? null,
                 'valor' => $valorCalculado,
                 'data' => $data['data'],
-                'categoria' => 'entrada_produtos',
+                // Antes isto repunha sempre "entrada_produtos": uma fatura de
+                // gasoleo vinda da gestao.ateneya.com perdia a categoria na
+                // primeira edicao (01/10/2026).
+                'categoria' => $data['categoria'] ?? $despesa->categoria,
+                'viatura_id' => $data['viatura_id'] ?? null,
                 'ficheiro_path' => $ficheiroPath,
                 'notas' => $data['notas'] ?? null,
             ]);

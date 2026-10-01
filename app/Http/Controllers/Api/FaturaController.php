@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreFaturaApiRequest;
 use App\Http\Requests\Api\StoreFaturasLoteApiRequest;
 use App\Models\Despesa;
+use App\Models\Viatura;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,7 +42,7 @@ class FaturaController extends Controller
         $existente = $this->jaRegistada($data);
 
         if ($existente !== null) {
-            $avisos[] = "fatura ja registada ({$data['numero_fatura']})";
+            $avisos[] = 'fatura ja registada ('.($data['numero_fatura'] ?? ($data['origem'] ?? '').' '.($data['origem_ref'] ?? '')).')';
 
             return $this->criado($this->formatar($existente->load('items')), $avisos);
         }
@@ -213,6 +214,19 @@ class FaturaController extends Controller
      */
     private function jaRegistada(array $data): ?Despesa
     {
+        // Vinda de outro sistema: o id de la e o que manda — os recibos de
+        // vencimento nao tem numero de fatura.
+        if (! empty($data['origem']) && ! empty($data['origem_ref'])) {
+            $daOrigem = Despesa::query()
+                ->where('origem', $data['origem'])
+                ->where('origem_ref', $data['origem_ref'])
+                ->first();
+
+            if ($daOrigem !== null) {
+                return $daOrigem;
+            }
+        }
+
         if (empty($data['numero_fatura'])) {
             return null;
         }
@@ -291,14 +305,31 @@ class FaturaController extends Controller
                 );
             }
 
+            $viatura = null;
+            if (! empty($data['viatura'])) {
+                $viatura = Viatura::daMatricula($data['viatura']);
+                if ($viatura === null) {
+                    $avisos[] = "a matricula {$data['viatura']} nao esta nas viaturas; a despesa ficou sem viatura.";
+                }
+            }
+
+            $categoria = $data['categoria'] ?? 'entrada_produtos';
+            if (! array_key_exists($categoria, Despesa::CATEGORIAS)) {
+                $avisos[] = "categoria desconhecida ({$categoria}); ficou como \"outro\".";
+                $categoria = 'outro';
+            }
+
             $despesa = Despesa::create([
                 'titulo' => $data['titulo'] ?? $this->tituloPorOmissao($data),
                 'numero_fatura' => $data['numero_fatura'] ?? null,
                 'fornecedor' => $data['fornecedor'] ?? null,
                 'valor' => $valor,
                 'data' => $data['data'],
-                'categoria' => $data['categoria'] ?? 'entrada_produtos',
+                'categoria' => $categoria,
+                'viatura_id' => $viatura?->id,
                 'notas' => $data['notas'] ?? null,
+                'origem' => $data['origem'] ?? null,
+                'origem_ref' => $data['origem_ref'] ?? null,
             ]);
 
             foreach ($linhas as $linha) {
@@ -358,6 +389,9 @@ class FaturaController extends Controller
                 'numero_fatura' => $despesa->numero_fatura,
                 'fornecedor' => $despesa->fornecedor,
                 'categoria' => $despesa->categoria,
+                'viatura' => $despesa->viatura?->matricula,
+                'origem' => $despesa->origem,
+                'origem_ref' => $despesa->origem_ref,
                 'valor' => $despesa->valor,
                 'data' => $despesa->data?->toDateString(),
                 'subtotal' => $despesa->subtotal_calculado,

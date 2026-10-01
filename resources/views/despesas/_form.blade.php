@@ -61,6 +61,24 @@
                 class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
     </div>
+    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="text-sm text-slate-300">Categoria
+            <select name="categoria" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                @foreach(($categorias ?? \App\Models\Despesa::CATEGORIAS) as $chave => $nome)
+                    <option value="{{ $chave }}" @selected(old('categoria', $despesa->categoria ?: 'entrada_produtos') === $chave)>{{ $nome }}</option>
+                @endforeach
+            </select>
+        </label>
+        <label class="text-sm text-slate-300">Viatura
+            <select name="viatura_id" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                <option value="">— nenhuma —</option>
+                @foreach(($viaturas ?? collect()) as $v)
+                    <option value="{{ $v->id }}" @selected((string) old('viatura_id', $despesa->viatura_id) === (string) $v->id)>{{ $v->etiqueta() }}{{ $v->ativo ? '' : ' (inativa)' }}</option>
+                @endforeach
+            </select>
+            <span class="mt-1 block text-xs text-slate-500">Para combustível, portagens e reparações — soma no custo do carro.</span>
+        </label>
+    </div>
     <div class="mt-4">
         <label class="text-sm text-slate-300">Notas
             <textarea name="notas" rows="2" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('notas', $despesa->notas) }}</textarea>

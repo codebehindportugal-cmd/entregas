@@ -91,6 +91,15 @@
                             @if($despesa->numero_fatura)
                                 <p class="text-xs text-slate-500">N. {{ $despesa->numero_fatura }}</p>
                             @endif
+                            <p class="mt-1 flex flex-wrap gap-1 text-[11px]">
+                                <span class="rounded bg-white/10 px-1.5 py-0.5 text-slate-300">{{ $despesa->categoriaLabel() }}</span>
+                                @if($despesa->viatura)
+                                    <span class="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-300">{{ $despesa->viatura->matricula }}</span>
+                                @endif
+                                @if($despesa->origem)
+                                    <span class="rounded bg-blue-500/15 px-1.5 py-0.5 text-blue-300">via {{ $despesa->origem }}</span>
+                                @endif
+                            </p>
                         </td>
                         <td class="p-3">
                             @php $latestAiJob = $despesa->aiJobs->first(); @endphp

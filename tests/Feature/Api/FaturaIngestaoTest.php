@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Http\Requests\Api\StoreFaturasLoteApiRequest;
 use App\Models\Despesa;
+use App\Models\Viatura;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -221,6 +222,63 @@ class FaturaIngestaoTest extends TestCase
             ->assertStatus(422);
 
         $this->assertDatabaseCount('despesas', 0);
+    }
+
+    /**
+     * 01/10/2026: despesas vindas da gestao.ateneya.com — um recibo de
+     * vencimento nao tem numero de fatura, e e o id de la que impede o
+     * duplicado quando a Ateneya reenvia depois de um erro de rede.
+     */
+    public function test_despesa_de_outra_origem_nao_duplica_sem_numero(): void
+    {
+        $recibo = [
+            'titulo' => 'Recibo de vencimento setembro',
+            'fornecedor' => 'Ordenados',
+            'data' => '2026-09-30',
+            'categoria' => 'ordenados',
+            'origem' => 'gestao.ateneya.com',
+            'origem_ref' => '812',
+            'linhas' => [['descricao' => 'Vencimento', 'quantidade' => 1, 'preco_unitario' => 950, 'iva_percentagem' => 0]],
+        ];
+
+        $this->comToken()->postJson('/api/v1/faturas', $recibo)->assertCreated()
+            ->assertJsonPath('dados.despesa.categoria', 'ordenados')
+            ->assertJsonPath('dados.despesa.origem_ref', '812');
+
+        $this->comToken()->postJson('/api/v1/faturas', $recibo)->assertCreated()
+            ->assertJsonPath('avisos.0', fn ($a) => str_contains((string) $a, 'ja registada'));
+
+        $this->assertDatabaseCount('despesas', 1);
+    }
+
+    public function test_liga_a_viatura_pela_matricula_escrita_de_qualquer_maneira(): void
+    {
+        $carro = Viatura::create(['matricula' => 'AL-71-JG', 'ativo' => true]);
+
+        $this->comToken()->postJson('/api/v1/faturas', [
+            'fornecedor' => 'Galp',
+            'numero_fatura' => 'FS 9/1',
+            'data' => '2026-09-15',
+            'categoria' => 'combustivel',
+            'viatura' => 'al71jg',
+            'linhas' => [['descricao' => 'Gasoleo', 'quantidade' => 1, 'preco_unitario' => 50, 'iva_percentagem' => 23]],
+        ])->assertCreated()->assertJsonPath('dados.despesa.viatura', 'AL-71-JG');
+
+        $this->assertDatabaseHas('despesas', ['numero_fatura' => 'FS 9/1', 'viatura_id' => $carro->id, 'categoria' => 'combustivel']);
+    }
+
+    public function test_matricula_e_categoria_desconhecidas_entram_com_aviso(): void
+    {
+        $this->comToken()->postJson('/api/v1/faturas', [
+            'fornecedor' => 'Via Verde',
+            'numero_fatura' => 'VV 1',
+            'data' => '2026-09-15',
+            'categoria' => 'qualquer_coisa',
+            'viatura' => 'ZZ-00-ZZ',
+            'linhas' => [['descricao' => 'Portagens', 'quantidade' => 1, 'preco_unitario' => 12.4, 'iva_percentagem' => 23]],
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('despesas', ['numero_fatura' => 'VV 1', 'viatura_id' => null, 'categoria' => 'outro']);
     }
 
     private function comToken(): self

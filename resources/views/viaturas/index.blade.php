@@ -44,6 +44,7 @@
                     <th class="p-3">Nome</th>
                     <th class="p-3 w-24">Ordem</th>
                     <th class="p-3 w-24">Ativa</th>
+                    <th class="p-3 w-40 text-right">Gastos {{ $ano }}</th>
                     <th class="p-3 w-48">&nbsp;</th>
                 </tr>
             </thead>
@@ -70,6 +71,10 @@
                             <input form="viatura-{{ $viatura->id }}" name="ativo" type="checkbox" value="1" @checked($viatura->ativo)
                                    class="rounded border-slate-300">
                         </td>
+                        <td class="p-3 text-right">
+                            <span class="font-semibold text-slate-900">{{ number_format((float) $viatura->gasto_ano, 2, ',', ' ') }} €</span>
+                            <span class="block text-xs text-slate-500">{{ $viatura->despesas_ano }} {{ $viatura->despesas_ano === 1 ? 'despesa' : 'despesas' }}</span>
+                        </td>
                         <td class="p-3">
                             <div class="flex gap-2">
                                 <button form="viatura-{{ $viatura->id }}" class="rounded bg-[#22C55E] px-3 py-1.5 text-xs font-semibold text-[#0A0F1A]">Guardar</button>
@@ -84,7 +89,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" class="p-4 text-slate-400">
+                        <td colspan="6" class="p-4 text-slate-400">
                             Ainda nao ha viaturas. Adiciona a primeira acima — sem viaturas nao e possivel escolher matricula na preparacao.
                         </td>
                     </tr>
