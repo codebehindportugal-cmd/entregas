@@ -148,6 +148,12 @@
             <input name="transportador" type="text" value="{{ old('transportador', $corporate->transportador) }}" placeholder="Ex.: Nome da transportadora" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
             <span class="mt-1 block text-xs text-slate-500">Quem faz a entrega. Sai nas observacoes da guia de remessa.</span>
         </label>
+        <label class="mt-3 flex items-start gap-2 text-sm text-slate-300">
+            <input name="parceiro_local" value="1" type="checkbox" class="mt-1" @checked(old('parceiro_local', $corporate->parceiro_local))>
+            <span>Entregue por parceiro local
+                <span class="block text-xs text-slate-500">Uma empresa da zona, com fruta propria, faz a entrega. Nao entra nas voltas, nas zonas nem nas entregas dos colaboradores.</span>
+            </span>
+        </label>
     </div>
 </div>
 <div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>

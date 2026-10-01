@@ -44,6 +44,7 @@ class StoreCorporateRequest extends FormRequest
             'guia_remessa' => ['nullable', 'boolean'],
             'fatura_conjunta' => ['nullable', 'boolean'],
             'transportador' => ['nullable', 'string', 'max:255'],
+            'parceiro_local' => ['nullable', 'boolean'],
             'dias_vencimento' => ['nullable', 'integer', 'min:0', 'max:365'],
             'peso_total' => ['nullable', 'numeric', 'min:0'],
             'frutas' => ['nullable', 'array'],

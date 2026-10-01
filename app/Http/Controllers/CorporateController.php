@@ -493,6 +493,7 @@ class CorporateController extends Controller
             'guia_remessa' => (bool) ($data['guia_remessa'] ?? false),
             'fatura_conjunta' => (bool) ($data['fatura_conjunta'] ?? false),
             'transportador' => filled($data['transportador'] ?? null) ? trim($data['transportador']) : null,
+            'parceiro_local' => (bool) ($data['parceiro_local'] ?? false),
             'cp_entrega' => filled($data['cp_entrega'] ?? null) ? $data['cp_entrega'] : null,
             'cidade_entrega' => filled($data['cidade_entrega'] ?? null) ? $data['cidade_entrega'] : null,
             'dias_vencimento' => filled($data['dias_vencimento'] ?? null) ? (int) $data['dias_vencimento'] : null,

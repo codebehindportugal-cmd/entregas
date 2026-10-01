@@ -68,6 +68,7 @@ class EntregasDoDia
 
         return $atribuicao->corporate !== null
             && $atribuicao->corporate->ativo
+            && ! $atribuicao->corporate->parceiro_local
             && $atribuicao->corporate->diaEntregaOriginalParaData($data) === $atribuicao->dia_semana;
     }
 
@@ -94,7 +95,7 @@ class EntregasDoDia
             return 0;
         }
 
-        $entregas = Corporate::where('ativo', true)->get()
+        $entregas = Corporate::where('ativo', true)->where('parceiro_local', false)->get()
             ->map(fn (Corporate $corporate): ?array => ($diaOriginal = $corporate->diaEntregaOriginalParaData($data)) === null ? null : [
                 'tipo' => 'corporate',
                 'id' => $corporate->id,

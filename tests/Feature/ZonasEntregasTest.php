@@ -287,6 +287,35 @@ class ZonasEntregasTest extends TestCase
         $this->assertSame(1, AtribuicaoEntrega::where('corporate_id', $corporate->id)->count());
     }
 
+    public function test_empresa_entregue_por_parceiro_local_fica_fora_das_voltas(): void
+    {
+        $faro = $this->empresa('Correos Faro', '8005-489');
+        $faro->update(['parceiro_local' => true]);
+        $loule = $this->empresa('Loulé', '8100-302');
+        $this->entrega('Sonae', $this->norte);
+        AtribuicaoEntrega::create(['tipo' => 'corporate', 'corporate_id' => $faro->id, 'zona_id' => $this->norte->id, 'dia_semana' => 'Quarta']);
+
+        $this->actingAs($this->joao)->get(route('minhas-entregas.index'))->assertSee('Sonae')->assertDontSee('Correos Faro');
+
+        $rotas = $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))
+            ->assertOk()->assertSee('+ 1 por parceiros locais');
+        $nomes = $rotas->viewData('entregas')->pluck('nome')->all();
+        $this->assertNotContains('Correos Faro', $nomes);
+        $this->assertContains('Loulé', $nomes);
+        $this->assertTrue($rotas->viewData('rotas')->flatMap(fn ($r) => $r['paragens'])->pluck('nome')->doesntContain('Correos Faro'));
+
+        app(\App\Services\EntregasDoDia::class)->garantirZonas(now());
+        $this->assertSame(1, AtribuicaoEntrega::where('corporate_id', $faro->id)->count());
+    }
+
+    public function test_ficha_da_empresa_guarda_parceiro_local(): void
+    {
+        $empresa = $this->empresa('Pinto e Cruz Funchal', '9020-040');
+
+        $this->actingAs($this->admin)->get(route('corporates.edit', $empresa))->assertOk()->assertSee('Entregue por parceiro local');
+        $this->assertTrue(in_array('parceiro_local', $empresa->getFillable(), true));
+    }
+
     public function test_comando_agendado_atribui_os_proximos_dias(): void
     {
         $corporate = $this->empresa('Para a semana', '2410-001', ['Segunda']);

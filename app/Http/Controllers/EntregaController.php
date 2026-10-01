@@ -86,6 +86,10 @@ class EntregaController extends Controller
             'rotas' => $rotas,
             'zonas' => $zonas->where('ativo', true)->values(),
             'porConverter' => $atribuicoes->whereNull('zona_id')->whereNotNull('user_id')->count(),
+            'parceirosLocais' => Corporate::where('ativo', true)->where('parceiro_local', true)->get()
+                ->filter(fn (Corporate $corporate): bool => $corporate->temEntregaNaData($dataB2c))
+                ->pluck('empresa')
+                ->values(),
         ]);
     }
 
@@ -101,6 +105,7 @@ class EntregaController extends Controller
         app(EntregasDoDia::class)->garantirZonas($dataB2c);
 
         $corporatesDoDia = Corporate::where('ativo', true)
+            ->where('parceiro_local', false)
             ->orderBy('empresa')
             ->get()
             ->filter(fn (Corporate $corporate): bool => $corporate->temEntregaNaData($dataB2c))

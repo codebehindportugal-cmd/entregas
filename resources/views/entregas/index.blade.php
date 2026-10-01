@@ -35,6 +35,9 @@
         @elseif($entregas->isNotEmpty())
             <span class="rounded bg-[#22C55E]/15 px-2 py-1 font-semibold text-green-200">Tudo atribuído</span>
         @endif
+        @if($parceirosLocais->isNotEmpty())
+            <span class="rounded bg-white/5 px-2 py-1 text-slate-400" title="{{ $parceirosLocais->implode(', ') }}">+ {{ $parceirosLocais->count() }} por parceiros locais</span>
+        @endif
         <span class="mx-1 hidden h-5 w-px bg-white/10 sm:inline-block"></span>
         @foreach($rotas as $rota)
             <a href="#rota-{{ $rota['zona']->id }}" class="inline-flex items-center gap-2 rounded bg-white/5 px-2 py-1 text-slate-200 hover:bg-white/10">
