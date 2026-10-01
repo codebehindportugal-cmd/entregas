@@ -6,6 +6,7 @@ use Database\Factories\CorporateFactory;
 use App\Services\HolidayCalendarService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -50,6 +51,7 @@ class Corporate extends Model
         'fatura_conjunta',
         'transportador',
         'parceiro_local',
+        'entregar_em_corporate_id',
         'dias_vencimento',
         'ciclo_inicio',
         'referencia_cliente',
@@ -96,6 +98,20 @@ class Corporate extends Model
     public function registosEntrega(): HasMany
     {
         return $this->hasMany(RegistoEntrega::class);
+    }
+
+    /** A empresa onde esta entrega e deixada (ex.: os Correos de Lisboa para a de Evora). */
+    public function entregarEm(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'entregar_em_corporate_id');
+    }
+
+    /** Onde a entrega fica de facto, para as voltas, as zonas e o mapa. */
+    public function localDaVolta(): self
+    {
+        $local = $this->entregar_em_corporate_id ? $this->entregarEm : null;
+
+        return $local !== null && $local->id !== $this->id ? $local : $this;
     }
 
     public function moradaParaEntrega(): ?string

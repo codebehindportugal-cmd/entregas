@@ -441,6 +441,32 @@ class ZonasEntregasTest extends TestCase
         $this->assertSame('4470', $this->lisboa->fresh()->partida_cp);
     }
 
+    public function test_entrega_deixada_noutra_empresa_conta_a_morada_dessa(): void
+    {
+        $correos = $this->empresa('Correos Lisboa', '2625-090');
+        $correos->update(['morada_entrega' => 'Rua Marinhas do Tejo 164D, 2625-090 Povoa de Santa Iria']);
+        $evora = $this->empresa('Correos Evora', '7005-873');
+        $evora->update(['morada_entrega' => 'Mercado Abastecedor, 7005-873 Evora']);
+
+        $this->actingAs($this->admin)->put(route('corporates.update', $evora), array_merge(
+            $this->dadosDaEmpresa($evora),
+            ['entregar_em_corporate_id' => $correos->id],
+        ))->assertSessionHasNoErrors();
+        $this->assertSame($correos->id, $evora->fresh()->entregar_em_corporate_id);
+
+        // Entra sozinha na zona de Lisboa (codigo postal dos Correos de Lisboa).
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))
+            ->assertOk()
+            ->assertSee('deixar em Correos Lisboa')
+            ->assertSee('2625-090');
+        $this->assertSame($this->lisboa->id, AtribuicaoEntrega::where('corporate_id', $evora->id)->value('zona_id'));
+
+        $this->actingAs($this->admin)->get(route('mapa-volta', ['zona_id' => $this->lisboa->id, 'data' => '2026-10-14', 'todas' => 1]))
+            ->assertOk()
+            ->assertSee('Correos Evora → deixar em Correos Lisboa')
+            ->assertSee('Rua Marinhas do Tejo 164D');
+    }
+
     public function test_subscricao_sem_entrega_nesse_dia_nao_aparece_na_volta(): void
     {
         // Subscricao que ja acabou: a atribuicao ficou guardada, mas nao ha entrega.
@@ -454,6 +480,19 @@ class ZonasEntregasTest extends TestCase
         $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))
             ->assertOk()
             ->assertDontSee('Cliente Acabada');
+    }
+
+    private function dadosDaEmpresa(Corporate $corporate): array
+    {
+        return [
+            'empresa' => $corporate->empresa,
+            'dias_entrega' => $corporate->dias_entrega,
+            'periodicidade_entrega' => 'semanal',
+            'morada_entrega' => $corporate->morada_entrega,
+            'cp_entrega' => $corporate->cp_entrega,
+            'numero_caixas' => 1,
+            'ativo' => 1,
+        ];
     }
 
     private function user(string $nome, string $role = 'colaborador'): User

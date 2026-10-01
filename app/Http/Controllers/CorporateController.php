@@ -387,7 +387,14 @@ class CorporateController extends Controller
     {
         $this->garantirSnapshotInicial($corporate);
 
-        $corporate->update($this->payload($request->validated()));
+        $payload = $this->payload($request->validated());
+
+        // Nao pode ser deixada em si propria.
+        if (($payload['entregar_em_corporate_id'] ?? null) === $corporate->id) {
+            $payload['entregar_em_corporate_id'] = null;
+        }
+
+        $corporate->update($payload);
         $this->guardarSnapshotConfiguracao($corporate->fresh(), $request->validated('configuracao_ativa_desde') ?: now()->toDateString());
 
         return redirect()->route('corporates.index')->with('status', 'Empresa atualizada com sucesso.');
@@ -494,6 +501,7 @@ class CorporateController extends Controller
             'fatura_conjunta' => (bool) ($data['fatura_conjunta'] ?? false),
             'transportador' => filled($data['transportador'] ?? null) ? trim($data['transportador']) : null,
             'parceiro_local' => (bool) ($data['parceiro_local'] ?? false),
+            'entregar_em_corporate_id' => filled($data['entregar_em_corporate_id'] ?? null) ? (int) $data['entregar_em_corporate_id'] : null,
             'cp_entrega' => filled($data['cp_entrega'] ?? null) ? $data['cp_entrega'] : null,
             'cidade_entrega' => filled($data['cidade_entrega'] ?? null) ? $data['cidade_entrega'] : null,
             'dias_vencimento' => filled($data['dias_vencimento'] ?? null) ? (int) $data['dias_vencimento'] : null,

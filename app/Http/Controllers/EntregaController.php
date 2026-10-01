@@ -194,15 +194,22 @@ class EntregaController extends Controller
 
     private function linhaEntregaCorporate(Corporate $corporate, ?AtribuicaoEntrega $atribuicao): array
     {
+        // Deixada noutra empresa (ex.: Evora nos Correos de Lisboa): conta a morada dessa.
+        $local = $corporate->localDaVolta();
+
         return [
             'chave' => 'c'.$corporate->id,
             'tipo' => 'corporate',
             'id' => $corporate->id,
             'nome' => trim($corporate->empresa.($corporate->sucursal ? ' · '.$corporate->sucursal : '')),
-            'morada' => $corporate->moradaParaEntrega(),
-            'cp' => trim((string) $corporate->cp_entrega),
-            'localidade' => trim((string) $corporate->cidade_entrega),
-            'detalhe' => $corporate->horario_entrega,
+            'morada' => $local->moradaParaEntrega(),
+            'cp' => trim((string) $local->cp_entrega),
+            'localidade' => trim((string) $local->cidade_entrega),
+            'detalhe' => implode(' · ', array_filter([
+                $corporate->horario_entrega,
+                $local->isNot($corporate) ? 'deixar em '.trim($local->empresa.($local->sucursal ? ' '.$local->sucursal : '')) : null,
+            ])) ?: null,
+            'horario' => $corporate->horario_entrega,
         ] + $this->zonaDaLinha($atribuicao);
     }
 
@@ -952,7 +959,7 @@ class EntregaController extends Controller
         return $paragens->map(fn (array $paragem): array => [
             'chave' => $paragem['atribuicao']->id,
             'cp' => $paragem['cp'] ?: $this->codigoPostalNaMorada($paragem['morada']),
-            'horario' => $paragem['tipo'] === 'corporate' ? $paragem['detalhe'] : null,
+            'horario' => $paragem['horario'] ?? null,
         ])->values();
     }
 

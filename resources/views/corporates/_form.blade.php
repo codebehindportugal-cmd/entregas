@@ -154,6 +154,16 @@
                 <span class="block text-xs text-slate-500">Uma empresa da zona, com fruta propria, faz a entrega. Nao entra nas voltas, nas zonas nem nas entregas dos colaboradores.</span>
             </span>
         </label>
+        @php($outrasEmpresas = \App\Models\Corporate::where('ativo', true)->when($corporate->exists, fn ($q) => $q->whereKeyNot($corporate->id))->orderBy('empresa')->orderBy('sucursal')->get(['id', 'empresa', 'sucursal']))
+        <label class="mt-3 block text-sm text-slate-300">Deixar a entrega em
+            <select name="entregar_em_corporate_id" class="mt-1 w-full rounded border border-white/10 bg-[#151E2D] px-3 py-2 text-white">
+                <option value="">Na morada desta empresa</option>
+                @foreach($outrasEmpresas as $outra)
+                    <option value="{{ $outra->id }}" @selected((int) old('entregar_em_corporate_id', $corporate->entregar_em_corporate_id) === $outra->id)>{{ trim($outra->empresa.($outra->sucursal ? ' · '.$outra->sucursal : '')) }}</option>
+                @endforeach
+            </select>
+            <span class="mt-1 block text-xs text-slate-500">Quando a entrega fica noutro sitio (ex.: a de Evora e deixada nos Correos de Lisboa). Nas voltas, nas zonas e no mapa conta a morada dessa empresa.</span>
+        </label>
     </div>
 </div>
 <div class="mt-5 rounded border border-white/10 bg-[#0A0F1A] p-4" data-cabaz-corporate>

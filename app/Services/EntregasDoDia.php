@@ -100,7 +100,7 @@ class EntregasDoDia
                 'tipo' => 'corporate',
                 'id' => $corporate->id,
                 'dia' => $diaOriginal,
-                'cp' => $this->codigoPostalDe($corporate->cp_entrega, $corporate->moradaParaEntrega(), $corporate->fatura_morada),
+                'cp' => $this->codigoPostalDaEmpresa($corporate),
             ])
             ->filter()
             ->concat($this->encomendasB2c($dia, $data)->map(fn (WooOrder $order): array => [
@@ -163,7 +163,15 @@ class EntregasDoDia
     {
         return $atribuicao->tipo === 'b2c'
             ? ($atribuicao->wooOrder ? $this->codigoPostalB2c($atribuicao->wooOrder) : null)
-            : $this->codigoPostalDe($atribuicao->corporate?->cp_entrega, $atribuicao->corporate?->moradaParaEntrega(), $atribuicao->corporate?->fatura_morada);
+            : ($atribuicao->corporate ? $this->codigoPostalDaEmpresa($atribuicao->corporate) : null);
+    }
+
+    /** O codigo postal de onde a entrega fica (a propria empresa, ou onde e deixada). */
+    private function codigoPostalDaEmpresa(Corporate $corporate): ?string
+    {
+        $local = $corporate->localDaVolta();
+
+        return $this->codigoPostalDe($local->cp_entrega, $local->moradaParaEntrega(), $local->isNot($corporate) ? null : $local->fatura_morada);
     }
 
     private function codigoPostalB2c(WooOrder $order): ?string

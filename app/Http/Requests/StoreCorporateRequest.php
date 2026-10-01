@@ -45,6 +45,7 @@ class StoreCorporateRequest extends FormRequest
             'fatura_conjunta' => ['nullable', 'boolean'],
             'transportador' => ['nullable', 'string', 'max:255'],
             'parceiro_local' => ['nullable', 'boolean'],
+            'entregar_em_corporate_id' => ['nullable', 'integer', 'exists:corporates,id'],
             'dias_vencimento' => ['nullable', 'integer', 'min:0', 'max:365'],
             'peso_total' => ['nullable', 'numeric', 'min:0'],
             'frutas' => ['nullable', 'array'],

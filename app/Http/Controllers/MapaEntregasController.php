@@ -114,11 +114,14 @@ class MapaEntregasController extends Controller
 
     private function paragemCorporate(Corporate $corporate): array
     {
+        $local = $corporate->localDaVolta();
+
         return [
             'chave' => 'c'.$corporate->id,
             'tipo' => 'corporate',
-            'nome' => trim($corporate->empresa.($corporate->sucursal ? ' · '.$corporate->sucursal : '')),
-            'morada' => $this->juntarMorada($corporate->moradaParaEntrega(), $corporate->cp_entrega, $corporate->cidade_entrega),
+            'nome' => trim($corporate->empresa.($corporate->sucursal ? ' · '.$corporate->sucursal : ''))
+                .($local->isNot($corporate) ? ' → deixar em '.$local->empresa : ''),
+            'morada' => $this->juntarMorada($local->moradaParaEntrega(), $local->cp_entrega, $local->cidade_entrega),
             'contacto' => trim(($corporate->responsavel_nome ?? '').' '.($corporate->responsavel_telefone ?? '')),
             'telefone' => $corporate->responsavel_telefone,
             'horario' => $corporate->horario_entrega,
