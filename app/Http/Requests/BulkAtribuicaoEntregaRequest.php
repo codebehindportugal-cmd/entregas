@@ -18,7 +18,7 @@ class BulkAtribuicaoEntregaRequest extends FormRequest
             'corporate_ids.*' => ['exists:corporates,id'],
             'woo_order_ids' => ['nullable', 'array'],
             'woo_order_ids.*' => ['exists:woo_orders,id'],
-            'user_id' => ['required', 'exists:users,id'],
+            'zona_id' => ['required', 'exists:zonas,id'],
             'dia_semana' => ['required', 'in:Segunda,Terca,Quarta,Quinta,Sexta,Sabado'],
         ];
     }

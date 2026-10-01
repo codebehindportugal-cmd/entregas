@@ -7,6 +7,8 @@ use App\Models\Corporate;
 use App\Models\RegistoEntrega;
 use App\Models\User;
 use App\Models\WooOrder;
+use App\Models\Zona;
+use App\Models\ZonaHorario;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -23,6 +25,16 @@ class MapaDaVoltaTest extends TestCase
         // Quarta-feira sem feriados.
         Carbon::setTestNow('2026-10-14 08:00:00');
         $this->joao = User::create(['name' => 'João', 'email' => 'joao@teste.pt', 'password' => bcrypt('x'), 'role' => 'colaborador', 'ativo' => true]);
+        $this->zonaDe($this->joao, 'Zona de Lisboa');
+    }
+
+    /** A zona passa a ser feita por este colaborador as quartas. */
+    private function zonaDe(User $user, string $nome): Zona
+    {
+        $zona = Zona::where('nome', $nome)->firstOrFail();
+        ZonaHorario::updateOrCreate(['zona_id' => $zona->id, 'dia_semana' => 'Quarta'], ['user_id' => $user->id]);
+
+        return $zona;
     }
 
     protected function tearDown(): void
@@ -134,7 +146,8 @@ class MapaDaVoltaTest extends TestCase
             'cidade_entrega' => $cidade,
         ]);
 
-        AtribuicaoEntrega::create(['tipo' => 'corporate', 'corporate_id' => $corporate->id, 'user_id' => ($user ?? $this->joao)->id, 'dia_semana' => 'Quarta', 'ordem' => $ordem]);
+        $zona = $user ? $this->zonaDe($user, 'Zona Norte') : Zona::where('nome', 'Zona de Lisboa')->first();
+        AtribuicaoEntrega::create(['tipo' => 'corporate', 'corporate_id' => $corporate->id, 'zona_id' => $zona->id, 'dia_semana' => 'Quarta', 'ordem' => $ordem]);
 
         return $corporate;
     }
@@ -147,7 +160,7 @@ class MapaDaVoltaTest extends TestCase
             'raw_payload' => ['shipping' => ['address_1' => $morada, 'postcode' => $cp, 'city' => $cidade]],
         ]);
 
-        AtribuicaoEntrega::create(['tipo' => 'b2c', 'woo_order_id' => $order->id, 'user_id' => $this->joao->id, 'dia_semana' => 'Quarta', 'ordem' => $ordem]);
+        AtribuicaoEntrega::create(['tipo' => 'b2c', 'woo_order_id' => $order->id, 'zona_id' => Zona::where('nome', 'Zona de Lisboa')->first()->id, 'dia_semana' => 'Quarta', 'ordem' => $ordem]);
 
         return $order;
     }

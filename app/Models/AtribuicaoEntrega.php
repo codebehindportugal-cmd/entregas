@@ -14,6 +14,8 @@ class AtribuicaoEntrega extends Model
     protected $table = 'atribuicoes';
 
     protected $fillable = [
+        'zona_id',
+        'zona_automatica',
         'tipo',
         'corporate_id',
         'woo_order_id',
@@ -24,11 +26,17 @@ class AtribuicaoEntrega extends Model
 
     protected $casts = [
         'ordem' => 'integer',
+        'zona_automatica' => 'boolean',
     ];
 
     public function corporate(): BelongsTo
     {
         return $this->belongsTo(Corporate::class);
+    }
+
+    public function zona(): BelongsTo
+    {
+        return $this->belongsTo(Zona::class);
     }
 
     public function user(): BelongsTo

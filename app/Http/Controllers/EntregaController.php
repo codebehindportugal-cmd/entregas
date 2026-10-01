@@ -13,6 +13,8 @@ use App\Models\RegistoEntrega;
 use App\Models\User;
 use App\Models\Viatura;
 use App\Models\WooOrder;
+use App\Models\Zona;
+use App\Services\EntregasDoDia;
 use App\Services\ListaCabazResolver;
 use App\Services\ComprasService;
 use Illuminate\Http\RedirectResponse;
@@ -39,15 +41,64 @@ class EntregaController extends Controller
 
     /**
      * Pagina de rotas: todas as entregas do dia (empresas + B2C) numa lista
-     * unica, com quem as tem atribuidas, e a rota de cada colaborador ao lado.
-     * A pesquisa e os filtros sao feitos no browser, por isso aqui carrega-se
-     * sempre o dia inteiro.
+     * unica, com a zona de cada uma, e a volta de cada zona ao lado com quem a
+     * faz nesse dia. A pesquisa e os filtros sao feitos no browser.
      */
     public function index(): View
     {
         $dia = request('dia', self::DIAS[now()->dayOfWeek] ?? 'Segunda');
         $dia = in_array($dia, self::DIAS, true) ? $dia : 'Segunda';
         $dataB2c = $this->dataReferenciaParaDia($dia);
+
+        [$atribuicoes, $entregas] = $this->entregasDoDiaParaRotas($dia, $dataB2c);
+
+        // Uma volta por zona ativa (mesmo vazia), mais zonas desativadas que
+        // ainda tenham entregas neste dia.
+        $zonas = Zona::with(['horarios', 'substituicoes.user'])
+            ->orderBy('ordem')
+            ->orderBy('nome')
+            ->get()
+            ->filter(fn (Zona $zona): bool => $zona->ativo || $atribuicoes->contains('zona_id', $zona->id))
+            ->values();
+        $porZona = $atribuicoes->whereNotNull('zona_id')->groupBy('zona_id');
+
+        $rotas = $zonas->map(fn (Zona $zona): array => [
+            'zona' => $zona,
+            // Em semanas com feriado as entregas deste dia podem ser as do dia
+            // anterior empurradas: vale quem faz a zona no dia original delas.
+            'colaborador' => $zona->colaboradorEm($dataB2c, $dia)
+                ?? $zona->colaboradorEm($dataB2c, ($porZona->get($zona->id) ?? collect())->first()?->dia_semana),
+            'substituicao' => $zona->substituicaoEm($dataB2c),
+            'paragens' => ($porZona->get($zona->id) ?? collect())->map(function (AtribuicaoEntrega $atribuicao): array {
+                $linha = $atribuicao->tipo === 'b2c'
+                    ? $this->linhaEntregaB2c($atribuicao->wooOrder, $atribuicao)
+                    : $this->linhaEntregaCorporate($atribuicao->corporate, $atribuicao);
+
+                return $linha + ['atribuicao' => $atribuicao];
+            })->values(),
+        ])->values();
+
+        return view('entregas.index', [
+            'dia' => $dia,
+            'dias' => array_values(self::DIAS),
+            'dataDia' => $dataB2c->toDateString(),
+            'entregas' => $entregas,
+            'rotas' => $rotas,
+            'zonas' => $zonas->where('ativo', true)->values(),
+            'porConverter' => $atribuicoes->whereNull('zona_id')->whereNotNull('user_id')->count(),
+        ]);
+    }
+
+    /**
+     * As entregas do dia para a pagina das Rotas: as atribuicoes desse dia e
+     * a lista de todas as entregas (com zona, ou com a zona sugerida pelo
+     * codigo postal quando ainda nao tem).
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: \Illuminate\Support\Collection}
+     */
+    private function entregasDoDiaParaRotas(string $dia, Carbon $dataB2c): array
+    {
+        app(EntregasDoDia::class)->garantirZonas($dataB2c);
 
         $corporatesDoDia = Corporate::where('ativo', true)
             ->orderBy('empresa')
@@ -57,7 +108,7 @@ class EntregaController extends Controller
 
         $b2cOrders = $this->b2cOrdersParaDia($dia, $dataB2c);
 
-        $atribuicoes = AtribuicaoEntrega::with(['corporate', 'wooOrder', 'user'])
+        $atribuicoes = AtribuicaoEntrega::with(['corporate', 'wooOrder', 'user', 'zona'])
             ->where(function ($query) use ($dia, $corporatesDoDia): void {
                 $query->where(fn ($query) => $query->where('tipo', 'corporate')->whereIn('corporate_id', $corporatesDoDia->pluck('id')))
                     ->orWhere(fn ($query) => $query->where('tipo', 'b2c')->where('dia_semana', $dia));
@@ -88,34 +139,37 @@ class EntregaController extends Controller
             ->sortBy(fn (array $linha): string => ($linha['cp'] ?: 'zzzz').'|'.mb_strtolower($linha['nome']))
             ->values();
 
-        $colaboradores = User::where('ativo', true)->orderBy('name')->get();
+        $zonasAtivas = Zona::where('ativo', true)->orderBy('ordem')->get();
+        $entregas = $entregas->map(function (array $linha) use ($zonasAtivas): array {
+            $sugerida = $linha['zona_id'] === null ? Zona::sugeridaPara($linha['cp'] ?: $this->codigoPostalNaMorada($linha['morada']), $zonasAtivas) : null;
 
-        // Rotas: uma por colaborador ativo (mesmo vazias, para se ver quem
-        // ainda nao tem nada) mais as de colaboradores inativos que ainda
-        // tenham entregas atribuidas neste dia.
-        $porUser = $atribuicoes->groupBy('user_id');
-        $rotas = $colaboradores
-            ->concat($atribuicoes->pluck('user')->filter()->unique('id')->reject(fn (User $user): bool => $colaboradores->contains('id', $user->id)))
-            ->map(fn (User $user): array => [
-                'user' => $user,
-                'paragens' => ($porUser->get($user->id) ?? collect())->map(function (AtribuicaoEntrega $atribuicao) use ($porCorporate, $porB2c): array {
-                    $linha = $atribuicao->tipo === 'b2c'
-                        ? $this->linhaEntregaB2c($atribuicao->wooOrder, $atribuicao)
-                        : $this->linhaEntregaCorporate($atribuicao->corporate, $atribuicao);
+            return $linha + ['sugestao_id' => $sugerida?->id, 'sugestao_nome' => $sugerida?->nome];
+        });
 
-                    return $linha + ['atribuicao' => $atribuicao];
-                })->values(),
-            ])
-            ->values();
+        return [$atribuicoes, $entregas];
+    }
 
-        return view('entregas.index', [
-            'dia' => $dia,
-            'dias' => array_values(self::DIAS),
-            'dataDia' => $dataB2c->toDateString(),
-            'entregas' => $entregas,
-            'rotas' => $rotas,
-            'colaboradores' => $colaboradores,
-        ]);
+    private function codigoPostalNaMorada(?string $morada): ?string
+    {
+        return preg_match('/\b(\d{4})-\d{3}\b/', (string) $morada, $m) ? $m[0] : null;
+    }
+
+    /** Poe cada entrega sem zona deste dia na zona sugerida pelo codigo postal. */
+    public function storeAtribuicoesSugeridas(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()->isAdmin(), 403);
+
+        $dia = $request->validate(['dia_semana' => ['required', 'in:'.implode(',', self::DIAS)]])['dia_semana'];
+        [, $entregas] = $this->entregasDoDiaParaRotas($dia, $this->dataReferenciaParaDia($dia));
+        $sugeridas = $entregas->whereNull('zona_id')->whereNotNull('sugestao_id');
+
+        DB::transaction(function () use ($sugeridas, $dia): void {
+            $sugeridas->each(fn (array $linha) => $this->atribuir($linha['tipo'], (int) $linha['id'], $dia, (int) $linha['sugestao_id'], automatica: true));
+        });
+
+        $total = $sugeridas->count();
+
+        return back()->with('status', $total === 1 ? '1 entrega posta na zona sugerida.' : "{$total} entregas postas nas zonas sugeridas.");
     }
 
     private function linhaEntregaCorporate(Corporate $corporate, ?AtribuicaoEntrega $atribuicao): array
@@ -129,9 +183,7 @@ class EntregaController extends Controller
             'cp' => trim((string) $corporate->cp_entrega),
             'localidade' => trim((string) $corporate->cidade_entrega),
             'detalhe' => $corporate->horario_entrega,
-            'user_id' => $atribuicao?->user_id,
-            'user_nome' => $atribuicao?->user?->name,
-        ];
+        ] + $this->zonaDaLinha($atribuicao);
     }
 
     private function linhaEntregaB2c(WooOrder $order, ?AtribuicaoEntrega $atribuicao): array
@@ -149,8 +201,16 @@ class EntregaController extends Controller
             'cp' => $campo('postcode'),
             'localidade' => $campo('city'),
             'detalhe' => $order->billing_phone ?: $order->billing_email,
-            'user_id' => $atribuicao?->user_id,
-            'user_nome' => $atribuicao?->user?->name,
+        ] + $this->zonaDaLinha($atribuicao);
+    }
+
+    private function zonaDaLinha(?AtribuicaoEntrega $atribuicao): array
+    {
+        return [
+            'zona_id' => $atribuicao?->zona_id,
+            'zona_nome' => $atribuicao?->zona?->nome,
+            // Atribuida a um colaborador antes das zonas e ainda por converter.
+            'antes' => $atribuicao?->zona_id === null ? $atribuicao?->user?->name : null,
         ];
     }
 
@@ -194,33 +254,20 @@ class EntregaController extends Controller
                 ->values();
             $corporateIdsComEntrega = $corporatesComEntrega->pluck('id');
 
-            $atribuicoesCorporate = AtribuicaoEntrega::with('corporate')
-                ->where('tipo', 'corporate')
-                ->whereIn('corporate_id', $corporateIdsComEntrega)
-                ->whereHas('corporate', fn ($query) => $query->where('ativo', true))
-                ->get()
-                ->filter(fn (AtribuicaoEntrega $atribuicao): bool => $atribuicao->corporate?->diaEntregaOriginalParaData($dataSelecionada) === $atribuicao->dia_semana)
-                ->values();
-
             $b2cOrderIdsComEntrega = $this->b2cOrdersParaDia($dia, $dataSelecionada)->pluck('id');
 
-            $atribuicoesB2c = AtribuicaoEntrega::with('wooOrder')
-                ->where('dia_semana', $dia)
-                ->where('tipo', 'b2c')
-                ->whereIn('woo_order_id', $b2cOrderIdsComEntrega)
-                ->get();
+            // Cria os registos do dia com quem faz cada zona nesse dia.
+            $entregasDoDia = app(EntregasDoDia::class);
+            $atribuicoesDoDia = $entregasDoDia->atribuicoes($dataSelecionada);
 
-            DB::transaction(function () use ($atribuicoesCorporate, $atribuicoesB2c, $data): void {
-                $atribuicoesCorporate->each(function (AtribuicaoEntrega $atribuicao) use ($data): void {
-                    RegistoEntrega::firstOrCreate([
-                        'tipo' => 'corporate',
-                        'corporate_id' => $atribuicao->corporate_id,
-                        'user_id' => $atribuicao->user_id,
-                        'data_entrega' => $data,
-                    ]);
+            DB::transaction(function () use ($atribuicoesDoDia, $entregasDoDia, $dataSelecionada, $data): void {
+                $atribuicoesDoDia->each(function (AtribuicaoEntrega $atribuicao) use ($entregasDoDia, $dataSelecionada, $data): void {
+                    $colaboradorId = $entregasDoDia->colaboradorId($atribuicao, $dataSelecionada);
+
+                    if ($colaboradorId !== null) {
+                        $this->registoPara($atribuicao, $data, $colaboradorId);
+                    }
                 });
-
-                $atribuicoesB2c->each(fn (AtribuicaoEntrega $atribuicao) => $this->firstOrCreateRegistoB2c($atribuicao, $data));
             });
         }
 
@@ -329,6 +376,11 @@ class EntregaController extends Controller
             $datasSelecionadas = collect([$inicio->copy()]);
         }
 
+        // As entregas novas destes dias entram ja na zona do codigo postal,
+        // senao as empresas sem zona ficavam escondidas da preparacao.
+        $entregasDoDia = app(EntregasDoDia::class);
+        $datasSelecionadas->each(fn (Carbon $data) => $entregasDoDia->garantirZonas($data->copy()));
+
         $q = $request->string('q')->toString();
         $corporatePreparacoes = collect();
         $b2cPreparacoes = collect();
@@ -422,8 +474,10 @@ class EntregaController extends Controller
         // ser desligado com ?mostrar_tudo=1, para nao esconder trabalho.
         $mostrarTudo = $request->boolean('mostrar_tudo');
 
+        // Com rota = com zona atribuida.
         $atribuicoes = AtribuicaoEntrega::query()
             ->select(['tipo', 'corporate_id', 'woo_order_id', 'dia_semana'])
+            ->whereNotNull('zona_id')
             ->get();
 
         $temColaboradorCorporate = $atribuicoes
@@ -764,7 +818,7 @@ class EntregaController extends Controller
             $request->validated('tipo'),
             (int) ($request->validated('tipo') === 'corporate' ? $request->validated('corporate_id') : $request->validated('woo_order_id')),
             $request->validated('dia_semana'),
-            (int) $request->validated('user_id'),
+            (int) $request->validated('zona_id'),
         );
 
         return back()->with('status', 'Atribuicao guardada.');
@@ -773,31 +827,31 @@ class EntregaController extends Controller
     public function storeAtribuicoesBulk(BulkAtribuicaoEntregaRequest $request): RedirectResponse
     {
         $dia = $request->validated('dia_semana');
-        $userId = (int) $request->validated('user_id');
+        $zonaId = (int) $request->validated('zona_id');
         $count = 0;
 
-        DB::transaction(function () use ($request, $dia, $userId, &$count): void {
+        DB::transaction(function () use ($request, $dia, $zonaId, &$count): void {
             foreach ($request->validated('corporate_ids', []) as $corporateId) {
-                $this->atribuir('corporate', (int) $corporateId, $dia, $userId);
+                $this->atribuir('corporate', (int) $corporateId, $dia, $zonaId);
                 $count++;
             }
 
             foreach ($request->validated('woo_order_ids', []) as $wooOrderId) {
-                $this->atribuir('b2c', (int) $wooOrderId, $dia, $userId);
+                $this->atribuir('b2c', (int) $wooOrderId, $dia, $zonaId);
                 $count++;
             }
         });
 
-        $nome = User::find($userId)?->name ?? 'colaborador';
+        $nome = Zona::find($zonaId)?->nome ?? 'zona';
 
-        return back()->with('status', $count === 1 ? "1 entrega atribuida a {$nome}." : "{$count} entregas atribuidas a {$nome}.");
+        return back()->with('status', $count === 1 ? "1 entrega passou para {$nome}." : "{$count} entregas passaram para {$nome}.");
     }
 
     /**
-     * Cria ou muda a atribuicao de uma entrega. Se mudar de colaborador, a
-     * posicao antiga nao serve na rota nova: vai para o fim ate ser ordenada.
+     * Cria ou muda a zona de uma entrega. Se mudar de zona, a posicao antiga
+     * nao serve na volta nova: vai para o fim ate ser ordenada.
      */
-    private function atribuir(string $tipo, int $id, string $dia, int $userId): void
+    private function atribuir(string $tipo, int $id, string $dia, int $zonaId, bool $automatica = false): void
     {
         // Em semanas com feriado a empresa aparece noutro dia, mas a rota
         // dela continua a ser a do dia original (e e esse que a lista usa).
@@ -812,20 +866,26 @@ class EntregaController extends Controller
             'dia_semana' => $dia,
         ]);
 
-        if ($atribuicao->exists && (int) $atribuicao->user_id === $userId) {
+        if ($atribuicao->exists && (int) $atribuicao->zona_id === $zonaId) {
+            // Confirmada a mao: deixa de mudar sozinha com os codigos postais.
+            if (! $automatica && $atribuicao->zona_automatica) {
+                $atribuicao->update(['zona_automatica' => false]);
+            }
+
             return;
         }
 
-        $atribuicao->user_id = $userId;
+        $atribuicao->zona_id = $zonaId;
+        $atribuicao->zona_automatica = $automatica;
         $atribuicao->ordem = null;
         $atribuicao->save();
     }
 
     public function updateAtribuicao(StoreAtribuicaoEntregaRequest $request, AtribuicaoEntrega $atribuicao): RedirectResponse
     {
-        // Mudou de colaborador ou de dia: a posicao antiga nao faz sentido na
-        // outra rota, vai para o fim ate o admin a ordenar.
-        $mudouRota = (int) $atribuicao->user_id !== (int) $request->validated('user_id')
+        // Mudou de zona ou de dia: a posicao antiga nao faz sentido na outra
+        // volta, vai para o fim ate o admin a ordenar.
+        $mudouRota = (int) $atribuicao->zona_id !== (int) $request->validated('zona_id')
             || $atribuicao->dia_semana !== $request->validated('dia_semana');
 
         $atribuicao->update([
@@ -833,11 +893,12 @@ class EntregaController extends Controller
             'tipo' => $request->validated('tipo'),
             'corporate_id' => $request->validated('tipo') === 'corporate' ? $request->validated('corporate_id') : null,
             'woo_order_id' => $request->validated('tipo') === 'b2c' ? $request->validated('woo_order_id') : null,
-            'user_id' => $request->validated('user_id'),
+            'zona_id' => $request->validated('zona_id'),
+            'zona_automatica' => false,
             'dia_semana' => $request->validated('dia_semana'),
         ]);
 
-        return back()->with('status', 'Atribuicao atualizada.');
+        return back()->with('status', 'Entrega passou para '.($atribuicao->fresh()->zona?->nome ?? 'outra zona').'.');
     }
 
     public function destroyAtribuicao(AtribuicaoEntrega $atribuicao): RedirectResponse
@@ -850,31 +911,27 @@ class EntregaController extends Controller
     }
 
     /**
-     * O admin define a ordem da rota de um colaborador num dia da semana.
-     * Fica guardada na atribuicao e vale para todas as semanas; as ordens
-     * que o colaborador tenha mexido nas proximas voltas desse dia sao
-     * limpas para a nova ordem aparecer logo.
+     * O admin define a ordem da volta de uma zona. Fica guardada na
+     * atribuicao e vale para todas as semanas; as ordens que o colaborador
+     * tenha mexido nas proximas voltas sao limpas para a nova aparecer logo.
      */
     public function updateOrdemRota(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'dia_semana' => ['required', 'in:'.implode(',', self::DIAS)],
-            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'zona_id' => ['required', 'integer', 'exists:zonas,id'],
             'ordens' => ['required', 'array'],
             'ordens.*' => ['nullable', 'integer', 'min:1', 'max:999'],
         ]);
 
-        $userId = (int) $data['user_id'];
-        $dia = $data['dia_semana'];
-
+        // Pelos ids e pela zona: em semanas com feriado ha entregas desta volta
+        // que estao gravadas com o dia original.
         $atribuicoes = AtribuicaoEntrega::query()
             ->whereIn('id', collect($data['ordens'])->keys()->map(fn ($id): int => (int) $id))
-            ->where('user_id', $userId)
-            ->where('dia_semana', $dia)
+            ->where('zona_id', (int) $data['zona_id'])
             ->get()
             ->keyBy('id');
 
-        DB::transaction(function () use ($data, $atribuicoes, $userId, $dia): void {
+        DB::transaction(function () use ($data, $atribuicoes): void {
             foreach ($data['ordens'] as $id => $ordem) {
                 $atribuicoes->get((int) $id)?->update([
                     'ordem' => filled($ordem) ? (int) $ordem : null,
@@ -889,19 +946,16 @@ class EntregaController extends Controller
             }
 
             RegistoEntrega::query()
-                ->where('user_id', $userId)
                 ->whereDate('data_entrega', '>=', now()->toDateString())
                 ->whereNotNull('ordem')
                 ->where(function ($query) use ($corporateIds, $wooOrderIds): void {
                     $query->where(fn ($query) => $query->where('tipo', 'corporate')->whereIn('corporate_id', $corporateIds))
                         ->orWhere(fn ($query) => $query->where('tipo', 'b2c')->whereIn('woo_order_id', $wooOrderIds));
                 })
-                ->get()
-                ->filter(fn (RegistoEntrega $registo): bool => (self::DIAS[Carbon::parse($registo->data_entrega)->dayOfWeek] ?? null) === $dia)
-                ->each(fn (RegistoEntrega $registo) => $registo->update(['ordem' => null]));
+                ->update(['ordem' => null]);
         });
 
-        return back()->with('status', 'Ordem da rota guardada.');
+        return back()->with('status', 'Ordem da volta guardada.');
     }
 
     private function nomeAtribuicao(AtribuicaoEntrega $atribuicao): string
@@ -911,7 +965,7 @@ class EntregaController extends Controller
             : trim(($atribuicao->corporate?->empresa ?? '').' '.($atribuicao->corporate?->sucursal ?? ''));
     }
 
-    public function minhasEntregas(): View
+    public function minhasEntregas(EntregasDoDia $entregasDoDia): View
     {
         $dataSelecionada = filled(request('data'))
             ? Carbon::parse(request('data'))->startOfDay()
@@ -920,59 +974,66 @@ class EntregaController extends Controller
         $data = $dataSelecionada->toDateString();
         $q = request('q', '');
         $status = request('status', '');
+        $termo = mb_strtolower(trim($q));
 
-        $atribuicoes = AtribuicaoEntrega::with(['corporate', 'wooOrder'])
-            ->where('user_id', auth()->id())
-            ->where(function ($query) use ($q): void {
-                $query->whereHas('corporate', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                    $query->where('empresa', 'like', "%{$q}%")
-                        ->orWhere('sucursal', 'like', "%{$q}%")
-                        ->orWhere('morada_entrega', 'like', "%{$q}%")
-                        ->orWhere('fatura_morada', 'like', "%{$q}%");
-                })))->orWhereHas('wooOrder', fn ($query) => $query->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                    $query->where('billing_name', 'like', "%{$q}%")
-                        ->orWhere('billing_phone', 'like', "%{$q}%")
-                        ->orWhere('billing_email', 'like', "%{$q}%")
-                        ->orWhere('woo_id', 'like', "%{$q}%");
-                })));
-            })
-            ->get();
-        $atribuicoes = $atribuicoes
-            ->filter(fn (AtribuicaoEntrega $atribuicao) => $atribuicao->tipo === 'b2c'
-                ? ($atribuicao->dia_semana === $dia && $atribuicao->wooOrder?->temEntregaB2cNaData($dataSelecionada))
-                : $atribuicao->corporate?->diaEntregaOriginalParaData($dataSelecionada) === $atribuicao->dia_semana)
+        // As entregas das zonas que calham a este colaborador neste dia (pelo
+        // horario da zona ou por substituicao), ja pela ordem da volta.
+        $atribuicoes = $entregasDoDia->doColaborador(auth()->user(), $dataSelecionada)
+            ->filter(fn (AtribuicaoEntrega $atribuicao): bool => $termo === '' || str_contains(mb_strtolower(implode(' ', array_filter([
+                $atribuicao->corporate?->empresa,
+                $atribuicao->corporate?->sucursal,
+                $atribuicao->corporate?->morada_entrega,
+                $atribuicao->corporate?->fatura_morada,
+                $atribuicao->wooOrder?->billing_name,
+                $atribuicao->wooOrder?->billing_phone,
+                $atribuicao->wooOrder?->billing_email,
+                $atribuicao->wooOrder?->woo_id,
+            ]))), $termo))
             ->values();
 
-        // A ordem da volta e a que o admin definiu nas Rotas; o colaborador
-        // ja nao a pode mudar.
-        $ordemRota = $atribuicoes->mapWithKeys(fn (AtribuicaoEntrega $atribuicao): array => [
-            ($atribuicao->tipo === 'b2c' ? 'b2c-'.$atribuicao->woo_order_id : 'corporate-'.$atribuicao->corporate_id) => $atribuicao->ordem,
-        ]);
-
-        $registos = $atribuicoes->map(function (AtribuicaoEntrega $atribuicao) use ($data) {
-            if ($atribuicao->tipo === 'b2c') {
-                return $this->firstOrCreateRegistoB2c($atribuicao, $data);
-            }
-
-            return RegistoEntrega::firstOrCreate([
-                'tipo' => 'corporate',
-                'corporate_id' => $atribuicao->corporate_id,
-                'user_id' => $atribuicao->user_id,
-                'data_entrega' => $data,
-            ]);
-        })->load(['corporate', 'wooOrder'])
+        $registos = $atribuicoes
+            ->map(fn (AtribuicaoEntrega $atribuicao): RegistoEntrega => $this->registoPara($atribuicao, $data, (int) auth()->id()))
+            ->values();
+        $registos = (new \Illuminate\Database\Eloquent\Collection($registos->all()))
+            ->load(['corporate', 'wooOrder'])
             ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values())
-            ->sortBy(fn (RegistoEntrega $registo): string => sprintf(
-                '%06d-%s',
-                $ordemRota->get($registo->tipo === 'b2c' ? 'b2c-'.$registo->woo_order_id : 'corporate-'.$registo->corporate_id)
-                    ?? 999999,
-                mb_strtolower($registo->tipo === 'b2c'
-                    ? ($registo->wooOrder?->billing_name ?? '')
-                    : ($registo->corporate?->empresa ?? ''))
-            ))
             ->values();
 
         return view('entregas.minhas', compact('registos', 'q', 'status', 'data', 'dia'));
+    }
+
+    /**
+     * O registo de entrega desta atribuicao nesse dia. Quem entrega e quem faz
+     * a zona nesse dia: se a zona mudou de pessoa (ferias, falta) e a entrega
+     * ainda nao foi feita, o registo passa para quem a vai fazer.
+     */
+    private function registoPara(AtribuicaoEntrega $atribuicao, string $data, ?int $userId): RegistoEntrega
+    {
+        $registos = RegistoEntrega::query()
+            ->where('tipo', $atribuicao->tipo)
+            ->when($atribuicao->tipo === 'b2c',
+                fn ($query) => $query->where('woo_order_id', $atribuicao->woo_order_id),
+                fn ($query) => $query->where('corporate_id', $atribuicao->corporate_id))
+            ->whereDate('data_entrega', $data)
+            ->get();
+
+        $registo = $registos->firstWhere('user_id', $userId) ?? $registos->first();
+
+        if ($registo === null) {
+            return RegistoEntrega::create([
+                'tipo' => $atribuicao->tipo,
+                'corporate_id' => $atribuicao->tipo === 'corporate' ? $atribuicao->corporate_id : null,
+                'woo_order_id' => $atribuicao->tipo === 'b2c' ? $atribuicao->woo_order_id : null,
+                'user_id' => $userId,
+                'data_entrega' => $data,
+            ]);
+        }
+
+        if ($userId !== null && (int) $registo->user_id !== $userId && in_array($registo->status, [null, 'pendente'], true)) {
+            $registo->update(['user_id' => $userId]);
+        }
+
+        return $registo;
     }
 
     public function show(RegistoEntrega $registoEntrega): View
@@ -1183,59 +1244,7 @@ class EntregaController extends Controller
 
     private function b2cOrdersParaDia(string $dia, Carbon $dataSelecionada, string $q = ''): \Illuminate\Support\Collection
     {
-        $data = $dataSelecionada->toDateString();
-        $diaB2c = match ($dia) {
-            'Segunda' => 'segunda',
-            'Quarta' => 'quarta',
-            'Sabado' => 'sabado',
-            default => null,
-        };
-
-        if ($diaB2c === null) {
-            return collect();
-        }
-
-        return WooOrder::query()
-            ->where(function ($query): void {
-                $query->whereIn('status', ['processing', 'on-hold', 'pending'])
-                    ->orWhereIn('status', ['subscricao', 'wc-subscricao', 'active'])
-                    ->orWhere('source_type', 'subscription');
-            })
-            ->where(function ($query) use ($diaB2c, $data): void {
-                $query->whereDate('postponed_until', $data)
-                    ->orWhere(function ($query) use ($diaB2c, $data): void {
-                        $query->where(function ($query) use ($data): void {
-                            $query->whereNull('postponed_until')
-                                ->orWhereDate('postponed_until', '<', $data);
-                        })->where(function ($query) use ($diaB2c, $data): void {
-                            $query->whereJsonContains('delivery_dates', $data)
-                                ->orWhereDate('scheduled_delivery_at', $data)
-                                ->orWhere(function ($query) use ($diaB2c): void {
-                                    $query->where('source_type', 'order')
-                                        ->where('status', '!=', 'subscricao')
-                                        ->where('dia_entrega', $diaB2c)
-                                        ->whereNull('scheduled_delivery_at');
-                                })
-                                ->orWhere(function ($query) use ($diaB2c): void {
-                                    $query->where(function ($query): void {
-                                        $query->whereNull('delivery_dates')
-                                            ->orWhereJsonLength('delivery_dates', 0);
-                                    })->whereNull('scheduled_delivery_at')
-                                        ->where('dia_entrega', $diaB2c);
-                                });
-                        });
-                    });
-            })
-            ->when(filled($q), fn ($query) => $query->where(function ($query) use ($q): void {
-                $query->where('billing_name', 'like', "%{$q}%")
-                    ->orWhere('billing_phone', 'like', "%{$q}%")
-                    ->orWhere('billing_email', 'like', "%{$q}%")
-                    ->orWhere('woo_id', 'like', "%{$q}%");
-            }))
-            ->orderBy('billing_name')
-            ->get()
-            ->filter(fn (WooOrder $order): bool => $order->temEntregaB2cNaData($dataSelecionada))
-            ->values();
+        return app(EntregasDoDia::class)->encomendasB2c($dia, $dataSelecionada, $q);
     }
 
     private function dataReferenciaParaDia(string $dia): Carbon
@@ -1252,17 +1261,5 @@ class EntregaController extends Controller
         }
 
         return $data;
-    }
-
-    private function firstOrCreateRegistoB2c(AtribuicaoEntrega $atribuicao, string $data): RegistoEntrega
-    {
-        return RegistoEntrega::firstOrCreate([
-            'tipo' => 'b2c',
-            'woo_order_id' => $atribuicao->woo_order_id,
-            'user_id' => $atribuicao->user_id,
-            'data_entrega' => $data,
-        ], [
-            'corporate_id' => null,
-        ]);
     }
 }

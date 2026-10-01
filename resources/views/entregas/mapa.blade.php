@@ -11,17 +11,28 @@
 <x-layouts.app title="Mapa da volta">
     <x-page-title
         title="{{ auth()->user()->isAdmin() ? 'Mapa das voltas' : 'Mapa da volta' }}"
-        subtitle="{{ $colaborador->name }} · {{ \Illuminate\Support\Carbon::parse($data)->format('d/m/Y') }}{{ $dia ? ' · '.$dia : '' }}" />
+        subtitle="{{ $zona ? $zona->nome.' · ' : '' }}{{ $colaborador?->name ?? 'Ninguém faz esta zona neste dia' }} · {{ \Illuminate\Support\Carbon::parse($data)->format('d/m/Y') }}{{ $dia ? ' · '.$dia : '' }}" />
 
     <form method="get" class="mb-4 flex flex-wrap items-end gap-3 rounded border border-white/10 bg-[#151E2D] p-4">
         <label class="text-sm text-slate-300">Dia
             <input name="data" type="date" value="{{ $data }}" onchange="this.form.submit()" class="mt-1 block rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
+        @if($zonas->isNotEmpty())
+            <label class="text-sm text-slate-300">Zona
+                <select name="zona_id" onchange="this.form.user_id.value = ''; this.form.submit()" class="mt-1 block rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    <option value="">—</option>
+                    @foreach($zonas as $opcao)
+                        <option value="{{ $opcao->id }}" @selected($zona?->id === $opcao->id)>{{ $opcao->nome }}</option>
+                    @endforeach
+                </select>
+            </label>
+        @endif
         @if($colaboradores->isNotEmpty())
-            <label class="text-sm text-slate-300">Colaborador
-                <select name="user_id" onchange="this.form.submit()" class="mt-1 block rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+            <label class="text-sm text-slate-300">ou colaborador
+                <select name="user_id" onchange="this.form.zona_id.value = ''; this.form.submit()" class="mt-1 block rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
+                    <option value="">—</option>
                     @foreach($colaboradores as $opcao)
-                        <option value="{{ $opcao->id }}" @selected($opcao->id === $colaborador->id)>{{ $opcao->name }}</option>
+                        <option value="{{ $opcao->id }}" @selected(! $zona && $opcao->id === $colaborador?->id)>{{ $opcao->name }}</option>
                     @endforeach
                 </select>
             </label>
@@ -34,7 +45,7 @@
     </form>
 
     @if($paragens->isEmpty())
-        <p class="rounded border border-white/10 bg-[#151E2D] p-6 text-center text-slate-400">Sem entregas atribuídas neste dia.</p>
+        <p class="rounded border border-white/10 bg-[#151E2D] p-6 text-center text-slate-400">Sem entregas {{ $zona ? 'nesta zona' : 'atribuídas' }} neste dia.</p>
     @elseif($partes->isEmpty() && $semMorada->isEmpty())
         <p class="rounded border border-white/10 bg-[#151E2D] p-6 text-center text-slate-400">Está tudo entregue. 🎉</p>
     @endif
@@ -102,6 +113,7 @@
                             <span class="font-semibold text-white">{{ $paragem['nome'] }}</span>
                             <span class="rounded px-2 py-0.5 text-xs {{ $estadoClasses }}">{{ $estadoTexto }}</span>
                             @if($paragem['tipo'] === 'b2c')<span class="text-xs text-slate-500">B2C</span>@endif
+                            @if(! $zona && $paragem['zona'])<span class="text-xs text-slate-500">{{ $paragem['zona'] }}</span>@endif
                         </p>
                         <p class="mt-0.5 text-sm text-slate-300">{{ $paragem['morada'] ? \Illuminate\Support\Str::beforeLast($paragem['morada'], ', Portugal') : 'Morada por definir' }}</p>
                         <p class="mt-0.5 text-xs text-slate-400">

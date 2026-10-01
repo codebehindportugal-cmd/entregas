@@ -36,7 +36,7 @@
         <label class="text-sm text-slate-300">Pesquisar empresa
             <input name="q" value="{{ $q }}" placeholder="Empresa, sucursal ou morada..." class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">
         </label>
-        <label class="flex items-center gap-2 self-end text-xs text-slate-300" title="Mostra tambem o que nao tem colaborador atribuido e o que foi dado como nao entregue">
+        <label class="flex items-center gap-2 self-end text-xs text-slate-300" title="Mostra tambem o que nao tem zona atribuida e o que foi dado como nao entregue">
             <input type="checkbox" name="mostrar_tudo" value="1" @checked($mostrarTudo) class="rounded border-white/20 bg-[#0A0F1A]">
             Mostrar tudo
         </label>
@@ -50,7 +50,7 @@
         <div class="mb-4 rounded border border-amber-400/30 bg-[#F59E0B]/10 px-4 py-3 text-sm text-amber-100">
             Escondidas
             @if($escondidasSemColaborador > 0)
-                <strong>{{ $escondidasSemColaborador }}</strong> entrega(s) de empresas sem colaborador atribuido
+                <strong>{{ $escondidasSemColaborador }}</strong> entrega(s) de empresas sem zona atribuida
             @endif
             @if($escondidasSemColaborador > 0 && $escondidasNaoEntregues > 0) e @endif
             @if($escondidasNaoEntregues > 0)

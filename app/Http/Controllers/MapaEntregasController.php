@@ -7,6 +7,8 @@ use App\Models\Corporate;
 use App\Models\RegistoEntrega;
 use App\Models\User;
 use App\Models\WooOrder;
+use App\Models\Zona;
+use App\Services\EntregasDoDia;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -30,18 +32,25 @@ class MapaEntregasController extends Controller
     /** O Google Maps aceita a origem, o destino e ate 9 paragens pelo meio. */
     private const PARAGENS_POR_PARTE = 10;
 
-    public function __invoke(): View
+    public function __invoke(EntregasDoDia $entregasDoDia): View
     {
         $user = auth()->user();
         $data = filled(request('data')) ? Carbon::parse(request('data'))->startOfDay() : now()->startOfDay();
 
-        // Os colaboradores so veem a sua volta; o admin pode ver a de qualquer um.
+        // Os colaboradores so veem a sua volta (as zonas que lhes calham nesse
+        // dia); o admin pode ver a de qualquer colaborador ou de uma zona.
         $colaboradores = $user->isAdmin() ? User::where('ativo', true)->orderBy('name')->get() : collect();
-        $colaborador = $user->isAdmin() && filled(request('user_id'))
-            ? User::findOrFail((int) request('user_id'))
-            : $user;
+        $zonas = $user->isAdmin() ? Zona::where('ativo', true)->orderBy('ordem')->orderBy('nome')->get() : collect();
+        $zona = $user->isAdmin() && filled(request('zona_id')) ? Zona::findOrFail((int) request('zona_id')) : null;
+        $colaborador = $zona !== null
+            ? $zona->colaboradorEm($data)
+            : ($user->isAdmin() && filled(request('user_id')) ? User::findOrFail((int) request('user_id')) : $user);
 
-        $paragens = $this->paragens($colaborador, $data);
+        $atribuicoes = $zona !== null
+            ? $entregasDoDia->atribuicoes($data)->where('zona_id', $zona->id)->values()
+            : ($colaborador ? $entregasDoDia->doColaborador($colaborador, $data) : collect());
+
+        $paragens = $this->paragens($atribuicoes, $data);
         $porFazer = request('todas') ? $paragens : $paragens->where('estado', '!=', 'entregue')->values();
         $comMorada = $porFazer->filter(fn (array $paragem): bool => filled($paragem['morada']))->values();
         $origem = trim((string) config('entregas.origem_rota'));
@@ -59,6 +68,8 @@ class MapaEntregasController extends Controller
         });
 
         return view('entregas.mapa', [
+            'zona' => $zona,
+            'zonas' => $zonas,
             'data' => $data->toDateString(),
             'dia' => self::DIAS[$data->dayOfWeek] ?? null,
             'colaborador' => $colaborador,
@@ -71,21 +82,11 @@ class MapaEntregasController extends Controller
         ]);
     }
 
-    /** Paragens do colaborador nesse dia, pela ordem da volta. */
-    private function paragens(User $colaborador, Carbon $data): Collection
+    /** As paragens destas atribuicoes, pela ordem da volta, com o estado do dia. */
+    private function paragens(Collection $atribuicoes, Carbon $data): Collection
     {
-        $dia = self::DIAS[$data->dayOfWeek] ?? null;
-
-        $atribuicoes = AtribuicaoEntrega::with(['corporate', 'wooOrder'])
-            ->where('user_id', $colaborador->id)
-            ->get()
-            ->filter(fn (AtribuicaoEntrega $atribuicao): bool => $atribuicao->tipo === 'b2c'
-                ? $atribuicao->wooOrder !== null && $atribuicao->dia_semana === $dia && $atribuicao->wooOrder->temEntregaB2cNaData($data)
-                : $atribuicao->corporate !== null && $atribuicao->corporate->ativo && $atribuicao->corporate->diaEntregaOriginalParaData($data) === $atribuicao->dia_semana);
-
         // So se le o estado; a pagina nao cria registos de entrega.
         $estados = RegistoEntrega::query()
-            ->where('user_id', $colaborador->id)
             ->whereDate('data_entrega', $data->toDateString())
             ->get()
             ->mapWithKeys(fn (RegistoEntrega $registo): array => [
@@ -101,11 +102,11 @@ class MapaEntregasController extends Controller
 
                 return $linha + [
                     'ordem' => $atribuicao->ordem,
+                    'zona' => $atribuicao->zona?->nome,
                     'estado' => $registo?->status ?? 'pendente',
                     'registo' => $registo,
                 ];
             })
-            ->sortBy(fn (array $paragem): string => sprintf('%06d|%s', $paragem['ordem'] ?? 999999, mb_strtolower($paragem['nome'])))
             ->values();
     }
 

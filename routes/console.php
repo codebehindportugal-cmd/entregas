@@ -13,6 +13,13 @@ Schedule::command('orders:sync')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Entregas novas (encomendas B2C, renovacoes, empresas) entram sozinhas na
+// zona do codigo postal; corre logo depois da sincronizacao das encomendas.
+Schedule::command('entregas:atribuir-zonas')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Renovacao das subscricoes auto-renovaveis: cria a encomenda nova no dia da
 // ultima entrega do ciclo, para depois se enviar o link de pagamento ao cliente.
 Schedule::command('subscricoes:renovar')

@@ -146,8 +146,16 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/empresas/faturar', [FaturacaoController::class, 'empresas'])->name('corporates.faturar');
         Route::delete('/encomendas/{encomenda}', [EncomendaController::class, 'destroy'])->name('encomendas.destroy');
         Route::put('/entregas/ordem', [EntregaController::class, 'updateOrdemRota'])->name('entregas.ordem.update');
+        Route::get('/zonas', [\App\Http\Controllers\ZonaController::class, 'index'])->name('zonas.index');
+        Route::post('/zonas', [\App\Http\Controllers\ZonaController::class, 'store'])->name('zonas.store');
+        Route::put('/zonas/horario', [\App\Http\Controllers\ZonaController::class, 'updateHorario'])->name('zonas.horario');
+        Route::post('/zonas/substituicoes', [\App\Http\Controllers\ZonaController::class, 'storeSubstituicao'])->name('zonas.substituicoes.store');
+        Route::delete('/zonas/substituicoes/{substituicao}', [\App\Http\Controllers\ZonaController::class, 'destroySubstituicao'])->name('zonas.substituicoes.destroy');
+        Route::post('/zonas/converter', [\App\Http\Controllers\ZonaController::class, 'converter'])->name('zonas.converter');
+        Route::put('/zonas/{zona}', [\App\Http\Controllers\ZonaController::class, 'update'])->name('zonas.update');
         Route::post('/entregas/atribuicoes', [EntregaController::class, 'storeAtribuicao'])->name('entregas.atribuicoes.store');
         Route::post('/entregas/atribuicoes/massa', [EntregaController::class, 'storeAtribuicoesBulk'])->name('entregas.atribuicoes.bulk');
+        Route::post('/entregas/atribuicoes/sugeridas', [EntregaController::class, 'storeAtribuicoesSugeridas'])->name('entregas.atribuicoes.sugeridas');
         Route::put('/entregas/atribuicoes/{atribuicao}', [EntregaController::class, 'updateAtribuicao'])->name('entregas.atribuicoes.update');
         Route::delete('/entregas/atribuicoes/{atribuicao}', [EntregaController::class, 'destroyAtribuicao'])->name('entregas.atribuicoes.destroy');
     });
