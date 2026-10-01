@@ -17,4 +17,15 @@ return [
     // Morada de onde as voltas partem (o armazem), para o mapa da volta.
     // Vazio: o percurso comeca onde o colaborador estiver.
     'origem_rota' => env('ENTREGAS_ORIGEM_ROTA'),
+
+    // Onde fica o armazem (Caldas da Rainha), para organizar as voltas.
+    'origem_coordenadas' => [39.4036, -9.1361],
+
+    // Horario das empresas sem horario definido: nao se entrega antes de
+    // abrirem nem depois de fecharem. Quem tiver horario proprio escreve-o na
+    // empresa (ex.: "ate as 8h", "9 e 11h", "ate 17:30").
+    'janela_padrao' => [env('ENTREGAS_ABRE', '09:00'), env('ENTREGAS_FECHA', '18:00')],
+
+    // Minutos parados em cada entrega, para as horas previstas.
+    'minutos_por_paragem' => (int) env('ENTREGAS_MINUTOS_POR_PARAGEM', 7),
 ];

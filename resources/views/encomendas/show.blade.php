@@ -300,6 +300,20 @@
 
                     <script>
                         document.addEventListener('DOMContentLoaded', () => {
+                            // Um clique so: um duplo clique adiava duas vezes.
+                            document.querySelectorAll('form[action*="/adiar"]').forEach((form) => {
+                                form.addEventListener('submit', (evento) => {
+                                    if (form.dataset.aEnviar) {
+                                        evento.preventDefault();
+
+                                        return;
+                                    }
+
+                                    form.dataset.aEnviar = '1';
+                                    form.querySelectorAll('button').forEach((botao) => { botao.disabled = true; botao.classList.add('opacity-50'); });
+                                });
+                            });
+
                             const escolha = document.querySelector('select[name="delivery_date"]');
 
                             if (! escolha) {
@@ -334,6 +348,12 @@
                                 </p>
                             @endforeach
                         </div>
+                        @if($encomenda->isSubscricao())
+                            <form method="post" action="{{ route('encomendas.postpone.undo', $encomenda) }}" class="mt-3">
+                                @csrf
+                                <button class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15">Desfazer ultimo adiamento</button>
+                            </form>
+                        @endif
                     </div>
                 @endif
             </div>

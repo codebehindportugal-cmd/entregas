@@ -179,6 +179,81 @@ class SubscricaoMudarDatasTest extends TestCase
             ->assertSee('name="postponed_until" type="date" value=""', false);
     }
 
+    public function test_duplo_clique_no_adiar_so_adia_uma_vez(): void
+    {
+        $order = $this->subscricao();
+        $this->preparada($order, '2026-09-16', '2026-09-23', '2026-09-30');
+
+        foreach ([1, 2] as $clique) {
+            $this->actingAs($this->admin)
+                ->put(route('encomendas.postpone', $order), ['delivery_date' => '', 'saltar_semanas' => 1])
+                ->assertSessionHasNoErrors();
+        }
+
+        $this->assertSame(['2026-09-16', '2026-09-23', '2026-09-30', '2026-10-14'], $this->datas($order));
+        $this->assertCount(1, $order->fresh()->postponement_history);
+
+        // Passado o tempo do clique repetido, volta a dar para adiar.
+        Carbon::setTestNow('2026-10-01 10:01:00');
+        $this->actingAs($this->admin)
+            ->put(route('encomendas.postpone', $order), ['delivery_date' => '', 'saltar_semanas' => 1]);
+        $this->assertSame(['2026-09-16', '2026-09-23', '2026-09-30', '2026-10-21'], $this->datas($order));
+    }
+
+    public function test_desfazer_o_ultimo_adiamento_repoe_as_datas(): void
+    {
+        $order = $this->subscricao(['first_delivery_at' => '2026-09-23']);
+        $this->preparada($order, '2026-09-23', '2026-09-30');
+
+        $this->actingAs($this->admin)->put(route('encomendas.postpone', $order), ['delivery_date' => '', 'saltar_semanas' => 1]);
+        Carbon::setTestNow('2026-10-01 10:05:00');
+        $this->actingAs($this->admin)->put(route('encomendas.postpone', $order), ['delivery_date' => '', 'saltar_semanas' => 1]);
+        $this->assertSame(['2026-09-23', '2026-09-30', '2026-10-21', '2026-10-28'], $this->datas($order));
+
+        $this->actingAs($this->admin)->post(route('encomendas.postpone.undo', $order))->assertSessionHasNoErrors();
+
+        $this->assertCalendario($order, [
+            '2026-09-23' => 'entregue',
+            '2026-09-30' => 'entregue',
+            '2026-10-14' => 'adiada',
+            '2026-10-21' => 'por_realizar',
+        ]);
+        $this->assertCount(1, $order->fresh()->postponement_history);
+
+        $this->actingAs($this->admin)->post(route('encomendas.postpone.undo', $order));
+        $this->assertCalendario($order, [
+            '2026-09-23' => 'entregue',
+            '2026-09-30' => 'entregue',
+            '2026-10-07' => 'por_realizar',
+            '2026-10-14' => 'por_realizar',
+        ]);
+    }
+
+    public function test_desfazer_adiamento_antigo_sem_copia_volta_as_datas_para_tras(): void
+    {
+        // Como o Antonio: adiado 05/10 -> 19/10 e um clique a mais 19/10 -> 26/10.
+        $order = $this->subscricao([
+            'dia_entrega' => 'segunda',
+            'first_delivery_at' => '2026-09-21',
+            'delivery_dates' => ['2026-09-21', '2026-10-26', '2026-11-02', '2026-11-09'],
+            'postponed_until' => '2026-10-26',
+            'postponement_history' => [
+                ['from' => '2026-10-05', 'to' => '2026-10-19', 'changed_at' => '2026-10-01 09:00:00'],
+                ['from' => '2026-10-19', 'to' => '2026-10-26', 'changed_at' => '2026-10-01 09:00:05'],
+            ],
+        ]);
+        $this->preparada($order, '2026-09-21');
+
+        $this->actingAs($this->admin)->post(route('encomendas.postpone.undo', $order))->assertSessionHasNoErrors();
+
+        $this->assertCalendario($order, [
+            '2026-09-21' => 'entregue',
+            '2026-10-19' => 'adiada',
+            '2026-10-26' => 'por_realizar',
+            '2026-11-02' => 'por_realizar',
+        ]);
+    }
+
     public function test_marcar_entrega_em_atraso_como_feita(): void
     {
         $order = $this->subscricao();

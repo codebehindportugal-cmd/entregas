@@ -46,6 +46,13 @@
                 <strong class="text-white">{{ $rota['paragens']->count() }}</strong>
             </a>
         @endforeach
+        @if($rotas->sum(fn ($rota) => $rota['paragens']->count()) > 1)
+            <form method="post" action="{{ route('entregas.organizar') }}" class="ml-auto">
+                @csrf
+                <input type="hidden" name="dia_semana" value="{{ $dia }}">
+                <button class="rounded bg-[#3B82F6] px-3 py-1.5 text-sm font-semibold text-white" title="Primeiro as que têm hora limite cedo, depois pela proximidade, dentro do horário de cada empresa">Organizar todas as voltas</button>
+            </form>
+        @endif
     </div>
 
     <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -200,12 +207,22 @@
                             </p>
                             <p class="text-xs text-slate-400">
                                 {{ $paragens->count() }} {{ $paragens->count() === 1 ? 'entrega' : 'entregas' }}
+                                @if($rota['saida']) · sai das Caldas ≈ <strong class="text-slate-200">{{ $rota['saida'] }}</strong>@endif
                                 @if($paragens->count() > 1) · arraste ou use as setas para pôr pela ordem da volta @endif
                             </p>
+                            @if($rota['atrasadas'] > 0)
+                                <p class="mt-1 text-xs font-semibold text-red-300">{{ $rota['atrasadas'] }} {{ $rota['atrasadas'] === 1 ? 'entrega chega' : 'entregas chegam' }} fora do horário com esta ordem</p>
+                            @endif
                         </div>
                         @if($paragens->count() > 1)
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <span class="hidden rounded bg-[#F59E0B]/15 px-2 py-1 text-xs text-amber-200" data-rota-alterada>Ordem por guardar</span>
+                                <form method="post" action="{{ route('entregas.organizar') }}">
+                                    @csrf
+                                    <input type="hidden" name="dia_semana" value="{{ $dia }}">
+                                    <input type="hidden" name="zona_id" value="{{ $zona->id }}">
+                                    <button class="rounded bg-white/10 px-3 py-1.5 text-sm font-semibold text-slate-200 hover:bg-white/15" title="Primeiro as que têm hora limite cedo, depois pela proximidade, dentro do horário de cada empresa">Organizar volta</button>
+                                </form>
                                 <button form="ordem-rota-{{ $zona->id }}" class="rounded bg-[#22C55E] px-3 py-1.5 text-sm font-semibold text-[#0A0F1A]">Guardar ordem</button>
                             </div>
                         @endif
@@ -229,6 +246,11 @@
                                         </span>
                                     </div>
 
+                                    @php($previsao = $paragem['previsao'])
+                                    @if($previsao && $previsao['hora_prevista'])
+                                        <span class="shrink-0 rounded px-1.5 py-0.5 text-xs tabular-nums {{ $previsao['atrasada'] ? 'bg-red-500/15 font-semibold text-red-200' : 'bg-white/5 text-slate-300' }}"
+                                              title="Hora prevista (estimativa). Pode entregar entre {{ $previsao['abre'] === '00:00' ? 'qualquer hora' : $previsao['abre'] }} e {{ $previsao['fecha'] }}.">≈ {{ $previsao['hora_prevista'] }}@if($previsao['atrasada']) · fecha {{ $previsao['fecha'] }}@endif</span>
+                                    @endif
                                     <div class="min-w-0 flex-1 basis-48">
                                         <p class="truncate font-semibold text-white">{{ $paragem['nome'] }}@if($atribuicao->zona_automatica) <span class="ml-1 align-middle text-[10px] font-normal uppercase tracking-wide text-slate-500" title="Posta nesta zona pelo código postal. Se a mudar à mão, fica como deixar.">auto</span>@endif</p>
                                         <p class="truncate text-xs text-slate-400">

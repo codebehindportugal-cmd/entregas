@@ -15,6 +15,7 @@ use App\Models\Viatura;
 use App\Models\WooOrder;
 use App\Models\Zona;
 use App\Services\EntregasDoDia;
+use App\Services\OrganizadorDeVoltas;
 use App\Services\ListaCabazResolver;
 use App\Services\ComprasService;
 use Illuminate\Http\RedirectResponse;
@@ -62,20 +63,25 @@ class EntregaController extends Controller
             ->values();
         $porZona = $atribuicoes->whereNotNull('zona_id')->groupBy('zona_id');
 
-        $rotas = $zonas->map(fn (Zona $zona): array => [
-            'zona' => $zona,
-            // Em semanas com feriado as entregas deste dia podem ser as do dia
-            // anterior empurradas: vale quem faz a zona no dia original delas.
-            'colaborador' => $zona->colaboradorEm($dataB2c, ($porZona->get($zona->id) ?? collect())->first()?->dia_semana ?? $dia),
-            'substituicao' => $zona->substituicaoEm($dataB2c),
-            'paragens' => ($porZona->get($zona->id) ?? collect())->map(function (AtribuicaoEntrega $atribuicao): array {
-                $linha = $atribuicao->tipo === 'b2c'
-                    ? $this->linhaEntregaB2c($atribuicao->wooOrder, $atribuicao)
-                    : $this->linhaEntregaCorporate($atribuicao->corporate, $atribuicao);
+        $organizador = app(OrganizadorDeVoltas::class);
 
-                return $linha + ['atribuicao' => $atribuicao];
-            })->values(),
-        ])->values();
+        $rotas = $zonas->map(function (Zona $zona) use ($porZona, $dataB2c, $dia, $organizador): array {
+            $paragens = $this->paragensDaZona($porZona->get($zona->id) ?? collect());
+            // Horas previstas pela ordem atual (estimativa, para ver se ha
+            // entregas fora de horas).
+            $previsao = $organizador->simular($this->paraOrganizar($paragens))->keyBy('chave');
+
+            return [
+                'zona' => $zona,
+                // Em semanas com feriado as entregas deste dia podem ser as do dia
+                // anterior empurradas: vale quem faz a zona no dia original delas.
+                'colaborador' => $zona->colaboradorEm($dataB2c, ($porZona->get($zona->id) ?? collect())->first()?->dia_semana ?? $dia),
+                'substituicao' => $zona->substituicaoEm($dataB2c),
+                'paragens' => $paragens->map(fn (array $paragem): array => $paragem + ['previsao' => $previsao->get($paragem['atribuicao']->id)]),
+                'saida' => $previsao->first()['saida'] ?? null,
+                'atrasadas' => $previsao->where('atrasada', true)->count(),
+            ];
+        })->values();
 
         return view('entregas.index', [
             'dia' => $dia,
@@ -118,9 +124,14 @@ class EntregaController extends Controller
                     ->orWhere(fn ($query) => $query->where('tipo', 'b2c')->where('dia_semana', $dia));
             })
             ->get()
-            ->filter(function (AtribuicaoEntrega $atribuicao) use ($dataB2c, $dia): bool {
+            ->filter(function (AtribuicaoEntrega $atribuicao) use ($dataB2c, $dia, $b2cOrders): bool {
+                // So as encomendas com entrega nesta data: uma subscricao que ja
+                // acabou (ou cuja proxima entrega e noutra semana) continua com
+                // a atribuicao guardada, mas nao entra na volta.
                 if ($atribuicao->tipo === 'b2c') {
-                    return $atribuicao->wooOrder !== null && $atribuicao->dia_semana === $dia;
+                    return $atribuicao->wooOrder !== null
+                        && $atribuicao->dia_semana === $dia
+                        && $b2cOrders->contains('id', $atribuicao->woo_order_id);
                 }
 
                 return $atribuicao->corporate?->diaEntregaOriginalParaData($dataB2c) === $atribuicao->dia_semana;
@@ -919,6 +930,85 @@ class EntregaController extends Controller
      * atribuicao e vale para todas as semanas; as ordens que o colaborador
      * tenha mexido nas proximas voltas sao limpas para a nova aparecer logo.
      */
+    private function paragensDaZona(\Illuminate\Support\Collection $atribuicoes): \Illuminate\Support\Collection
+    {
+        return $atribuicoes->map(function (AtribuicaoEntrega $atribuicao): array {
+            $linha = $atribuicao->tipo === 'b2c'
+                ? $this->linhaEntregaB2c($atribuicao->wooOrder, $atribuicao)
+                : $this->linhaEntregaCorporate($atribuicao->corporate, $atribuicao);
+
+            return $linha + ['atribuicao' => $atribuicao];
+        })->values();
+    }
+
+    /** As paragens no formato do organizador: id da atribuicao, codigo postal e horario. */
+    private function paraOrganizar(\Illuminate\Support\Collection $paragens): \Illuminate\Support\Collection
+    {
+        return $paragens->map(fn (array $paragem): array => [
+            'chave' => $paragem['atribuicao']->id,
+            'cp' => $paragem['cp'] ?: $this->codigoPostalNaMorada($paragem['morada']),
+            'horario' => $paragem['tipo'] === 'corporate' ? $paragem['detalhe'] : null,
+        ])->values();
+    }
+
+    /**
+     * Organiza as voltas do dia (todas, ou so a de uma zona): primeiro o que
+     * tem de ser entregue cedo, depois pela proximidade, dentro dos horarios.
+     */
+    public function organizarVoltas(Request $request, OrganizadorDeVoltas $organizador): RedirectResponse
+    {
+        $data = $request->validate([
+            'dia_semana' => ['required', 'in:'.implode(',', self::DIAS)],
+            'zona_id' => ['nullable', 'integer', 'exists:zonas,id'],
+        ]);
+
+        [$atribuicoes] = $this->entregasDoDiaParaRotas($data['dia_semana'], $this->dataReferenciaParaDia($data['dia_semana']));
+        $porZona = $atribuicoes->whereNotNull('zona_id')
+            ->when(filled($data['zona_id'] ?? null), fn ($colecao) => $colecao->where('zona_id', (int) $data['zona_id']))
+            ->groupBy('zona_id');
+
+        $resumo = [];
+
+        DB::transaction(function () use ($porZona, $organizador, &$resumo): void {
+            foreach ($porZona as $atribuicoesDaZona) {
+                $ordem = $organizador->organizar($this->paraOrganizar($this->paragensDaZona($atribuicoesDaZona)));
+                $porId = $atribuicoesDaZona->keyBy('id');
+
+                foreach ($ordem->values() as $i => $paragem) {
+                    $porId->get($paragem['chave'])?->update(['ordem' => $i + 1]);
+                }
+
+                $this->limparOrdemDosRegistos($atribuicoesDaZona);
+                $resumo[] = $atribuicoesDaZona->first()->zona?->nome.' sai '.($ordem->first()['saida'] ?? '?')
+                    .($ordem->where('atrasada', true)->isNotEmpty() ? ' ('.$ordem->where('atrasada', true)->count().' fora de horas)' : '');
+            }
+        });
+
+        return back()->with('status', $resumo === []
+            ? 'Nao ha voltas para organizar neste dia.'
+            : 'Voltas organizadas por horario e distancia: '.implode('; ', $resumo).'.');
+    }
+
+    /** As entregas de hoje para a frente passam a seguir a ordem da volta. */
+    private function limparOrdemDosRegistos(\Illuminate\Support\Collection $atribuicoes): void
+    {
+        $corporateIds = $atribuicoes->where('tipo', 'corporate')->pluck('corporate_id')->filter()->values();
+        $wooOrderIds = $atribuicoes->where('tipo', 'b2c')->pluck('woo_order_id')->filter()->values();
+
+        if ($corporateIds->isEmpty() && $wooOrderIds->isEmpty()) {
+            return;
+        }
+
+        RegistoEntrega::query()
+            ->whereDate('data_entrega', '>=', now()->toDateString())
+            ->whereNotNull('ordem')
+            ->where(function ($query) use ($corporateIds, $wooOrderIds): void {
+                $query->where(fn ($query) => $query->where('tipo', 'corporate')->whereIn('corporate_id', $corporateIds))
+                    ->orWhere(fn ($query) => $query->where('tipo', 'b2c')->whereIn('woo_order_id', $wooOrderIds));
+            })
+            ->update(['ordem' => null]);
+    }
+
     public function updateOrdemRota(Request $request): RedirectResponse
     {
         $data = $request->validate([
@@ -942,21 +1032,7 @@ class EntregaController extends Controller
                 ]);
             }
 
-            $corporateIds = $atribuicoes->where('tipo', 'corporate')->pluck('corporate_id')->filter()->values();
-            $wooOrderIds = $atribuicoes->where('tipo', 'b2c')->pluck('woo_order_id')->filter()->values();
-
-            if ($corporateIds->isEmpty() && $wooOrderIds->isEmpty()) {
-                return;
-            }
-
-            RegistoEntrega::query()
-                ->whereDate('data_entrega', '>=', now()->toDateString())
-                ->whereNotNull('ordem')
-                ->where(function ($query) use ($corporateIds, $wooOrderIds): void {
-                    $query->where(fn ($query) => $query->where('tipo', 'corporate')->whereIn('corporate_id', $corporateIds))
-                        ->orWhere(fn ($query) => $query->where('tipo', 'b2c')->whereIn('woo_order_id', $wooOrderIds));
-                })
-                ->update(['ordem' => null]);
+            $this->limparOrdemDosRegistos($atribuicoes);
         });
 
         return back()->with('status', 'Ordem da volta guardada.');

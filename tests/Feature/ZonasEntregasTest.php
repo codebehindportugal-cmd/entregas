@@ -393,6 +393,50 @@ class ZonasEntregasTest extends TestCase
             ->assertSee('Ninguém faz esta zona neste dia');
     }
 
+    public function test_organizar_a_volta_poe_primeiro_as_entregas_cedo_e_mostra_as_horas(): void
+    {
+        $mafra = $this->empresa('Mafra Lda', '2640-001');
+        $cedo = $this->empresa('Oriente 7h', '1990-096');
+        $cedo->update(['horario_entrega' => '7h']);
+        $coruche = $this->empresa('Coruche SA', '2100-100');
+        $coruche->update(['horario_entrega' => 'até às 17:30']);
+        foreach ([$mafra, $cedo, $coruche] as $i => $empresa) {
+            AtribuicaoEntrega::create(['tipo' => 'corporate', 'corporate_id' => $empresa->id, 'zona_id' => $this->lisboa->id, 'dia_semana' => 'Quarta', 'ordem' => $i + 1]);
+        }
+
+        // Pela ordem antiga a entrega das 7h chegava tarde.
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))
+            ->assertOk()
+            ->assertSee('fora do horário com esta ordem');
+
+        $this->actingAs($this->admin)
+            ->post(route('entregas.organizar'), ['dia_semana' => 'Quarta', 'zona_id' => $this->lisboa->id])
+            ->assertSessionHasNoErrors();
+
+        $ordem = AtribuicaoEntrega::where('zona_id', $this->lisboa->id)->orderBy('ordem')->get()->map(fn ($a) => $a->corporate->empresa)->all();
+        $this->assertSame('Oriente 7h', $ordem[0]);
+
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))
+            ->assertOk()
+            ->assertDontSee('fora do horário com esta ordem')
+            ->assertSee('sai das Caldas');
+    }
+
+    public function test_subscricao_sem_entrega_nesse_dia_nao_aparece_na_volta(): void
+    {
+        // Subscricao que ja acabou: a atribuicao ficou guardada, mas nao ha entrega.
+        $acabada = WooOrder::create([
+            'woo_id' => 555, 'source_type' => 'subscription', 'status' => 'subscricao', 'billing_name' => 'Cliente Acabada',
+            'dia_entrega' => 'quarta', 'ciclo_entrega' => 'semanal', 'first_delivery_at' => '2026-08-05',
+            'delivery_dates' => ['2026-08-05', '2026-08-12', '2026-08-19', '2026-08-26'], 'renovada_em' => '2026-08-26', 'total' => 1,
+        ]);
+        AtribuicaoEntrega::create(['tipo' => 'b2c', 'woo_order_id' => $acabada->id, 'zona_id' => $this->lisboa->id, 'dia_semana' => 'Quarta']);
+
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta']))
+            ->assertOk()
+            ->assertDontSee('Cliente Acabada');
+    }
+
     private function user(string $nome, string $role = 'colaborador'): User
     {
         return User::create(['name' => $nome, 'email' => mb_strtolower(str_replace(['é', 'ã'], ['e', 'a'], $nome)).'@teste.pt', 'password' => bcrypt('x'), 'role' => $role, 'ativo' => true]);

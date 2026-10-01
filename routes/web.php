@@ -140,12 +140,14 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'postpone'])->name('encomendas.postpone');
         Route::put('/encomendas/{encomenda}/entrega-feita', [EncomendaController::class, 'marcarEntregaFeita'])->name('encomendas.entrega-feita');
         Route::delete('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'clearPostpone'])->name('encomendas.postpone.clear');
+        Route::post('/encomendas/{encomenda}/adiar/desfazer', [EncomendaController::class, 'undoPostpone'])->name('encomendas.postpone.undo');
         Route::post('/encomendas/{encomenda}/concluir-wordpress', [EncomendaController::class, 'complete'])->name('encomendas.complete');
         Route::post('/encomendas/{encomenda}/fatura-moloni', [FaturacaoController::class, 'subscricao'])->name('encomendas.fatura-moloni');
         Route::put('/encomendas/{encomenda}/produtos-fatura', [FaturacaoController::class, 'produtosB2c'])->name('encomendas.produtos-fatura');
         Route::post('/empresas/faturar', [FaturacaoController::class, 'empresas'])->name('corporates.faturar');
         Route::delete('/encomendas/{encomenda}', [EncomendaController::class, 'destroy'])->name('encomendas.destroy');
         Route::put('/entregas/ordem', [EntregaController::class, 'updateOrdemRota'])->name('entregas.ordem.update');
+        Route::post('/entregas/organizar', [EntregaController::class, 'organizarVoltas'])->name('entregas.organizar');
         Route::get('/zonas', [\App\Http\Controllers\ZonaController::class, 'index'])->name('zonas.index');
         Route::post('/zonas', [\App\Http\Controllers\ZonaController::class, 'store'])->name('zonas.store');
         Route::put('/zonas/horario', [\App\Http\Controllers\ZonaController::class, 'updateHorario'])->name('zonas.horario');

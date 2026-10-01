@@ -1019,10 +1019,72 @@ class WooOrder extends Model
                 'from' => $dataOriginal,
                 'to' => $novaData,
                 'changed_at' => now()->toDateTimeString(),
+                // Como estava antes, para se poder desfazer este adiamento.
+                'antes' => [
+                    'delivery_dates' => array_values($this->delivery_dates ?? []),
+                    'postponed_until' => $this->postponed_until?->toDateString(),
+                    'subscription_ends_at' => $this->subscription_ends_at?->toDateString(),
+                ],
             ]);
         }
 
         return $historico->values()->all();
+    }
+
+    /** O ultimo adiamento foi guardado ha poucos segundos (clique repetido). */
+    public function adiadaHaSegundos(int $segundos = 15): bool
+    {
+        $ultimo = collect($this->postponement_history ?? [])->filter(fn (mixed $item): bool => is_array($item))->last();
+
+        return filled($ultimo['changed_at'] ?? null)
+            && Carbon::parse($ultimo['changed_at'])->greaterThan(now()->subSeconds($segundos));
+    }
+
+    /**
+     * Desfaz o ultimo adiamento da subscricao (ex.: clique a mais). Os
+     * adiamentos novos guardam como estava antes; nos antigos, as entregas a
+     * partir da data nova voltam para tras o mesmo numero de dias.
+     */
+    public function desfazerUltimoAdiamento(): bool
+    {
+        $historico = collect($this->postponement_history ?? [])
+            ->filter(fn (mixed $item): bool => is_array($item))
+            ->values();
+        $ultimo = $historico->pop();
+
+        if ($ultimo === null || blank($ultimo['from'] ?? null) || blank($ultimo['to'] ?? null)) {
+            return false;
+        }
+
+        if (is_array($ultimo['antes'] ?? null)) {
+            $atributos = [
+                'delivery_dates' => $ultimo['antes']['delivery_dates'] ?? [],
+                'postponed_until' => $ultimo['antes']['postponed_until'] ?? null,
+                'subscription_ends_at' => $ultimo['antes']['subscription_ends_at'] ?? null,
+            ];
+        } else {
+            $de = Carbon::parse($ultimo['from'])->toDateString();
+            $para = Carbon::parse($ultimo['to'])->toDateString();
+            $dias = (int) Carbon::parse($de)->diffInDays(Carbon::parse($para), false);
+            $datas = $this->datasSubscricao()
+                ->map(fn (string $data): string => $dias > 0 && $data >= $para ? Carbon::parse($data)->subDays($dias)->toDateString() : $data)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+            $anterior = $historico->last()['to'] ?? null;
+
+            $atributos = [
+                'delivery_dates' => $datas,
+                'postponed_until' => $anterior !== null && in_array(Carbon::parse($anterior)->toDateString(), $datas, true)
+                    ? Carbon::parse($anterior)->toDateString()
+                    : null,
+            ];
+        }
+
+        $this->guardarAdiamento($atributos + ['postponement_history' => $historico->values()->all()]);
+
+        return true;
     }
 
     private function preparacaoItemsParaAdiamento(): Collection

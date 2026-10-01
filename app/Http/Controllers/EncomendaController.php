@@ -341,6 +341,12 @@ class EncomendaController extends Controller
             'postponed_until.required_without' => 'Indique a data do adiamento ou quantas semanas saltar.',
         ]);
 
+        // Duplo clique no "Adiar" de uma subscricao: o segundo pedido adiava
+        // outra vez a entrega seguinte.
+        if ($encomenda->isSubscricao() && $encomenda->adiadaHaSegundos()) {
+            return back()->with('status', 'O adiamento ja tinha sido guardado; o clique repetido foi ignorado.');
+        }
+
         $saltarSemanas = (int) ($data['saltar_semanas'] ?? 0);
         $destino = $data['postponed_until'] ?? null;
 
@@ -417,6 +423,15 @@ class EncomendaController extends Controller
         ])->save();
 
         return back()->with('status', 'Entrega de '.\Illuminate\Support\Carbon::parse($data)->format('d/m/Y').' marcada como feita.');
+    }
+
+    public function undoPostpone(WooOrder $encomenda): RedirectResponse
+    {
+        if (! $encomenda->desfazerUltimoAdiamento()) {
+            return back()->withErrors(['postponed_until' => 'Nao ha adiamento para desfazer.']);
+        }
+
+        return back()->with('status', 'Ultimo adiamento desfeito.');
     }
 
     public function clearPostpone(WooOrder $encomenda): RedirectResponse
