@@ -102,7 +102,10 @@ class Zona extends Model
 
         $horarios = $this->horariosCarregados()->keyBy('dia_semana');
 
-        foreach (array_filter([self::DIAS[$data->dayOfWeek] ?? null, $diaOriginal]) as $diaSemana) {
+        // Primeiro quem faz a zona no dia original da entrega: numa semana com
+        // feriado a volta de segunda passa para terca e continua a ser de quem
+        // faz a segunda (Andre, 01/10/2026). Depois, quem a faz nesse dia.
+        foreach (array_unique(array_filter([$diaOriginal, self::DIAS[$data->dayOfWeek] ?? null])) as $diaSemana) {
             $horario = $horarios->get($diaSemana);
 
             if ($horario?->user_id !== null) {

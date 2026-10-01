@@ -187,6 +187,19 @@ class ZonasEntregasTest extends TestCase
         $this->actingAs($this->joao)->get(route('minhas-entregas.index'))->assertOk()->assertSee('Só à segunda');
     }
 
+    public function test_volta_empurrada_pelo_feriado_fica_com_quem_faz_o_dia_original(): void
+    {
+        Carbon::setTestNow('2026-10-06 08:00:00'); // terca; segunda 05/10 e feriado
+        $this->horario($this->lisboa, 'Segunda', $this->joao);
+        $this->horario($this->lisboa, 'Terca', $this->rita);
+        $this->entrega('Volta de segunda', $this->lisboa, 'Segunda');
+
+        $this->actingAs($this->joao)->get(route('minhas-entregas.index'))->assertSee('Volta de segunda');
+        $this->actingAs($this->rita)->get(route('minhas-entregas.index'))->assertDontSee('Volta de segunda');
+        $this->actingAs($this->admin)->get(route('mapa-volta', ['zona_id' => $this->lisboa->id]))->assertSee('Zona de Lisboa · João');
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Terca']))->assertSeeInOrder(['Zona de Lisboa', 'Faz:', 'João']);
+    }
+
     public function test_atribuir_em_massa_a_uma_zona_e_mudar_de_zona_vai_para_o_fim(): void
     {
         $corporate = $this->empresa('Sonae', '4450-208');

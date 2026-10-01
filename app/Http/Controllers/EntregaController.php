@@ -66,8 +66,7 @@ class EntregaController extends Controller
             'zona' => $zona,
             // Em semanas com feriado as entregas deste dia podem ser as do dia
             // anterior empurradas: vale quem faz a zona no dia original delas.
-            'colaborador' => $zona->colaboradorEm($dataB2c, $dia)
-                ?? $zona->colaboradorEm($dataB2c, ($porZona->get($zona->id) ?? collect())->first()?->dia_semana),
+            'colaborador' => $zona->colaboradorEm($dataB2c, ($porZona->get($zona->id) ?? collect())->first()?->dia_semana ?? $dia),
             'substituicao' => $zona->substituicaoEm($dataB2c),
             'paragens' => ($porZona->get($zona->id) ?? collect())->map(function (AtribuicaoEntrega $atribuicao): array {
                 $linha = $atribuicao->tipo === 'b2c'

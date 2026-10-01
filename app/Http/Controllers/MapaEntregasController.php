@@ -42,13 +42,15 @@ class MapaEntregasController extends Controller
         $colaboradores = $user->isAdmin() ? User::where('ativo', true)->orderBy('name')->get() : collect();
         $zonas = $user->isAdmin() ? Zona::where('ativo', true)->orderBy('ordem')->orderBy('nome')->get() : collect();
         $zona = $user->isAdmin() && filled(request('zona_id')) ? Zona::findOrFail((int) request('zona_id')) : null;
-        $colaborador = $zona !== null
-            ? $zona->colaboradorEm($data)
-            : ($user->isAdmin() && filled(request('user_id')) ? User::findOrFail((int) request('user_id')) : $user);
-
-        $atribuicoes = $zona !== null
-            ? $entregasDoDia->atribuicoes($data)->where('zona_id', $zona->id)->values()
-            : ($colaborador ? $entregasDoDia->doColaborador($colaborador, $data) : collect());
+        if ($zona !== null) {
+            $atribuicoes = $entregasDoDia->atribuicoes($data)->where('zona_id', $zona->id)->values();
+            // Com feriado, as entregas do dia podem ser as do dia anterior
+            // empurradas: vale quem faz a zona no dia original delas.
+            $colaborador = $zona->colaboradorEm($data, $atribuicoes->first()?->dia_semana);
+        } else {
+            $colaborador = $user->isAdmin() && filled(request('user_id')) ? User::findOrFail((int) request('user_id')) : $user;
+            $atribuicoes = $entregasDoDia->doColaborador($colaborador, $data);
+        }
 
         $paragens = $this->paragens($atribuicoes, $data);
         $porFazer = request('todas') ? $paragens : $paragens->where('estado', '!=', 'entregue')->values();

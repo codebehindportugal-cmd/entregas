@@ -76,17 +76,21 @@
 
             @foreach($partes as $i => $parte)
                 <div class="{{ $i > 0 ? 'hidden' : '' }}" data-parte="{{ $i }}">
-                    <iframe
-                        title="Percurso da parte {{ $i + 1 }}"
-                        class="block h-[55vh] min-h-80 w-full border-0"
-                        loading="{{ $i === 0 ? 'eager' : 'lazy' }}"
-                        referrerpolicy="no-referrer-when-downgrade"
-                        @if($i === 0) src="{{ $parte['embed'] }}" @else data-src="{{ $parte['embed'] }}" @endif></iframe>
+                    {{-- O mapa do Google so carrega quando se pede: embutido logo a
+                         abrir, podia encravar a pagina (sobretudo no telemovel). --}}
+                    <div class="hidden" data-mapa-caixa>
+                        <iframe
+                            title="Percurso da parte {{ $i + 1 }}"
+                            class="block h-[55vh] min-h-80 w-full border-0"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            data-src="{{ $parte['embed'] }}"></iframe>
+                    </div>
                     <div class="flex flex-wrap items-center gap-3 p-3">
                         <a href="{{ $parte['navegar'] }}" target="_blank" rel="noopener"
                            class="inline-flex w-full items-center justify-center gap-2 rounded bg-[#22C55E] px-4 py-3 text-base font-semibold text-[#0A0F1A] sm:w-auto">
                             Começar a volta no Google Maps{{ $partes->count() > 1 ? ' · parte '.($i + 1) : '' }}
                         </a>
+                        <button type="button" class="rounded bg-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-white/15" data-ver-mapa>Ver percurso aqui</button>
                         <span class="w-full text-xs text-slate-400 sm:w-auto">
                             @if($i === 0)
                                 {{ $origem ? 'Parte do armazém' : 'Parte de onde estiver' }}
@@ -137,6 +141,17 @@
         </ol>
     @endif
 
+    <script>
+        document.querySelectorAll('[data-ver-mapa]').forEach((botao) => botao.addEventListener('click', () => {
+            const caixa = botao.closest('[data-parte]').querySelector('[data-mapa-caixa]');
+            const iframe = caixa.querySelector('iframe');
+            const abrir = caixa.classList.contains('hidden');
+            if (abrir && iframe.dataset.src) { iframe.src = iframe.dataset.src; iframe.removeAttribute('data-src'); }
+            caixa.classList.toggle('hidden', ! abrir);
+            botao.textContent = abrir ? 'Esconder percurso' : 'Ver percurso aqui';
+        }));
+    </script>
+
     @if($partes->count() > 1)
         <script>
             (() => {
@@ -145,8 +160,7 @@
                     document.querySelectorAll('[data-parte]').forEach((parte) => {
                         const ativa = parte.dataset.parte === String(n);
                         parte.classList.toggle('hidden', ! ativa);
-                        const iframe = parte.querySelector('iframe[data-src]');
-                        if (ativa && iframe) { iframe.src = iframe.dataset.src; iframe.removeAttribute('data-src'); }
+
                     });
                     botoes.forEach((b) => {
                         const ativo = b.dataset.parteBotao === String(n);
