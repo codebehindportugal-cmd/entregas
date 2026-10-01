@@ -491,6 +491,7 @@ class CorporateController extends Controller
             'moloni_composto_ref' => filled($data['moloni_composto_ref'] ?? null) ? $data['moloni_composto_ref'] : null,
             'moloni_guia_ref' => filled($data['moloni_guia_ref'] ?? null) ? $data['moloni_guia_ref'] : null,
             'guia_remessa' => (bool) ($data['guia_remessa'] ?? false),
+            'fatura_conjunta' => (bool) ($data['fatura_conjunta'] ?? false),
             'transportador' => filled($data['transportador'] ?? null) ? trim($data['transportador']) : null,
             'cp_entrega' => filled($data['cp_entrega'] ?? null) ? $data['cp_entrega'] : null,
             'cidade_entrega' => filled($data['cidade_entrega'] ?? null) ? $data['cidade_entrega'] : null,

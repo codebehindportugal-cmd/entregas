@@ -115,6 +115,9 @@
                     <p class="truncate text-[10px] capitalize" style="color:#86efac">{{ auth()->user()->role }}</p>
                 </div>
             </div>
+            <a href="{{ route('perfil.show') }}" class="mt-1 block w-full rounded-lg py-1.5 text-center text-xs font-semibold transition-colors hover:bg-[#166534]" style="color:#86efac">
+                O meu perfil
+            </a>
             <form method="post" action="{{ route('logout') }}" class="mt-1">
                 @csrf
                 <button type="submit" class="w-full rounded-lg py-1.5 text-xs font-semibold transition-colors hover:bg-[#166534]" style="color:#86efac">
@@ -144,10 +147,13 @@
                 </span>
                 <span class="text-sm font-bold text-[#14532d]" style="font-family:Poppins,sans-serif">Horta da Maria</span>
             </a>
-            <form method="post" action="{{ route('logout') }}">
-                @csrf
-                <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50" type="submit">Sair</button>
-            </form>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('perfil.show') }}" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Perfil</a>
+                <form method="post" action="{{ route('logout') }}">
+                    @csrf
+                    <button class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50" type="submit">Sair</button>
+                </form>
+            </div>
             <details class="mobile-menu w-full">
                 <summary class="mobile-menu-summary">
                     <span>Menu</span>

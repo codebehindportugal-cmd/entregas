@@ -57,8 +57,9 @@ class FaturacaoController extends Controller
     }
 
     /**
-     * Emite a Fatura Moloni. Com NIF, emite UMA FATURA POR SUCURSAL desse
-     * contribuinte (nunca agrupa); com corporate_id, emite so essa sucursal.
+     * Emite a Fatura Moloni. Com NIF, emite uma fatura por sucursal desse
+     * contribuinte, menos as marcadas com "fatura conjunta", que saem juntas numa
+     * so fatura. Com corporate_id, emite essa sucursal (ou o grupo conjunto dela).
      */
     public function empresas(Request $request): RedirectResponse
     {

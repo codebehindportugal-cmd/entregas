@@ -42,6 +42,7 @@ class StoreCorporateRequest extends FormRequest
             'moloni_composto_ref' => ['nullable', 'string', 'max:60'],
             'moloni_guia_ref' => ['nullable', 'string', 'max:60'],
             'guia_remessa' => ['nullable', 'boolean'],
+            'fatura_conjunta' => ['nullable', 'boolean'],
             'transportador' => ['nullable', 'string', 'max:255'],
             'dias_vencimento' => ['nullable', 'integer', 'min:0', 'max:365'],
             'peso_total' => ['nullable', 'numeric', 'min:0'],

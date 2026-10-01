@@ -47,6 +47,7 @@ class Corporate extends Model
         'moloni_composto_ref',
         'moloni_guia_ref',
         'guia_remessa',
+        'fatura_conjunta',
         'transportador',
         'dias_vencimento',
         'ciclo_inicio',
@@ -73,6 +74,7 @@ class Corporate extends Model
             'produtos_mensais' => 'array',
             'ativo' => 'boolean',
             'guia_remessa' => 'boolean',
+            'fatura_conjunta' => 'boolean',
             'peso_total' => 'decimal:2',
             'preco_venda_peca' => 'decimal:4',
             'preco_cabaz' => 'decimal:2',
@@ -239,51 +241,76 @@ class Corporate extends Model
 
     public function temEntregaNaData(\DateTimeInterface $data): bool
     {
-        $data = Carbon::parse($data)->startOfDay();
-        $holidayCalendar = app(HolidayCalendarService::class);
-
-        if ($holidayCalendar->isHolidayForCorporate($data, $this)) {
-            return false;
-        }
-
-        if ($this->temEntregaRegularNaData($data)) {
-            return true;
-        }
-
         return $this->diaEntregaOriginalParaData($data) !== null;
     }
 
+    /**
+     * Dia de entrega regular (Segunda, Quarta, ...) que e entregue nesta data,
+     * ja com os feriados aplicados. null = nesta data nao ha entrega.
+     */
     public function diaEntregaOriginalParaData(\DateTimeInterface $data): ?string
     {
         $data = Carbon::parse($data)->startOfDay();
+        $cursor = $data->copy();
+        $limite = $data->copy()->subDays(14);
 
-        if ($this->temEntregaRegularNaData($data)) {
-            return $this->diaSemana($data);
-        }
-
-        if ($this->entregaTodosOsDiasUteis()) {
-            return null;
-        }
-
-        $holidayCalendar = app(HolidayCalendarService::class);
-        $cursor = $data->copy()->subDay();
-
-        while ($cursor->greaterThanOrEqualTo($data->copy()->subDays(14))) {
-            $diaOriginal = $this->diaSemana($cursor);
-
-            if (
-                $diaOriginal !== null
-                && $this->temEntregaRegularNaData($cursor)
-                && $holidayCalendar->isHolidayForCorporate($cursor, $this)
-                && $this->proximoDiaEntregaDepoisDoFeriado($cursor)?->isSameDay($data)
-            ) {
-                return $diaOriginal;
+        while ($cursor->greaterThanOrEqualTo($limite)) {
+            if ($this->temEntregaRegularNaData($cursor) && $this->dataEntregaEfetiva($cursor)?->isSameDay($data)) {
+                return $this->diaSemana($cursor);
             }
 
             $cursor->subDay();
         }
 
         return null;
+    }
+
+    /**
+     * Data em que e feita a entrega regular prevista para $dataRegular.
+     *
+     * Regras dos feriados (André, 29/09/2026):
+     * - Empresas com entrega todos os dias uteis: no feriado nao se entrega e
+     *   nao se passa para outro dia.
+     * - Restantes: um feriado NACIONAL empurra para o dia seguinte a entrega
+     *   desse dia e as dos dias seguintes da mesma semana. Ex.: feriado a
+     *   segunda -> segunda passa a terca e quarta passa a quinta; feriado a
+     *   quarta -> quarta passa a quinta (a segunda fica igual).
+     * - Se o dia empurrado cair ao fim de semana, nessa semana nao ha entrega.
+     * - Feriado municipal: mantem-se a regra antiga (passa para o proximo dia
+     *   de entrega da empresa que nao seja feriado).
+     */
+    public function dataEntregaEfetiva(\DateTimeInterface $dataRegular): ?Carbon
+    {
+        $data = Carbon::parse($dataRegular)->startOfDay();
+        $holidayCalendar = app(HolidayCalendarService::class);
+
+        if ($this->entregaTodosOsDiasUteis()) {
+            return $holidayCalendar->isHolidayForCorporate($data, $this) ? null : $data;
+        }
+
+        $desvio = 0;
+
+        for ($dia = $data->copy()->startOfWeek(Carbon::MONDAY); $dia->lessThanOrEqualTo($data); $dia->addDay()) {
+            if ($holidayCalendar->isNationalHoliday($dia)) {
+                $desvio++;
+            }
+        }
+
+        $efetiva = $data->copy()->addDays($desvio);
+
+        while ($holidayCalendar->isNationalHoliday($efetiva)) {
+            $efetiva->addDay();
+        }
+
+        if ($desvio > 0 && $efetiva->isWeekend()) {
+            return null;
+        }
+
+        if ($holidayCalendar->isHolidayForCorporate($efetiva, $this)) {
+            return $this->proximoDiaEntregaDepoisDoFeriado($efetiva);
+        }
+
+        return $efetiva;
     }
 
     private function temEntregaRegularNaData(Carbon $data): bool

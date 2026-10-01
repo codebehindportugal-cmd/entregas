@@ -128,6 +128,16 @@
 
     <div class="mt-4 rounded border border-white/10 bg-[#0A0F1A] p-4">
         <label class="flex items-start gap-3 text-sm text-slate-300">
+            <input name="fatura_conjunta" type="checkbox" value="1" @checked(old('fatura_conjunta', $corporate->fatura_conjunta)) class="mt-1 rounded border-white/10">
+            <span>
+                Fatura conjunta com as outras sucursais do mesmo NIF
+                <span class="mt-1 block text-xs text-slate-500">As sucursais deste NIF com esta opcao marcada saem todas numa so fatura, com as linhas de cada uma. As que nao a tiverem continuam com fatura propria. O ciclo e a referencia do cliente sao os da primeira sucursal do grupo (por nome).</span>
+            </span>
+        </label>
+    </div>
+
+    <div class="mt-4 rounded border border-white/10 bg-[#0A0F1A] p-4">
+        <label class="flex items-start gap-3 text-sm text-slate-300">
             <input name="guia_remessa" type="checkbox" value="1" @checked(old('guia_remessa', $corporate->guia_remessa)) class="mt-1 rounded border-white/10">
             <span>
                 Entrega feita por terceiros — emitir tambem guia de remessa

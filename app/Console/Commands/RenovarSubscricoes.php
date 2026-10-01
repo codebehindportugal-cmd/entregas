@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\WooOrder;
 use App\Services\RenovacaoService;
+use App\Support\Ntfy;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -33,6 +34,8 @@ class RenovarSubscricoes extends Command
             return self::SUCCESS;
         }
 
+        $falhas = [];
+
         foreach ($candidatas as $subscricao) {
             $etiqueta = "#{$subscricao->woo_id} ".($subscricao->billing_name ?: 'sem nome');
 
@@ -53,7 +56,19 @@ class RenovarSubscricoes extends Command
                 ]);
 
                 $this->error("Falhou a renovacao de {$etiqueta}: {$exception->getMessage()}");
+                $falhas[] = "{$etiqueta}: " . mb_substr($exception->getMessage(), 0, 120);
             }
+        }
+
+        // 29/09/2026: ate aqui uma renovacao falhada so ficava no log, e o
+        // cliente simplesmente deixava de receber o cabaz.
+        if ($falhas) {
+            Ntfy::falhou(
+                'renovacoes',
+                count($falhas) === 1 ? 'Horta: 1 renovacao falhou' : 'Horta: ' . count($falhas) . ' renovacoes falharam',
+                implode("\n", array_slice($falhas, 0, 5)),
+                rtrim((string) config('app.url'), '/'),
+            );
         }
 
         return self::SUCCESS;

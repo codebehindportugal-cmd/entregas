@@ -155,12 +155,24 @@ class FaturacaoService
             throw new RuntimeException("Nao ha empresas ativas com o contribuinte {$nif}.");
         }
 
-        // NUNCA agrupar sucursais: uma fatura por sucursal (decisao do André,
-        // 28/08/2026). Um erro numa sucursal nao impede as restantes.
+        // Por defeito, uma fatura por sucursal (André, 28/08/2026). As sucursais
+        // marcadas com "fatura conjunta" saem todas numa so fatura (André,
+        // 29/09/2026). Um erro numa fatura nao impede as restantes.
         $documentos = [];
         $erros = [];
 
-        foreach ($empresas as $empresa) {
+        $conjuntas = $empresas->filter(fn (Corporate $empresa): bool => (bool) $empresa->fatura_conjunta)->values();
+        $separadas = $empresas->reject(fn (Corporate $empresa): bool => (bool) $empresa->fatura_conjunta)->values();
+
+        if ($conjuntas->isNotEmpty()) {
+            try {
+                $documentos[] = $this->emitirFaturaParaEmpresas($conjuntas, $conjuntas->first(), $dataRef, $forcar, $referenciaCliente);
+            } catch (\Throwable $exception) {
+                $erros[] = 'Fatura conjunta ('.$conjuntas->count().' sucursais): '.$exception->getMessage();
+            }
+        }
+
+        foreach ($separadas as $empresa) {
             try {
                 $documentos[] = $this->emitirFaturaSucursal($empresa, $dataRef, $forcar, $referenciaCliente);
             } catch (\Throwable $exception) {
@@ -187,7 +199,37 @@ class FaturacaoService
      */
     public function emitirFaturaEmpresa(Corporate $empresa, \Illuminate\Support\Carbon $dataRef, bool $forcar = false, ?string $referenciaCliente = null): array
     {
+        // Sucursal com fatura conjunta: a fatura leva todo o grupo do NIF.
+        $grupo = $this->grupoFaturaConjunta($empresa);
+
+        if ($grupo->count() > 1) {
+            return $this->emitirFaturaParaEmpresas($grupo, $grupo->first(), $dataRef, $forcar, $referenciaCliente);
+        }
+
         return $this->emitirFaturaSucursal($empresa, $dataRef, $forcar, $referenciaCliente);
+    }
+
+    /**
+     * Sucursais ativas do mesmo NIF marcadas com fatura conjunta (inclui a
+     * propria). Sem a marca ou sem NIF, devolve so a propria sucursal.
+     *
+     * @return Collection<int,Corporate>
+     */
+    public function grupoFaturaConjunta(Corporate $empresa): Collection
+    {
+        if (! $empresa->fatura_conjunta || blank($empresa->fatura_nif)) {
+            return collect([$empresa]);
+        }
+
+        $grupo = Corporate::query()
+            ->where('ativo', true)
+            ->where('fatura_conjunta', true)
+            ->where('fatura_nif', trim((string) $empresa->fatura_nif))
+            ->orderBy('empresa')
+            ->orderBy('sucursal')
+            ->get();
+
+        return $grupo->contains('id', $empresa->id) ? $grupo : collect([$empresa]);
     }
 
     /**
@@ -241,10 +283,15 @@ class FaturacaoService
         // V/Ref (A sua referencia) = periodo do ciclo, como nas faturas manuais.
         $periodoTexto = 'Período de fatura de '.$cicloLabel;
 
-        // Deduplicacao POR SUCURSAL (nao por NIF): cada sucursal tem a sua fatura.
+        // Deduplicacao POR SUCURSAL (nao por NIF): nenhuma das sucursais desta
+        // fatura pode ja ter fatura neste ciclo.
         $existente = CorporateFatura::query()
             ->where('ciclo_ref', $cicloRef)
-            ->whereJsonContains('corporate_ids', $referencia->id)
+            ->where(function ($query) use ($empresas): void {
+                foreach ($empresas as $empresa) {
+                    $query->orWhereJsonContains('corporate_ids', $empresa->id);
+                }
+            })
             ->first();
 
         $aindaNoMoloni = null;
@@ -261,7 +308,9 @@ class FaturacaoService
         }
 
         if ($existente && ! $forcar) {
-            $nomeSucursal = trim($referencia->empresa.' '.($referencia->sucursal ?? ''));
+            $nomeSucursal = $empresas->count() > 1
+                ? trim(($referencia->fatura_nome ?: $referencia->empresa).' (fatura conjunta)')
+                : trim($referencia->empresa.' '.($referencia->sucursal ?? ''));
             $aviso = $aindaNoMoloni === null ? ' (nao foi possivel confirmar no Moloni)' : '';
             throw new RuntimeException("Ja existe fatura para {$nomeSucursal} no ciclo {$cicloLabel} (#{$existente->document_id}){$aviso}. Marca 'Forcar' para emitir na mesma.");
         }
@@ -350,7 +399,9 @@ class FaturacaoService
 
         CorporateFatura::create([
             'nif' => $referencia->fatura_nif ?: null,
-            'nome' => trim(($referencia->fatura_nome ?: $referencia->empresa).' '.($referencia->sucursal ?? '')),
+            'nome' => $empresas->count() > 1
+                ? trim(($referencia->fatura_nome ?: $referencia->empresa).' ('.$empresas->count().' sucursais)')
+                : trim(($referencia->fatura_nome ?: $referencia->empresa).' '.($referencia->sucursal ?? '')),
             'periodo' => $periodoYm,
             'ciclo_ref' => $cicloRef,
             'ciclo_label' => $cicloLabel,

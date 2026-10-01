@@ -62,6 +62,11 @@ class User extends Authenticatable
         return $this->hasMany(RegistoEntrega::class);
     }
 
+    public function apiTokens(): HasMany
+    {
+        return $this->hasMany(ApiToken::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

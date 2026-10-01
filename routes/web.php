@@ -48,6 +48,11 @@ Route::middleware('guest')->group(function (): void {
 Route::middleware('auth')->group(function (): void {
     Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
+    // Perfil e chave da API (29/09/2026).
+    Route::get('/perfil', [\App\Http\Controllers\PerfilController::class, 'show'])->name('perfil.show');
+    Route::post('/perfil/chave-api', [\App\Http\Controllers\PerfilController::class, 'gerarChave'])->name('perfil.chave-api.store');
+    Route::delete('/perfil/chave-api', [\App\Http\Controllers\PerfilController::class, 'revogarChave'])->name('perfil.chave-api.destroy');
+
     Route::get('/minhas-entregas', [EntregaController::class, 'minhasEntregas'])->name('minhas-entregas.index');
     Route::get('/minhas-entregas/{registoEntrega}', [EntregaController::class, 'show'])->name('minhas-entregas.show');
     Route::put('/minhas-entregas/{registoEntrega}', [EntregaController::class, 'update'])->name('minhas-entregas.update');

@@ -240,12 +240,12 @@ class ClaudeApiController extends Controller
 
     private function authorizeClaude(Request $request): void
     {
-        $configuredToken = config('services.claude.api_token');
-
-        abort_if(blank($configuredToken), 503, 'CLAUDE_API_TOKEN nao esta configurado.');
+        // 29/09/2026: as mesmas regras do ClaudeApiTokenMiddleware — o
+        // CLAUDE_API_TOKEN do .env ou uma chave gerada no perfil.
+        abort_unless(\App\Support\ChaveApi::haAlgumaConfigurada(), 503, 'Nenhuma chave da API configurada.');
 
         $token = $request->bearerToken() ?: $request->header('X-Claude-Api-Key');
 
-        abort_unless(is_string($token) && hash_equals((string) $configuredToken, $token), 401, 'Token invalido.');
+        abort_unless(\App\Support\ChaveApi::valida(is_string($token) ? $token : null), 401, 'Token invalido.');
     }
 }

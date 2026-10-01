@@ -34,6 +34,25 @@ class HolidayCalendarService
         'viseu' => ['09-21' => 'Sao Mateus'],
     ];
 
+    /** @var array<int,array<string,bool>> Feriados nacionais por ano (cache). */
+    private static array $nacionaisPorAno = [];
+
+    /**
+     * Feriado NACIONAL nessa data (os municipais nao contam). E o que empurra
+     * as entregas da semana para o dia seguinte (ver Corporate::dataEntregaEfetiva).
+     */
+    public function isNationalHoliday(Carbon|string $date): bool
+    {
+        $date = Carbon::parse($date)->startOfDay();
+
+        self::$nacionaisPorAno[$date->year] ??= $this->holidaysForYear($date->year, null)
+            ->where('type', 'nacional')
+            ->mapWithKeys(fn (array $holiday): array => [$holiday['date'] => true])
+            ->all();
+
+        return isset(self::$nacionaisPorAno[$date->year][$date->toDateString()]);
+    }
+
     public function isHolidayForCorporate(Carbon|string $date, ?Corporate $corporate = null): bool
     {
         return $this->holidayForCorporate($date, $corporate) !== null;
