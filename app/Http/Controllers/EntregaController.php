@@ -68,8 +68,12 @@ class EntregaController extends Controller
         $rotas = $zonas->map(function (Zona $zona) use ($porZona, $dataB2c, $dia, $organizador): array {
             $paragens = $this->paragensDaZona($porZona->get($zona->id) ?? collect());
             // Horas previstas pela ordem atual (estimativa, para ver se ha
-            // entregas fora de horas).
-            $previsao = $organizador->simular($this->paraOrganizar($paragens))->keyBy('chave');
+            // entregas fora de horas). Uma volta por pessoa: em semanas com
+            // feriado a mesma zona pode ter entregas de duas pessoas.
+            $previsao = $paragens
+                ->groupBy(fn (array $paragem): int => $this->quemFaz($paragem['atribuicao'], $dataB2c))
+                ->flatMap(fn ($grupo) => $organizador->simular($this->paraOrganizar($grupo), $zona->partida_cp))
+                ->keyBy('chave');
 
             return [
                 'zona' => $zona,
@@ -78,7 +82,7 @@ class EntregaController extends Controller
                 'colaborador' => $zona->colaboradorEm($dataB2c, ($porZona->get($zona->id) ?? collect())->first()?->dia_semana ?? $dia),
                 'substituicao' => $zona->substituicaoEm($dataB2c),
                 'paragens' => $paragens->map(fn (array $paragem): array => $paragem + ['previsao' => $previsao->get($paragem['atribuicao']->id)]),
-                'saida' => $previsao->first()['saida'] ?? null,
+                'saida' => $previsao->pluck('saida')->filter()->unique()->sort()->implode(' e '),
                 'atrasadas' => $previsao->where('atrasada', true)->count(),
             ];
         })->values();
@@ -87,6 +91,7 @@ class EntregaController extends Controller
             'dia' => $dia,
             'dias' => array_values(self::DIAS),
             'dataDia' => $dataB2c->toDateString(),
+            'semana' => $this->semanaPedida(),
             'entregas' => $entregas,
             'rotas' => $rotas,
             'zonas' => $zonas->where('ativo', true)->values(),
@@ -960,33 +965,49 @@ class EntregaController extends Controller
         $data = $request->validate([
             'dia_semana' => ['required', 'in:'.implode(',', self::DIAS)],
             'zona_id' => ['nullable', 'integer', 'exists:zonas,id'],
+            'semana' => ['nullable', 'integer', 'min:0', 'max:12'],
         ]);
 
-        [$atribuicoes] = $this->entregasDoDiaParaRotas($data['dia_semana'], $this->dataReferenciaParaDia($data['dia_semana']));
+        $dataDia = $this->dataReferenciaParaDia($data['dia_semana']);
+        [$atribuicoes] = $this->entregasDoDiaParaRotas($data['dia_semana'], $dataDia);
         $porZona = $atribuicoes->whereNotNull('zona_id')
             ->when(filled($data['zona_id'] ?? null), fn ($colecao) => $colecao->where('zona_id', (int) $data['zona_id']))
             ->groupBy('zona_id');
 
         $resumo = [];
 
-        DB::transaction(function () use ($porZona, $organizador, &$resumo): void {
+        DB::transaction(function () use ($porZona, $organizador, $dataDia, &$resumo): void {
             foreach ($porZona as $atribuicoesDaZona) {
-                $ordem = $organizador->organizar($this->paraOrganizar($this->paragensDaZona($atribuicoesDaZona)));
-                $porId = $atribuicoesDaZona->keyBy('id');
+                $zona = $atribuicoesDaZona->first()->zona;
+                $seguinte = 1;
 
-                foreach ($ordem->values() as $i => $paragem) {
-                    $porId->get($paragem['chave'])?->update(['ordem' => $i + 1]);
+                // Uma volta por pessoa (em semanas com feriado a mesma zona pode
+                // ter as entregas de dois dias, feitas por pessoas diferentes).
+                foreach ($atribuicoesDaZona->groupBy(fn (AtribuicaoEntrega $a): int => $this->quemFaz($a, $dataDia)) as $grupo) {
+                    $ordem = $organizador->organizar($this->paraOrganizar($this->paragensDaZona($grupo)), $zona?->partida_cp);
+                    $porId = $grupo->keyBy('id');
+
+                    foreach ($ordem as $paragem) {
+                        $porId->get($paragem['chave'])?->update(['ordem' => $seguinte++]);
+                    }
+
+                    $resumo[] = $zona?->nome.' sai '.($ordem->first()['saida'] ?? '?')
+                        .($ordem->where('atrasada', true)->isNotEmpty() ? ' ('.$ordem->where('atrasada', true)->count().' fora de horas)' : '');
                 }
 
                 $this->limparOrdemDosRegistos($atribuicoesDaZona);
-                $resumo[] = $atribuicoesDaZona->first()->zona?->nome.' sai '.($ordem->first()['saida'] ?? '?')
-                    .($ordem->where('atrasada', true)->isNotEmpty() ? ' ('.$ordem->where('atrasada', true)->count().' fora de horas)' : '');
             }
         });
 
         return back()->with('status', $resumo === []
             ? 'Nao ha voltas para organizar neste dia.'
             : 'Voltas organizadas por horario e distancia: '.implode('; ', $resumo).'.');
+    }
+
+    /** Quem faz esta entrega nesta data (0 = ninguem). */
+    private function quemFaz(AtribuicaoEntrega $atribuicao, Carbon $data): int
+    {
+        return (int) ($atribuicao->zona?->colaboradorIdEm($data, $atribuicao->dia_semana) ?? 0);
     }
 
     /** As entregas de hoje para a frente passam a seguir a ordem da volta. */
@@ -1340,6 +1361,13 @@ class EntregaController extends Controller
             $data->addDay();
         }
 
-        return $data;
+        // Ver/organizar as voltas de uma semana mais a frente (ex.: quando
+        // esta semana tem feriado e as voltas estao trocadas).
+        return $data->addWeeks($this->semanaPedida());
+    }
+
+    private function semanaPedida(): int
+    {
+        return max(0, min(12, (int) request('semana', 0)));
     }
 }

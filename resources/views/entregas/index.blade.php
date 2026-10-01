@@ -20,7 +20,7 @@
     {{-- Dias --}}
     <nav class="mb-4 flex flex-wrap gap-2">
         @foreach($dias as $diaOption)
-            <a href="{{ route('entregas.index', ['dia' => $diaOption]) }}"
+            <a href="{{ route('entregas.index', array_filter(['dia' => $diaOption, 'semana' => $semana])) }}"
                class="rounded px-4 py-2 text-sm {{ $dia === $diaOption ? 'bg-[#3B82F6] font-semibold text-white' : 'bg-white/10 text-slate-300 hover:bg-white/15' }}">{{ $diaOption }}</a>
         @endforeach
     </nav>
@@ -29,6 +29,12 @@
     <div class="mb-6 flex flex-wrap items-center gap-2 rounded border border-white/10 bg-[#151E2D] p-4 text-sm">
         <span class="mr-2 text-slate-300">
             <strong class="text-white">{{ $entregas->count() }}</strong> entregas para {{ \Illuminate\Support\Carbon::parse($dataDia)->format('d/m') }}
+        </span>
+        <span class="mr-2 inline-flex gap-1 text-xs">
+            @if($semana > 0)
+                <a href="{{ route('entregas.index', array_filter(['dia' => $dia, 'semana' => $semana - 1])) }}" class="rounded bg-white/10 px-2 py-1 text-slate-300 hover:bg-white/15">&larr; semana anterior</a>
+            @endif
+            <a href="{{ route('entregas.index', ['dia' => $dia, 'semana' => $semana + 1]) }}" class="rounded bg-white/10 px-2 py-1 text-slate-300 hover:bg-white/15">semana seguinte &rarr;</a>
         </span>
         @if($porAtribuir > 0)
             <span class="rounded bg-[#F59E0B]/15 px-2 py-1 font-semibold text-amber-200">{{ $porAtribuir }} por atribuir</span>
@@ -50,6 +56,7 @@
             <form method="post" action="{{ route('entregas.organizar') }}" class="ml-auto">
                 @csrf
                 <input type="hidden" name="dia_semana" value="{{ $dia }}">
+                <input type="hidden" name="semana" value="{{ $semana }}">
                 <button class="rounded bg-[#3B82F6] px-3 py-1.5 text-sm font-semibold text-white" title="Primeiro as que têm hora limite cedo, depois pela proximidade, dentro do horário de cada empresa">Organizar todas as voltas</button>
             </form>
         @endif
@@ -221,6 +228,7 @@
                                     @csrf
                                     <input type="hidden" name="dia_semana" value="{{ $dia }}">
                                     <input type="hidden" name="zona_id" value="{{ $zona->id }}">
+                                    <input type="hidden" name="semana" value="{{ $semana }}">
                                     <button class="rounded bg-white/10 px-3 py-1.5 text-sm font-semibold text-slate-200 hover:bg-white/15" title="Primeiro as que têm hora limite cedo, depois pela proximidade, dentro do horário de cada empresa">Organizar volta</button>
                                 </form>
                                 <button form="ordem-rota-{{ $zona->id }}" class="rounded bg-[#22C55E] px-3 py-1.5 text-sm font-semibold text-[#0A0F1A]">Guardar ordem</button>

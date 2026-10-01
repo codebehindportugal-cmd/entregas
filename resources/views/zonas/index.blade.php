@@ -166,12 +166,15 @@
         <div class="mt-4 grid gap-2">
             @foreach($zonas as $zona)
                 <form method="post" action="{{ route('zonas.update', $zona) }}" class="grid items-end gap-3 rounded border border-white/10 p-3 sm:grid-cols-[auto_1fr_6rem_auto_auto] {{ $zona->ativo ? '' : 'opacity-60' }}">
-                    <label class="text-xs text-slate-400 sm:col-span-5 sm:grid sm:grid-cols-2 sm:gap-3">
+                    <label class="text-xs text-slate-400 sm:col-span-5 sm:grid sm:grid-cols-[2fr_2fr_1fr] sm:gap-3">
                         <span>Área
                             <input name="descricao" value="{{ $zona->descricao }}" placeholder="Ex.: de Cantanhede a Porto de Mós" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                         </span>
                         <span>Códigos postais <span class="text-slate-500">(para sugerir a zona; ex.: 2300-2599, 3000-3299)</span>
                             <input name="codigos_postais" value="{{ $zona->codigos_postais }}" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
+                        </span>
+                        <span>Partida da volta <span class="text-slate-500">(código postal; vazio = Caldas)</span>
+                            <input name="partida_cp" value="{{ $zona->partida_cp }}" placeholder="2500" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                         </span>
                     </label>
                     @csrf

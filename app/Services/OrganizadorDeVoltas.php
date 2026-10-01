@@ -22,9 +22,13 @@ class OrganizadorDeVoltas
 
     private const PENALIZACAO_ATRASO = 1000;
 
+    /** De onde sai a volta que se esta a organizar (null = o armazem). */
+    private ?array $partida = null;
+
     /** @return Collection<int, array> as paragens pela ordem da volta, com as horas previstas */
-    public function organizar(Collection $paragens): Collection
+    public function organizar(Collection $paragens, ?string $partidaCp = null): Collection
     {
+        $this->partida = self::coordenadas($partidaCp);
         [$comLocal, $semLocal] = $this->preparar($paragens)->partition(fn (array $p): bool => $p['_coord'] !== null);
         $saida = $this->horaDeSaida($comLocal);
 
@@ -35,8 +39,9 @@ class OrganizadorDeVoltas
     }
 
     /** As horas previstas mantendo a ordem que as paragens ja tem. */
-    public function simular(Collection $paragens): Collection
+    public function simular(Collection $paragens, ?string $partidaCp = null): Collection
     {
+        $this->partida = self::coordenadas($partidaCp);
         $preparadas = $this->preparar($paragens);
 
         return $this->horas($preparadas, $this->horaDeSaida($preparadas->filter(fn (array $p): bool => $p['_coord'] !== null)));
@@ -130,7 +135,7 @@ class OrganizadorDeVoltas
     /** @return array{0: float, 1: float} */
     private function origem(): array
     {
-        return config('entregas.origem_coordenadas', [39.4036, -9.1361]);
+        return $this->partida ?? config('entregas.origem_coordenadas', [39.4036, -9.1361]);
     }
 
     private function servico(): int

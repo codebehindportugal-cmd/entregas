@@ -18,7 +18,7 @@ class Zona extends Model
         6 => 'Sabado',
     ];
 
-    protected $fillable = ['nome', 'cor', 'descricao', 'codigos_postais', 'ordem', 'ativo'];
+    protected $fillable = ['nome', 'cor', 'descricao', 'codigos_postais', 'partida_cp', 'ordem', 'ativo'];
 
     protected $casts = [
         'ativo' => 'boolean',

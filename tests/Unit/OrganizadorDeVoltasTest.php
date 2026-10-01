@@ -61,4 +61,20 @@ class OrganizadorDeVoltasTest extends TestCase
 
         $this->assertTrue($volta->firstWhere('chave', 'lisboa7')['atrasada']);
     }
+
+    public function test_a_volta_pode_partir_de_outro_sitio(): void
+    {
+        $paragens = collect([
+            ['chave' => 'espinho', 'cp' => '4500-001', 'horario' => null],
+            ['chave' => 'lionesa', 'cp' => '4465-671', 'horario' => '7h'],
+        ]);
+
+        $dasCaldas = app(OrganizadorDeVoltas::class)->organizar($paragens);
+        $doPorto = app(OrganizadorDeVoltas::class)->organizar($paragens, '4470');
+
+        $this->assertLessThan('05:00', $dasCaldas->first()['saida']);
+        $this->assertGreaterThan('06:00', $doPorto->first()['saida']);
+        $this->assertSame('lionesa', $doPorto->first()['chave']);
+        $this->assertCount(0, $doPorto->where('atrasada', true));
+    }
 }

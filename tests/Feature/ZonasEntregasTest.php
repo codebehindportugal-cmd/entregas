@@ -422,6 +422,25 @@ class ZonasEntregasTest extends TestCase
             ->assertSee('sai das Caldas');
     }
 
+    public function test_rotas_de_outra_semana_e_partida_da_zona(): void
+    {
+        $this->entrega('Sonae', $this->norte);
+        $this->lisboa->update(['partida_cp' => '1000']);
+
+        $this->actingAs($this->admin)->get(route('entregas.index', ['dia' => 'Quarta', 'semana' => 1]))
+            ->assertOk()
+            ->assertSee('entregas para 21/10')
+            ->assertSee('semana anterior');
+
+        $this->actingAs($this->admin)->put(route('zonas.update', $this->lisboa), [
+            'nome' => $this->lisboa->nome, 'cor' => '#123456', 'ativo' => 1, 'partida_cp' => 'abc',
+        ])->assertSessionHasErrors('partida_cp');
+        $this->actingAs($this->admin)->put(route('zonas.update', $this->lisboa), [
+            'nome' => $this->lisboa->nome, 'cor' => '#123456', 'ativo' => 1, 'partida_cp' => '4470',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('4470', $this->lisboa->fresh()->partida_cp);
+    }
+
     public function test_subscricao_sem_entrega_nesse_dia_nao_aparece_na_volta(): void
     {
         // Subscricao que ja acabou: a atribuicao ficou guardada, mas nao ha entrega.

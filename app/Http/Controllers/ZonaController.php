@@ -77,7 +77,9 @@ class ZonaController extends Controller
             'ativo' => ['nullable', 'boolean'],
             'descricao' => ['nullable', 'string', 'max:255'],
             'codigos_postais' => ['nullable', 'string', 'max:255', 'regex:/^\s*(\d{4}(-\d{4})?)?([\s,;]+\d{4}(-\d{4})?)*\s*$/'],
+            'partida_cp' => ['nullable', 'string', 'max:20', 'regex:/^\s*\d{4}(-\d{3})?\s*$/'],
         ], [
+            'partida_cp.regex' => 'A partida da volta e um codigo postal: 0000 ou 0000-000.',
             'codigos_postais.regex' => 'Escreva os códigos postais assim: 2300-2599, 3000-3299 (só os 4 primeiros dígitos).',
         ]);
 
@@ -88,6 +90,7 @@ class ZonaController extends Controller
             'ativo' => $request->boolean('ativo'),
             'descricao' => $data['descricao'] ?? null,
             'codigos_postais' => $data['codigos_postais'] ?? null,
+            'partida_cp' => filled($data['partida_cp'] ?? null) ? trim($data['partida_cp']) : null,
         ]);
 
         return back()->with('status', "Zona {$zona->nome} guardada.");
