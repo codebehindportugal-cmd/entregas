@@ -6,7 +6,7 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Figtree', 'Nunito', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
@@ -21,7 +21,8 @@
     }
 
     h1, h2, h3 {
-        font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+        font-family: 'Figtree', ui-sans-serif, system-ui, sans-serif;
+        letter-spacing: -0.01em;
     }
 
     a,
@@ -993,158 +994,195 @@ a.bg-\[\#3B82F6\] {
     }
 }
 
-
 /* ==========================================================================
-   Refresh visual (out/2026) — segue o design do canvas "Entregas — Horta da Maria".
+   Visual v2 (out/2026) — design "Backoffice Horta da Maria — v2".
    Fica no fim de propósito: assenta por cima das regras do tema claro acima.
-   Acento verde em vez de azul, cartões com cantos de 14px e borda leve,
-   botões e campos com 44px de altura (dedo no telemóvel), cabeçalhos de
-   tabela discretos. Para reverter, basta apagar este bloco.
+   - superfícies brancas, bordas #E3E7E4, cantos de 12px, sem sombras pesadas
+   - um só acento: verde #1F6B3A
+   - TODAS as ações são botões: os links de ação que eram texto colorido
+     (Abrir, Editar, Ver, Remover...) ganham aspeto de botão
+   Para reverter, basta apagar este bloco.
    ========================================================================== */
 
 body {
-    color: #1a2e05;
+    background: #F6F7F6 !important;
+    color: #111A14;
+    font-family: 'Figtree', 'Nunito', ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
 }
 
-/* Cartões e painéis */
+/* ---------- Barra lateral e topo ---------- */
+.hm-sidebar nav a { min-height: 38px; }
+.hm-side-btn {
+    display: flex; align-items: center; justify-content: center; width: 100%;
+    min-height: 36px; border-radius: 8px; border: 1px solid #D6DCD8; background: #FFFFFF;
+    color: #111A14; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer;
+}
+.hm-side-btn:hover { background: #F1F4F2; }
+.topbar-desktop { background: #FFFFFF !important; border-color: #E3E7E4 !important; box-shadow: none !important; }
+
+/* ---------- Títulos ---------- */
+.page-title h1, main h1 {
+    font-size: 1.625rem; font-weight: 700; color: #111A14; letter-spacing: -0.01em;
+}
+.page-title p { color: #5B6660 !important; }
+main h2, main h3 { color: #111A14; }
+
+/* ---------- Cartões e painéis ---------- */
 .card,
+.kpi-card,
+main .rounded.border,
+main .rounded-lg.border,
+main .rounded-xl.border,
 .rounded.border.border-white\/10.bg-\[\#151E2D\],
 .rounded.border.border-white\/10.bg-\[\#111B17\],
 .rounded.border.border-white\/10.bg-\[\#0A0F1A\],
 .overflow-hidden.rounded.border.border-white\/10.bg-\[\#151E2D\],
 form.rounded.border.border-white\/10.bg-\[\#151E2D\],
 div.rounded.border.border-white\/10.bg-\[\#151E2D\] {
-    border-radius: 14px !important;
-    border-color: #d7e7da !important;
-    box-shadow: 0 1px 2px rgb(20 83 45 / 0.05) !important;
+    border-radius: 12px !important;
+    border-color: #E3E7E4 !important;
+    box-shadow: none !important;
+}
+.border-white\/10, .border-white\/\[0\.10\], .border-white\/5 { border-color: #E3E7E4 !important; }
+
+/* ---------- Texto ---------- */
+.text-white { color: #111A14 !important; }
+.text-slate-100, .text-slate-200, .text-slate-300 { color: #3D4842 !important; }
+.text-slate-400, .text-slate-500 { color: #5B6660 !important; }
+
+/* ---------- Tabelas ---------- */
+thead, .bg-white\/5 { background-color: #F9FAF9 !important; }
+thead th {
+    color: #5B6660 !important; font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0; text-transform: none;
+}
+tbody tr, .border-t.border-white\/10 { border-color: #EEF0EF !important; }
+tbody tr:hover { background-color: #FAFBFA; }
+
+/* ---------- Campos ---------- */
+input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='file']):not([type='hidden']):not([type='range']),
+select {
+    min-height: 44px; border-radius: 8px !important; border-color: #D6DCD8 !important;
+}
+textarea { border-radius: 8px !important; border-color: #D6DCD8 !important; }
+input[type='checkbox'], input[type='radio'] { accent-color: #1F6B3A; }
+input:focus, select:focus, textarea:focus {
+    border-color: #1F6B3A !important; box-shadow: 0 0 0 3px rgb(31 107 58 / 0.15) !important;
 }
 
-.border-white\/10,
-.border-white\/\[0\.10\] {
-    border-color: #d7e7da !important;
-}
-
-/* Texto */
-.text-white {
-    color: #1a2e05 !important;
-}
-
-.text-slate-100,
-.text-slate-200,
-.text-slate-300 {
-    color: #3f5243 !important;
-}
-
-.text-slate-400,
-.text-slate-500 {
-    color: #4b5e4f !important;
-}
-
-.page-title h1 {
-    font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
-    font-size: 1.875rem;
-    font-weight: 700;
-    color: #1a2e05;
-}
-
-/* Acento: o azul do tema antigo passa a verde */
-.bg-\[\#3B82F6\],
-button.bg-\[\#3B82F6\],
-a.bg-\[\#3B82F6\] {
-    background-color: #15803d !important;
-    color: #ffffff !important;
-}
-
-.bg-\[\#3B82F6\]:hover,
-button.bg-\[\#3B82F6\]:hover,
-a.bg-\[\#3B82F6\]:hover {
-    background-color: #14532d !important;
-}
-
-.text-\[\#3B82F6\],
-.text-blue-200 {
-    color: #15803d !important;
-}
-
-.bg-\[\#22C55E\],
-.bg-\[\#16A34A\] {
-    background-color: #15803d !important;
-}
-
-/* Botões */
-.btn-primary,
-.btn-secondary,
-button.bg-\[\#3B82F6\],
-a.bg-\[\#3B82F6\],
-button.bg-\[\#22C55E\],
-a.bg-\[\#22C55E\] {
-    min-height: 44px;
-    border-radius: 10px !important;
-    font-weight: 700;
-    display: inline-flex;
+/* ---------- Botões: base comum ---------- */
+main button:not([class*="w-full"]):not(.hm-raw),
+main a[class*="rounded"][class*="px-"],
+main a[class*="text-[#3B82F6]"],
+main a[class*="text-[#22C55E]"],
+main a[class*="text-emerald-"],
+main a.underline,
+main a[class*="underline"],
+.btn-primary, .btn-secondary {
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1.2;
+    text-decoration: none !important;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: none !important;
+    vertical-align: middle;
 }
 
-.btn-primary {
-    background: #15803d !important;
-    color: #ffffff !important;
+/* Secundário (por omissão): branco com contorno */
+main button:not([class*="w-full"]):not(.hm-raw),
+main a[class*="rounded"][class*="px-"],
+main a[class*="text-[#3B82F6]"],
+main a[class*="text-[#22C55E]"],
+main a[class*="text-emerald-"],
+main a.underline,
+main a[class*="underline"],
+.btn-secondary,
+.bg-white\/10, .bg-\[\#3B82F6\]\/20 {
+    background: #FFFFFF !important;
+    border: 1px solid #D6DCD8 !important;
+    color: #111A14 !important;
+}
+main button:not([class*="w-full"]):not(.hm-raw):hover,
+main a[class*="rounded"][class*="px-"]:hover,
+main a[class*="text-[#3B82F6]"]:hover,
+main a[class*="text-[#22C55E]"]:hover,
+main a[class*="text-emerald-"]:hover,
+main a[class*="underline"]:hover,
+.btn-secondary:hover,
+.hover\:bg-white\/10:hover, .hover\:bg-white\/15:hover {
+    background: #F1F4F2 !important;
+    color: #111A14 !important;
 }
 
+/* Principal: verde cheio (os antigos verde-claro e azul) */
+main .bg-\[\#22C55E\],
+main .bg-\[\#16A34A\],
+main .bg-\[\#3B82F6\],
+.btn-primary,
+button[type="submit"].bg-\[\#22C55E\] {
+    background: #1F6B3A !important;
+    border: 1px solid #1F6B3A !important;
+    color: #FFFFFF !important;
+}
+main .bg-\[\#22C55E\]:hover,
+main .bg-\[\#16A34A\]:hover,
+main .bg-\[\#3B82F6\]:hover,
 .btn-primary:hover {
-    background: #14532d !important;
+    background: #17532D !important;
+    color: #FFFFFF !important;
+}
+main .bg-\[\#22C55E\] *, main .bg-\[\#3B82F6\] * { color: inherit !important; }
+
+/* Botões de formulário principais ficam um pouco maiores */
+main form button[type="submit"].bg-\[\#22C55E\],
+main .page-title-actions a,
+main .page-title-actions button { min-height: 44px; padding: 0 16px !important; font-size: 14px !important; }
+
+/* Perigo: remover / eliminar / apagar */
+main button[class*="text-red-"],
+main a[class*="text-red-"],
+main .bg-red-500\/15, main .bg-red-600, main .bg-red-500 {
+    background: #FFFFFF !important;
+    border: 1px solid #EBC3BE !important;
+    color: #8E2219 !important;
+}
+main button[class*="text-red-"]:hover,
+main a[class*="text-red-"]:hover,
+main .bg-red-500\/15:hover, main .bg-red-600:hover, main .bg-red-500:hover {
+    background: #FBE5E3 !important; color: #8E2219 !important;
 }
 
-.btn-secondary {
-    background: #ffffff !important;
-    border: 1px solid #d7e7da !important;
-    color: #1a2e05 !important;
+/* Aviso (âmbar) */
+main .bg-\[\#F59E0B\]\/20 {
+    background: #FFFFFF !important; border: 1px solid #F1DDBE !important; color: #7A4510 !important;
 }
 
-.btn-secondary:hover {
-    background: #f0fdf4 !important;
+/* Botões só com sinal (setas, ⋮⋮, ×) não esticam */
+main button[class*="px-1"], main button.px-1 { min-height: 32px; padding: 0 8px !important; }
+
+/* Separadores (dias da semana, filtros rápidos) — o ativo fica verde */
+main a.bg-\[\#3B82F6\][class*="px-4"], main a[class*="bg-[#3B82F6] font-semibold"] { background: #1F6B3A !important; }
+
+/* Nada disto se aplica a elementos que são só texto dentro de células de nomes */
+main td a:not([class]), main h1 a, main h2 a, main h3 a {
+    color: #111A14; font-weight: 600; text-decoration: none;
 }
 
-/* Campos */
-input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='file']):not([type='hidden']),
-select {
-    min-height: 44px;
-    border-radius: 10px !important;
-    border-color: #d7e7da !important;
-}
+/* ---------- Etiquetas de estado ---------- */
+.bg-emerald-100, .bg-emerald-500\/15, .bg-emerald-500\/20 { background-color: #E6F2EA !important; color: #17532D !important; }
+.bg-amber-100, .bg-\[\#F59E0B\]\/15 { background-color: #FDF0DC !important; color: #7A4510 !important; }
+.bg-red-100, .bg-rose-100 { background-color: #FBE5E3 !important; color: #8E2219 !important; }
+.bg-blue-100, .bg-\[\#3B82F6\]\/15 { background-color: #E4EDF8 !important; color: #1E4573 !important; }
+.bg-slate-100 { background-color: #EEF0EF !important; color: #3D4842 !important; }
 
-textarea {
-    border-radius: 10px !important;
-    border-color: #d7e7da !important;
-}
-
-input[type='checkbox'],
-input[type='radio'] {
-    accent-color: #15803d;
-}
-
-/* Tabelas */
-thead,
-.bg-white\/5 {
-    background-color: #f6faf6 !important;
-}
-
-thead th {
-    color: #4b5e4f !important;
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-tbody tr,
-.border-t.border-white\/10 {
-    border-color: #d7e7da !important;
-}
-
-/* Superfícies suaves (separadores, pílulas cinzentas) */
-.bg-white\/10,
-.hover\:bg-white\/10:hover,
-.hover\:bg-white\/15:hover {
-    background-color: #eef5ef !important;
-}
+/* ---------- Mensagens ---------- */
+main > div > .rounded-xl.border-emerald-200 { border-radius: 10px !important; }

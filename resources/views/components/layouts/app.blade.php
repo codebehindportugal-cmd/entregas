@@ -6,10 +6,10 @@
     <title>{{ $title ?? 'Horta da Maria' }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-[#f0fdf4] text-[#1a2e05] antialiased">
+<body class="min-h-screen bg-[#F6F7F6] text-[#111A14] antialiased">
 @auth
     @php
         $navGroups = auth()->user()->isAdmin()
@@ -33,9 +33,9 @@
                         ['label' => 'Preços',               'route' => 'tabelas-precos.index',    'active' => 'tabelas-precos.*',       'icon' => 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z'],
                         ['label' => 'Compras',              'route' => 'compras.index',           'active' => 'compras.*',              'icon' => 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z'],
                         ['label' => 'Listas de cabazes',    'route' => 'lista-cabazes.index',     'active' => 'lista-cabazes.*',        'icon' => 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z'],
-                        ['label' => 'Fruta da epoca',       'route' => 'fruta-epoca.index',       'active' => 'fruta-epoca.*',          'icon' => 'M12 2a9 9 0 019 9c0 5-4 9-9 11C7 20 3 16 3 11a9 9 0 019-9zm0 4v10'],
+                        ['label' => 'Fruta da época',       'route' => 'fruta-epoca.index',       'active' => 'fruta-epoca.*',          'icon' => 'M12 2a9 9 0 019 9c0 5-4 9-9 11C7 20 3 16 3 11a9 9 0 019-9zm0 4v10'],
                         ['label' => 'Viaturas',             'route' => 'viaturas.index',          'active' => 'viaturas.*',             'icon' => 'M3 13l2-5a2 2 0 012-1h10a2 2 0 012 1l2 5v5h-3m-12 0H3v-5m3 5a2 2 0 104 0m6 0a2 2 0 104 0'],
-                        ['label' => 'Definicoes Moloni',    'route' => 'definicoes-moloni.index', 'active' => 'definicoes-moloni.*',    'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'],
+                        ['label' => 'Definições Moloni',    'route' => 'definicoes-moloni.index', 'active' => 'definicoes-moloni.*',    'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'],
                         ['label' => 'Faturas',              'route' => 'faturas.index',           'active' => 'faturas.*',              'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
                         ['label' => 'Débitos SEPA',         'route' => 'sepa.index',              'active' => 'sepa.*',                 'icon' => 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z'],
                         ['label' => 'Entradas',             'route' => 'despesas.index',          'active' => 'despesas.*',             'icon' => 'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z'],
@@ -45,7 +45,7 @@
                     'label' => 'Clientes',
                     'items' => [
                         ['label' => 'Clientes B2C',        'route' => 'encomendas.index',        'active' => 'encomendas.*',           'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'],
-                        ['label' => 'Renovacoes',           'route' => 'renovacoes.index',        'active' => 'renovacoes.*',           'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
+                        ['label' => 'Renovações',           'route' => 'renovacoes.index',        'active' => 'renovacoes.*',           'icon' => 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'],
                         ['label' => 'Empresas',             'route' => 'corporates.index',        'active' => 'corporates.*',           'icon' => 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4'],
                         ['label' => 'Equipa',               'route' => 'equipa.index',            'active' => 'equipa.*',               'icon' => 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
                     ],
@@ -67,17 +67,17 @@
     @endphp
 
     {{-- ═══════════════ SIDEBAR ═══════════════ --}}
-    <aside class="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-[#14532d] lg:flex">
+    <aside class="hm-sidebar fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-[#E3E7E4] bg-white lg:flex">
 
         {{-- Logo --}}
         <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('minhas-entregas.index') }}"
-           class="flex h-16 shrink-0 items-center gap-3 border-b border-[#166534] px-5 hover:bg-[#166534] transition-colors">
-            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f0fdf4]/10 ring-1 ring-[#f0fdf4]/20">
+           class="flex h-16 shrink-0 items-center gap-3 border-b border-[#E3E7E4] px-5">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1F6B3A]">
                 <img src="{{ asset('images/horta-da-maria-logo.png') }}" alt="Horta da Maria" class="h-7 w-7 object-contain">
             </span>
             <div>
-                <p class="text-sm font-bold leading-tight" style="font-family: Poppins, sans-serif; color: #f0fdf4">Horta da Maria</p>
-                <p class="text-[10px] leading-tight" style="color: #86efac">Gestão agrícola</p>
+                <p class="text-[15px] font-bold leading-tight" style="color: #111A14">Horta da Maria</p>
+                <p class="text-xs leading-tight" style="color: #5B6660">Gestão</p>
             </div>
         </a>
 
@@ -86,19 +86,19 @@
             @foreach($navGroups as $group)
                 <div>
                     @if($group['label'])
-                        <p class="mb-1 px-2 text-[9px] font-bold uppercase tracking-widest" style="color: #4ade80">{{ $group['label'] }}</p>
+                        <p class="mb-1 px-2 text-[9px] font-bold uppercase tracking-widest" style="color: #5B6660">{{ $group['label'] }}</p>
                     @endif
                     <div class="space-y-0.5">
                         @foreach($group['items'] as $item)
                             @php $isActive = request()->routeIs($item['active']); @endphp
                             <a href="{{ route($item['route']) }}"
-                               class="group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition-all {{ $isActive ? 'bg-[#f0fdf4]/15 shadow-sm' : 'hover:bg-[#166534]' }}">
-                                <svg class="h-4.5 w-4.5 shrink-0 transition-colors" style="width:18px;height:18px;color:{{ $isActive ? '#4ade80' : '#86efac' }}" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                               class="group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-semibold transition-all {{ $isActive ? 'bg-[#EAF3ED]' : 'hover:bg-[#F1F4F2]' }}">
+                                <svg class="h-4.5 w-4.5 shrink-0 transition-colors" style="width:18px;height:18px;color:{{ $isActive ? '#17532D' : '#5B6660' }}" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}"/>
                                 </svg>
-                                <span style="color: {{ $isActive ? '#f0fdf4' : '#bbf7d0' }}; font-family: Nunito, sans-serif">{{ $item['label'] }}</span>
+                                <span style="color: {{ $isActive ? '#17532D' : '#3D4842' }}; font-weight: {{ $isActive ? 700 : 500 }}">{{ $item['label'] }}</span>
                                 @if($isActive)
-                                    <span class="ml-auto h-1.5 w-1.5 rounded-full" style="background:#4ade80"></span>
+                                    
                                 @endif
                             </a>
                         @endforeach
@@ -108,22 +108,22 @@
         </nav>
 
         {{-- User footer --}}
-        <div class="shrink-0 border-t border-[#166534] p-3">
+        <div class="shrink-0 border-t border-[#E3E7E4] p-3">
             <div class="flex items-center gap-2.5 rounded-lg px-2 py-2">
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style="background:#166534;color:#4ade80;font-family:Poppins,sans-serif">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold" style="background:#EAF3ED;color:#17532D">
                     {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}
                 </div>
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-xs font-semibold leading-tight" style="color:#f0fdf4">{{ auth()->user()->name }}</p>
-                    <p class="truncate text-[10px] capitalize" style="color:#86efac">{{ auth()->user()->role }}</p>
+                    <p class="truncate text-sm font-semibold leading-tight" style="color:#111A14">{{ auth()->user()->name }}</p>
+                    <p class="truncate text-xs capitalize" style="color:#5B6660">{{ auth()->user()->role }}</p>
                 </div>
             </div>
-            <a href="{{ route('perfil.show') }}" class="mt-1 block w-full rounded-lg py-1.5 text-center text-xs font-semibold transition-colors hover:bg-[#166534]" style="color:#86efac">
+            <a href="{{ route('perfil.show') }}" class="hm-side-btn mt-2">
                 O meu perfil
             </a>
             <form method="post" action="{{ route('logout') }}" class="mt-1">
                 @csrf
-                <button type="submit" class="w-full rounded-lg py-1.5 text-xs font-semibold transition-colors hover:bg-[#166534]" style="color:#86efac">
+                <button type="submit" class="hm-side-btn mt-1">
                     Sair da sessão
                 </button>
             </form>
@@ -135,7 +135,7 @@
         <p class="text-sm text-slate-400" style="font-family:Nunito,sans-serif">{{ now()->translatedFormat('l, d \d\e F') }}</p>
         <div class="flex items-center gap-3">
             <span class="text-sm font-semibold text-slate-700">{{ auth()->user()->name }}</span>
-            <div class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold" style="background:#15803d;color:#f0fdf4;font-family:Poppins,sans-serif">
+            <div class="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold" style="background:#EAF3ED;color:#17532D">
                 {{ strtoupper(substr(auth()->user()->name ?? 'U', 0, 1)) }}
             </div>
         </div>
@@ -145,10 +145,10 @@
     <header class="mobile-app-header sticky top-0 z-30 border-b border-[#14532d]/10 bg-white shadow-sm lg:hidden">
         <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('minhas-entregas.index') }}" class="flex items-center gap-2.5">
-                <span class="flex h-9 w-9 items-center justify-center rounded-lg" style="background:#14532d">
+                <span class="flex h-9 w-9 items-center justify-center rounded-lg" style="background:#1F6B3A">
                     <img src="{{ asset('images/horta-da-maria-logo.png') }}" alt="Horta da Maria" class="h-6 w-6 object-contain">
                 </span>
-                <span class="text-sm font-bold text-[#14532d]" style="font-family:Poppins,sans-serif">Horta da Maria</span>
+                <span class="text-sm font-bold text-[#111A14]">Horta da Maria</span>
             </a>
             <div class="flex items-center gap-2">
                 <a href="{{ route('perfil.show') }}" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Perfil</a>
