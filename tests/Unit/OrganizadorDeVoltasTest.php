@@ -77,4 +77,22 @@ class OrganizadorDeVoltasTest extends TestCase
         $this->assertSame('lionesa', $doPorto->first()['chave']);
         $this->assertCount(0, $doPorto->where('atrasada', true));
     }
+
+    public function test_sai_mais_cedo_para_todas_as_entregas_cedo_chegarem_a_tempo(): void
+    {
+        // Como a volta de Lisboa: duas no Rato ate as 8h e a de Linda-a-Velha ate as 8h.
+        $volta = app(OrganizadorDeVoltas::class)->organizar(collect([
+            ['chave' => 'kwanko', 'cp' => '1250-001', 'horario' => 'até ás 8h'],
+            ['chave' => 'pager', 'cp' => '1250-002', 'horario' => '8h'],
+            ['chave' => 'ferrovial', 'cp' => '2795-240', 'horario' => 'até às 8h'],
+            ['chave' => 'westtech', 'cp' => '1050-001', 'horario' => '9h'],
+            ['chave' => 'vic', 'cp' => '1990-001', 'horario' => 'até ás 9h'],
+            ['chave' => 'benfica', 'cp' => '1500-001', 'horario' => null],
+        ]));
+
+        $this->assertCount(0, $volta->where('atrasada', true));
+
+        // A simulacao pela mesma ordem tambem sai a tempo.
+        $this->assertCount(0, app(OrganizadorDeVoltas::class)->simular($volta->map(fn ($p) => ['chave' => $p['chave'], 'cp' => $p['cp'], 'horario' => $p['horario']]))->where('atrasada', true));
+    }
 }

@@ -22,6 +22,9 @@ class OrganizadorDeVoltas
 
     private const PENALIZACAO_ATRASO = 1000;
 
+    /** Mais cedo do que isto nao se sai. */
+    private const SAIDA_MAIS_CEDO = 4 * 60;
+
     /** De onde sai a volta que se esta a organizar (null = o armazem). */
     private ?array $partida = null;
 
@@ -32,7 +35,18 @@ class OrganizadorDeVoltas
         [$comLocal, $semLocal] = $this->preparar($paragens)->partition(fn (array $p): bool => $p['_coord'] !== null);
         $saida = $this->horaDeSaida($comLocal);
 
-        $ordem = $this->melhorar($this->gulosa($comLocal->values(), $saida), $saida);
+        // Se com esta hora de saida alguma entrega cedo (ate as 7h, 8h...) nao
+        // chega a tempo, sai-se mais cedo e volta-se a organizar.
+        for ($tentativa = 0; $tentativa < 8; $tentativa++) {
+            $ordem = $this->melhorar($this->gulosa($comLocal->values(), $saida), $saida);
+            $atraso = $this->atrasoNasEntregasCedo($ordem, $saida);
+
+            if ($atraso <= 0 || $saida <= self::SAIDA_MAIS_CEDO) {
+                break;
+            }
+
+            $saida = max(self::SAIDA_MAIS_CEDO, $saida - (int) ceil($atraso / 5) * 5);
+        }
 
         // Sem codigo postal nao se sabe onde ficam: vao para o fim.
         return $this->horas($ordem->concat($semLocal)->values(), $saida);
@@ -43,8 +57,45 @@ class OrganizadorDeVoltas
     {
         $this->partida = self::coordenadas($partidaCp);
         $preparadas = $this->preparar($paragens);
+        $comLocal = $preparadas->filter(fn (array $p): bool => $p['_coord'] !== null)->values();
+        $saida = $this->horaDeSaida($comLocal);
 
-        return $this->horas($preparadas, $this->horaDeSaida($preparadas->filter(fn (array $p): bool => $p['_coord'] !== null)));
+        for ($tentativa = 0; $tentativa < 8; $tentativa++) {
+            $atraso = $this->atrasoNasEntregasCedo($comLocal, $saida);
+
+            if ($atraso <= 0 || $saida <= self::SAIDA_MAIS_CEDO) {
+                break;
+            }
+
+            $saida = max(self::SAIDA_MAIS_CEDO, $saida - (int) ceil($atraso / 5) * 5);
+        }
+
+        return $this->horas($preparadas, $saida);
+    }
+
+    /** O maior atraso (minutos) nas entregas que tem de ser feitas cedo. */
+    private function atrasoNasEntregasCedo(Collection $ordem, int $saida): int
+    {
+        $t = $saida;
+        $pos = $this->origem();
+        $maior = 0;
+
+        foreach ($ordem as $p) {
+            if ($p['_coord'] === null) {
+                continue;
+            }
+
+            $inicio = max($t + $this->viagem($pos, $p['_coord']), $p['_abre']);
+
+            if ($p['_fecha'] <= self::LIMITE_CEDO) {
+                $maior = max($maior, $inicio - $p['_fecha']);
+            }
+
+            $t = $inicio + $this->servico();
+            $pos = $p['_coord'];
+        }
+
+        return $maior;
     }
 
     /**
@@ -156,7 +207,7 @@ class OrganizadorDeVoltas
             ? $cedo->map(fn (array $p): int => $p['_fecha'] - $this->viagem($origem, $p['_coord']) - 10)->min()
             : ($paragens->isEmpty() ? 8 * 60 : $paragens->map(fn (array $p): int => $p['_abre'] - $this->viagem($origem, $p['_coord']))->min());
 
-        return max(4 * 60, intdiv((int) $saida, 5) * 5);
+        return max(self::SAIDA_MAIS_CEDO, intdiv((int) $saida, 5) * 5);
     }
 
     /** Vizinho mais proximo que respeita os horarios. */
