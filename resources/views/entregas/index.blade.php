@@ -155,7 +155,11 @@
 
                     <header class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
                         <div>
-                            <h2 class="text-base font-semibold text-white">{{ $user->name }}@unless($user->ativo) <span class="text-xs font-normal text-slate-400">(inativo)</span>@endunless</h2>
+                            <h2 class="text-base font-semibold text-white">{{ $user->name }}@unless($user->ativo) <span class="text-xs font-normal text-slate-400">(inativo)</span>@endunless
+                                @if($paragens->isNotEmpty())
+                                    <a href="{{ route('mapa-volta', ['user_id' => $user->id, 'data' => $dataDia, 'todas' => 1]) }}" class="ml-2 text-xs font-normal text-[#3B82F6] underline">ver no mapa</a>
+                                @endif
+                            </h2>
                             <p class="text-xs text-slate-400">
                                 {{ $paragens->count() }} {{ $paragens->count() === 1 ? 'entrega' : 'entregas' }}
                                 @if($paragens->count() > 1) · arraste ou use as setas para pôr pela ordem da volta @endif

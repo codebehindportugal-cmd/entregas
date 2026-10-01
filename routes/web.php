@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/perfil/chave-api', [\App\Http\Controllers\PerfilController::class, 'gerarChave'])->name('perfil.chave-api.store');
     Route::delete('/perfil/chave-api', [\App\Http\Controllers\PerfilController::class, 'revogarChave'])->name('perfil.chave-api.destroy');
 
+    Route::get('/mapa-da-volta', \App\Http\Controllers\MapaEntregasController::class)->name('mapa-volta');
     Route::get('/minhas-entregas', [EntregaController::class, 'minhasEntregas'])->name('minhas-entregas.index');
     Route::get('/minhas-entregas/{registoEntrega}', [EntregaController::class, 'show'])->name('minhas-entregas.show');
     Route::put('/minhas-entregas/{registoEntrega}', [EntregaController::class, 'update'])->name('minhas-entregas.update');
@@ -137,6 +138,7 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/encomendas/{encomenda}/pausar', [EncomendaController::class, 'pause'])->name('encomendas.pause');
         Route::put('/encomendas/{encomenda}/retomar', [EncomendaController::class, 'resume'])->name('encomendas.resume');
         Route::put('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'postpone'])->name('encomendas.postpone');
+        Route::put('/encomendas/{encomenda}/entrega-feita', [EncomendaController::class, 'marcarEntregaFeita'])->name('encomendas.entrega-feita');
         Route::delete('/encomendas/{encomenda}/adiar', [EncomendaController::class, 'clearPostpone'])->name('encomendas.postpone.clear');
         Route::post('/encomendas/{encomenda}/concluir-wordpress', [EncomendaController::class, 'complete'])->name('encomendas.complete');
         Route::post('/encomendas/{encomenda}/fatura-moloni', [FaturacaoController::class, 'subscricao'])->name('encomendas.fatura-moloni');

@@ -348,6 +348,44 @@ class EncomendaController extends Controller
         return back()->with('status', 'Encomenda adiada ate '.$encomenda->fresh()->postponed_until->format('d/m/Y').'.');
     }
 
+    /**
+     * Marca uma entrega da subscricao como feita quando ela aconteceu mas nao
+     * ficou registada (aparece "Em atraso" no calendario). Fica registada como
+     * preparada nesse dia, que e o que conta como entrega feita.
+     */
+    public function marcarEntregaFeita(Request $request, WooOrder $encomenda): RedirectResponse
+    {
+        $data = $request->validate([
+            'data' => ['required', 'date', 'before_or_equal:today'],
+        ])['data'];
+        $data = \Illuminate\Support\Carbon::parse($data)->toDateString();
+
+        $noCalendario = $encomenda->calendarioEntregas()
+            ->contains(fn (array $entrega): bool => $entrega['data_key'] === $data && $entrega['status'] !== 'cancelada');
+
+        if (! $noCalendario) {
+            return back()->withErrors(['data' => 'Essa data nao e uma entrega desta encomenda.']);
+        }
+
+        $item = \App\Models\PreparacaoItem::query()
+            ->where('tipo', 'b2c')
+            ->where('woo_order_id', $encomenda->id)
+            ->whereDate('data_preparacao', $data)
+            ->first() ?? new \App\Models\PreparacaoItem([
+                'tipo' => 'b2c',
+                'woo_order_id' => $encomenda->id,
+                'data_preparacao' => $data,
+            ]);
+
+        $item->fill([
+            'feito' => true,
+            'feito_at' => $item->feito_at ?? now(),
+            'feito_por' => $item->feito_por ?? auth()->id(),
+        ])->save();
+
+        return back()->with('status', 'Entrega de '.\Illuminate\Support\Carbon::parse($data)->format('d/m/Y').' marcada como feita.');
+    }
+
     public function clearPostpone(WooOrder $encomenda): RedirectResponse
     {
         if ($encomenda->source_type === 'subscription' || in_array($encomenda->status, ['subscricao', 'wc-subscricao'], true)) {

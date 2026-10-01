@@ -144,9 +144,19 @@
                                     'em_atraso' => 'border-white/20 bg-white/10 text-slate-200',
                                     default => 'border-blue-400/30 bg-[#3B82F6]/10 text-blue-100',
                                 })
-                                <div class="flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm {{ $classesListaEntrega }}">
-                                    <span class="font-semibold">{{ $entregaCalendario['data']->format('d/m/Y') }}</span>
-                                    <span class="text-xs">{{ $entregaCalendario['label'] }}</span>
+                                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded border px-3 py-2 text-sm {{ $classesListaEntrega }}">
+                                    <span class="whitespace-nowrap font-semibold">{{ $entregaCalendario['data']->format('d/m/Y') }}</span>
+                                    <span class="flex items-center gap-2 whitespace-nowrap text-xs">
+                                        {{ $entregaCalendario['label'] }}
+                                        @if($entregaCalendario['status'] === 'em_atraso')
+                                            <form method="post" action="{{ route('encomendas.entrega-feita', $encomenda) }}">
+                                                @csrf
+                                                @method('put')
+                                                <input type="hidden" name="data" value="{{ $entregaCalendario['data_key'] }}">
+                                                <button class="whitespace-nowrap rounded bg-[#22C55E] px-2 py-1 font-semibold text-[#0A0F1A]" title="A entrega aconteceu mas nao ficou registada">Foi entregue</button>
+                                            </form>
+                                        @endif
+                                    </span>
                                 </div>
                             @endforeach
                         </div>
@@ -253,8 +263,8 @@
                     @if($encomenda->isSubscricao())
                         <select name="delivery_date" class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-sm text-white">
                             <option value="">Proxima entrega em aberto</option>
-                            @foreach($calendarioEntregas->where('status', 'por_realizar') as $entregaCalendario)
-                                <option value="{{ $entregaCalendario['data_key'] }}">{{ $entregaCalendario['data']->format('d/m/Y') }}</option>
+                            @foreach($calendarioEntregas->whereIn('status', ['por_realizar', 'em_atraso']) as $entregaCalendario)
+                                <option value="{{ $entregaCalendario['data_key'] }}">{{ $entregaCalendario['data']->format('d/m/Y') }}{{ $entregaCalendario['status'] === 'em_atraso' ? ' (em atraso)' : '' }}</option>
                             @endforeach
                         </select>
                     @endif

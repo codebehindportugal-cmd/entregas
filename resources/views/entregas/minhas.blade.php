@@ -18,6 +18,7 @@
         <div class="flex items-end gap-2">
             <button class="rounded bg-[#22C55E] px-4 py-2 font-semibold text-[#0A0F1A]">Filtrar</button>
             <a href="{{ route('minhas-entregas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm text-slate-200">Hoje</a>
+            <a href="{{ route('mapa-volta', ['data' => $data]) }}" class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Mapa</a>
         </div>
     </form>
     <div class="grid gap-4">

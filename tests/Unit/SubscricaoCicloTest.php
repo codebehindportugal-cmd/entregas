@@ -31,6 +31,18 @@ class SubscricaoCicloTest extends TestCase
         return $order;
     }
 
+    /** Marca estas datas como preparadas (feitas), como acontece na preparacao. */
+    private function feitas(WooOrder $order, array $datas): WooOrder
+    {
+        $order->setRelation('preparacaoItems', collect($datas)->map(fn (string $data) => new \App\Models\PreparacaoItem([
+            'data_preparacao' => $data,
+            'tipo' => 'b2c',
+            'feito' => true,
+        ])));
+
+        return $order;
+    }
+
     private function datas(WooOrder $order): array
     {
         $metodo = new \ReflectionMethod($order, 'datasSubscricao');
@@ -229,7 +241,7 @@ class SubscricaoCicloTest extends TestCase
     {
         Carbon::setTestNow('2026-09-17 10:00:00');
 
-        $order = $this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-08-26']);
+        $order = $this->feitas($this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-08-26']), ['2026-08-12', '2026-09-02', '2026-09-16']);
 
         $this->assertSame(['2026-08-12', '2026-09-02', '2026-09-16', '2026-09-30'], $this->datas($order));
         $this->assertSame(
@@ -265,7 +277,7 @@ class SubscricaoCicloTest extends TestCase
     {
         Carbon::setTestNow('2026-09-17 10:00:00');
 
-        $order = $this->subscricao(['pausada_em' => '2026-08-26']);
+        $order = $this->feitas($this->subscricao(['pausada_em' => '2026-08-26']), ['2026-08-12']);
 
         $this->assertSame(['2026-08-12'], $this->datas($order));
         $this->assertSame(
@@ -282,7 +294,7 @@ class SubscricaoCicloTest extends TestCase
     {
         Carbon::setTestNow('2026-08-20 10:00:00');
 
-        $order = $this->subscricao(['pausada_em' => '2026-08-25']);
+        $order = $this->feitas($this->subscricao(['pausada_em' => '2026-08-25']), ['2026-08-12']);
 
         $this->assertFalse($order->estaPausada());
         $this->assertFalse($order->precisaDeRenovacao(0));
@@ -294,7 +306,7 @@ class SubscricaoCicloTest extends TestCase
         Carbon::setTestNow('2026-09-17 10:00:00');
 
         // Retomar a 02/09 grava pausada_ate = 01/09 (WooOrder::retomar).
-        $order = $this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-09-01']);
+        $order = $this->feitas($this->subscricao(['pausada_em' => '2026-08-26', 'pausada_ate' => '2026-09-01']), ['2026-08-12', '2026-09-02', '2026-09-16']);
 
         $this->assertSame(
             ['total' => 4, 'feitas' => 3, 'por_realizar' => 1, 'proxima' => '2026-09-30'],
@@ -313,7 +325,7 @@ class SubscricaoCicloTest extends TestCase
 
         Carbon::setTestNow('2026-09-17 10:00:00');
 
-        $entregas = $order->entregasSubscricao();
+        $entregas = $this->feitas($order, ['2026-08-12', '2026-09-02', '2026-09-16'])->entregasSubscricao();
         $this->assertSame(4, $entregas['total']);
         $this->assertSame(3, $entregas['feitas']);
         $this->assertSame(1, $entregas['por_realizar']);

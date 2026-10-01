@@ -13,4 +13,8 @@ return [
     // Ate quantos dias depois da ultima entrega a renovacao automatica ainda
     // pode ser criada. Evita que subscricoes antigas gerem renovacoes de repente.
     'janela_renovacao_dias' => (int) env('ENTREGAS_JANELA_RENOVACAO_DIAS', 7),
+
+    // Morada de onde as voltas partem (o armazem), para o mapa da volta.
+    // Vazio: o percurso comeca onde o colaborador estiver.
+    'origem_rota' => env('ENTREGAS_ORIGEM_ROTA'),
 ];

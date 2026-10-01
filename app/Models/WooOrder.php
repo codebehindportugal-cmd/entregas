@@ -478,9 +478,10 @@ class WooOrder extends Model
                     in_array($data, $canceladas, true) => 'cancelada',
                     in_array($data, $concluidas, true) => 'entregue',
                     $postponedUntil === $data => 'adiada',
-                    // Enquanto o módulo de rotas/colaboradores não está operacional,
-                    // tratamos entregas passadas sem status definido como "entregue".
-                    $date->isPast() && ! $date->isToday() => 'entregue',
+                    // So e "entregue" o que foi preparado ou marcado como entregue.
+                    // Uma data que ja passou sem registo fica "em atraso" (e conta
+                    // como por realizar) ate alguem a marcar, adiar ou cancelar.
+                    $date->isPast() && ! $date->isToday() => 'em_atraso',
                     default => 'por_realizar',
                 };
 
@@ -572,15 +573,10 @@ class WooOrder extends Model
             return false;
         }
 
-        if (in_array($data, $concluidas, true)) {
-            return true;
-        }
-
-        // Consistente com calendarioSubscricao(): enquanto o modulo de registos de
-        // entrega nao esta operacional, as datas passadas (excepto hoje) contam como
-        // entregues. Sem isto, a contagem de "Feitas" ficava sistematicamente errada
-        // (mais baixa) do que as datas marcadas como entregues no calendario.
-        return $data < now()->toDateString();
+        // Feita = cabaz preparado ou entrega marcada como entregue. A data ter
+        // passado nao chega: ao mudar as datas, as passadas viravam "feitas"
+        // sem nada ter sido entregue.
+        return in_array($data, $concluidas, true);
     }
 
     public function fimCicloSubscricao(): ?Carbon
@@ -1044,11 +1040,15 @@ class WooOrder extends Model
 
     private function datasConcluidasSubscricao(): array
     {
+        // toBase(): sem cabazes preparados a colecao Eloquent vazia rebentava
+        // ao juntar-lhe as datas (strings) das entregas marcadas pelo colaborador.
         $preparadas = $this->preparacaoItemsParaAdiamento()
+            ->toBase()
             ->where('feito', true)
             ->map(fn (PreparacaoItem $item) => Carbon::parse($item->data_preparacao)->toDateString());
 
         $entregues = $this->registosEntregaParaConclusao()
+            ->toBase()
             ->where('status', 'entregue')
             ->map(fn (RegistoEntrega $registo) => Carbon::parse($registo->data_entrega)->toDateString());
 
@@ -1071,16 +1071,87 @@ class WooOrder extends Model
         // ha empurrao: ao pausar/retomar limpa-se delivery_dates (WooOrder::pausar)
         // e o ciclo e regerado por gerarDatasDoCiclo(), que ja empurra.
         if ($datas->isNotEmpty()) {
-            return $datas
-                ->reject(fn (string $data): bool => $this->dataEmPausa($data))
-                ->values();
+            return $this->reconciliarComEntregasFeitas(
+                $datas->reject(fn (string $data): bool => $this->dataEmPausa($data))->values(),
+                null,
+            );
         }
 
         if ($this->first_delivery_at === null) {
             return $datas;
         }
 
-        return $this->gerarDatasDoCiclo();
+        return $this->reconciliarComEntregasFeitas($this->gerarDatasDoCiclo(), $this->fimDoCicloAnterior());
+    }
+
+    /**
+     * As entregas que foram mesmo feitas (cabaz preparado ou entrega marcada
+     * como entregue) ficam SEMPRE no ciclo, mesmo que depois se mude o dia de
+     * entrega, a periodicidade ou a primeira entrega. As que faltam passam a
+     * ser as do calendario novo a seguir a ultima feita, ate fechar as 4.
+     *
+     * Sem isto, ao mudar as datas as entregas reais desapareciam e entravam
+     * datas novas no passado como se tivessem sido entregues (Andre, 01/10/2026).
+     */
+    private function reconciliarComEntregasFeitas(Collection $datas, ?string $fimCicloAnterior): Collection
+    {
+        $numeroEntregas = $this->numeroDeEntregasDoCiclo();
+
+        if ($numeroEntregas === null || $datas->isEmpty() || ! $this->isSubscricao()) {
+            return $datas;
+        }
+
+        $feitas = collect($this->datasConcluidasSubscricao())
+            ->filter(fn (string $data): bool => $fimCicloAnterior === null || $data > $fimCicloAnterior)
+            ->filter(fn (string $data): bool => $this->renovada_em === null || $data <= $this->renovada_em->toDateString())
+            ->sort()
+            ->values();
+
+        // Caso normal: tudo o que foi feito esta no calendario. Nada a mexer.
+        if ($feitas->diff($datas)->isEmpty()) {
+            return $datas;
+        }
+
+        $ultimaFeita = $feitas->last();
+        $porFazer = $datas
+            ->reject(fn (string $data): bool => $feitas->contains($data))
+            ->filter(fn (string $data): bool => $data > $ultimaFeita)
+            ->values();
+
+        $resultado = $feitas->merge($porFazer)->sort()->values();
+
+        // Faltam datas (o calendario novo tinha entregas antes da ultima feita):
+        // continua-se o ritmo do cliente a partir da ultima.
+        $diaSemana = $this->diaSemanaSubscricao(Carbon::parse($ultimaFeita));
+        $data = Carbon::parse($resultado->last());
+        $voltas = 0;
+
+        while ($resultado->count() < $numeroEntregas && $voltas++ < 104) {
+            $data = $data->copy()->addWeeks($this->semanasPorCiclo());
+
+            while ($data->dayOfWeek !== $diaSemana) {
+                $data->addDay();
+            }
+
+            if ($this->dataEmPausa($data->toDateString())) {
+                if ($this->pausaSemFim()) {
+                    break;
+                }
+
+                continue;
+            }
+
+            $resultado->push($data->toDateString());
+        }
+
+        // Feitas a mais do que o ciclo (ex.: entrega extra) contam todas; as por
+        // fazer cortam-se do fim.
+        $vagas = max(0, $numeroEntregas - $feitas->count());
+
+        return $feitas
+            ->merge($resultado->reject(fn (string $data): bool => $feitas->contains($data))->take($vagas))
+            ->sort()
+            ->values();
     }
 
     private function diaSemanaSubscricao(Carbon $fallback): int
