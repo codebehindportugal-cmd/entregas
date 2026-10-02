@@ -74,6 +74,7 @@ class WooOrder extends Model
             'pausada_em' => 'date',
             'pausada_ate' => 'date',
             'renovada_em' => 'date',
+            'fim_ciclo_avisado' => 'date',
             'renovacao_enviada_em' => 'datetime',
             'ordered_at' => 'datetime',
             'scheduled_delivery_at' => 'date',
@@ -174,15 +175,9 @@ class WooOrder extends Model
             return false;
         }
 
-        $hoje = now()->startOfDay()->toDateString();
-        $ultima = $this->ultimaEntregaDoCiclo();
+        $fimDoCiclo = $this->fimDoUltimoCiclo();
 
-        // O ciclo acabou hoje, ou entao ja rodou e o que acabou foi o anterior.
-        $fimDoCiclo = $ultima !== null && $ultima <= $hoje
-            ? $ultima
-            : $this->fimDoCicloAnterior();
-
-        if ($fimDoCiclo === null || $fimDoCiclo > $hoje) {
+        if ($fimDoCiclo === null) {
             return false;
         }
 
@@ -195,6 +190,54 @@ class WooOrder extends Model
         $limite = now()->startOfDay()->subDays($janelaDias)->toDateString();
 
         return $fimDoCiclo >= $limite;
+    }
+
+    /**
+     * O dia da ultima entrega do ciclo que acabou mais recentemente (hoje ou
+     * antes), ou null se nenhum ciclo acabou ainda.
+     */
+    public function fimDoUltimoCiclo(): ?string
+    {
+        if (! $this->isSubscricao()) {
+            return null;
+        }
+
+        $hoje = now()->startOfDay()->toDateString();
+        $ultima = $this->ultimaEntregaDoCiclo();
+
+        // O ciclo acabou hoje, ou entao ja rodou e o que acabou foi o anterior.
+        $fimDoCiclo = $ultima !== null && $ultima <= $hoje
+            ? $ultima
+            : $this->fimDoCicloAnterior();
+
+        return $fimDoCiclo !== null && $fimDoCiclo <= $hoje ? $fimDoCiclo : null;
+    }
+
+    /**
+     * Falta avisar (ntfy) que esta subscricao terminou um ciclo: acabou nos
+     * ultimos dias (janela) e ainda nao se avisou deste fim.
+     */
+    public function precisaDeAvisoDeFim(?int $janelaDias = null): bool
+    {
+        if (in_array($this->status, ['cancelled', 'wc-cancelled', 'trash', 'refunded', 'wc-refunded'], true)
+            || $this->estaPausada() || $this->pausaSemFim()) {
+            return false;
+        }
+
+        $fim = $this->fimDoUltimoCiclo();
+
+        if ($fim === null || $this->fim_ciclo_avisado?->toDateString() === $fim) {
+            return false;
+        }
+
+        $janelaDias ??= (int) config('entregas.janela_renovacao_dias', 7);
+
+        return $fim >= now()->startOfDay()->subDays(max(0, $janelaDias))->toDateString();
+    }
+
+    public function marcarFimAvisado(): void
+    {
+        $this->forceFill(['fim_ciclo_avisado' => $this->fimDoUltimoCiclo()])->save();
     }
 
     public function marcarRenovacaoCriada(WooOrder $nova): void

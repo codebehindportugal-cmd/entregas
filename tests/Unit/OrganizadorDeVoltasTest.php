@@ -137,11 +137,14 @@ class OrganizadorDeVoltasTest extends TestCase
 
         $volta = app(OrganizadorDeVoltas::class)->organizar($paragens);
 
-        $this->assertSame(['a', 'c', 'b'], $volta->pluck('chave')->all());
-        // Armazem -> a: 60 min * 1.15 + 3 = 72 min antes das 9h.
-        $this->assertSame('07:45', $volta->first()['saida']);
+        // A volta volta ao armazem, por isso A -> C -> B e B -> C -> A sao o
+        // mesmo caminho; faz-se a viagem mais longa (armazem -> B, 99 min)
+        // antes de abrirem, e C fica sempre no meio.
+        $this->assertSame(['b', 'c', 'a'], $volta->pluck('chave')->all());
+        // Armazem -> b: 5000 s = 83 min * 1.15 + 3 = 99 min antes das 9h.
+        $this->assertSame('07:20', $volta->first()['saida']);
         $this->assertSame('09:00', $volta->first()['hora_prevista']);
-        // a (9:00 + 7 min) -> c: 10 min * 1.15 + 3 = 15 min.
+        // b (9:00 + 7 min) -> c: 10 min * 1.15 + 3 = 15 min.
         $this->assertSame('09:22', $volta->firstWhere('chave', 'c')['hora_prevista']);
         \Illuminate\Support\Facades\Http::assertSentCount(1);
     }

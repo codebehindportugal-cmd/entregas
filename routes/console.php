@@ -27,6 +27,13 @@ Schedule::command('subscricoes:renovar')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Aviso no telemovel (ntfy) das subscricoes que terminaram o ciclo; corre
+// depois da renovacao para dizer se a encomenda nova ja foi criada.
+Schedule::command('subscricoes:avisar-fim')
+    ->dailyAt('07:15')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Onde ficam as moradas das proximas entregas (OpenStreetMap), para as voltas
 // serem organizadas pela distancia real. So procura as que ainda faltam.
 Schedule::command('entregas:geolocalizar')

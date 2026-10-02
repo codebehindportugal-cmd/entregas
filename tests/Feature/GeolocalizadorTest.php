@@ -63,4 +63,50 @@ class GeolocalizadorTest extends TestCase
         $this->assertNull(app(Geolocalizador::class)->coordenadas('Rua A 1', '1050-001', 'Lisboa', true));
         $this->assertSame(0, Localizacao::count());
     }
+
+    public function test_rua_com_o_mesmo_nome_noutra_terra_nao_serve(): void
+    {
+        // "Av. do Mediterraneo 1" encontrada em Faro, mas o codigo postal e
+        // do Parque das Nacoes: tenta-se sem o nome do edificio, depois o codigo postal.
+        Http::fake(['nominatim.test/*' => Http::sequence()
+            ->push([['lat' => '37.02', 'lon' => '-7.93']])
+            ->push([['lat' => '38.765', 'lon' => '-9.096']])]);
+
+        $this->assertSame([38.765, -9.096], app(Geolocalizador::class)->coordenadas('Av. do Mediterrâneo 1, 1990-203 Lisboa', null, null, true));
+        $this->assertSame('codigo_postal', Localizacao::first()->fonte);
+    }
+
+    public function test_tira_o_nome_do_edificio_se_nao_encontrar(): void
+    {
+        Http::fake(['nominatim.test/*' => Http::sequence()
+            ->push([])
+            ->push([['lat' => '38.7137', 'lon' => '-9.2380']])]);
+
+        $this->assertSame([38.7137, -9.238], app(Geolocalizador::class)->coordenadas('Edificio Central Park, R. Alexandre Herculano 1, 2795-240 Linda-a-Velha', null, null, true));
+        Http::assertSent(fn ($request) => str_contains(urldecode($request->url()), 'q=R. Alexandre Herculano 1, 2795-240 Linda-a-Velha, Portugal'));
+    }
+
+    public function test_sem_codigo_postal_usa_a_localidade(): void
+    {
+        Http::fake(['nominatim.test/*' => Http::sequence()
+            ->push([])
+            ->push([['lat' => '38.569', 'lon' => '-8.901']])]);
+
+        $this->assertSame([38.569, -8.901], app(Geolocalizador::class)->coordenadas('Rua da Prata Lote 133 - Urbanização Vale do Alecrim - Palmela.', null, null, true));
+        Http::assertSent(fn ($request) => str_contains(urldecode($request->url()), 'q=Palmela, Portugal'));
+    }
+
+    public function test_morada_guardada_longe_do_codigo_postal_volta_a_ser_procurada(): void
+    {
+        $geo = app(Geolocalizador::class);
+        Http::fake(['nominatim.test/*' => Http::sequence()
+            ->push([['lat' => '37.02', 'lon' => '-7.93']])
+            ->push([['lat' => '38.765', 'lon' => '-9.096']])]);
+
+        // Guardada antes da verificacao: em Faro.
+        Localizacao::create(['chave' => sha1(mb_strtolower('Av. do Mediterrâneo 1, 1990-203 Lisboa').'|1990-203'), 'morada' => 'x', 'cp' => '1990-203', 'lat' => 37.02, 'lng' => -7.93, 'fonte' => 'morada']);
+
+        $this->assertNull($geo->guardada('Av. do Mediterrâneo 1, 1990-203 Lisboa', null));
+        $this->assertSame([38.765, -9.096], $geo->coordenadas('Av. do Mediterrâneo 1, 1990-203 Lisboa', null, null, true));
+    }
 }

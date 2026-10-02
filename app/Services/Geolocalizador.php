@@ -46,8 +46,19 @@ class Geolocalizador
             && $guardada->fonte === 'falhou'
             && $guardada->updated_at?->lt(now()->subDays(self::DIAS_ATE_TENTAR_DE_NOVO));
 
-        if ($guardada !== null && ! $tentarDeNovo) {
+        // Uma morada guardada que caiu longe do codigo postal (o Nominatim
+        // encontrou uma rua com o mesmo nome noutra terra) nao serve: volta-se
+        // a procurar.
+        $guardadaLonge = $guardada !== null
+            && $guardada->lat !== null
+            && self::longeDoCodigoPostal([(float) $guardada->lat, (float) $guardada->lng], $cp);
+
+        if ($guardada !== null && ! $tentarDeNovo && ! $guardadaLonge) {
             return $guardada->lat !== null ? [$guardada->lat, $guardada->lng] : null;
+        }
+
+        if ($guardadaLonge && ! $procurarSeFaltar) {
+            return null;
         }
 
         if (! $procurarSeFaltar || blank(config('entregas.geocoder_url'))) {
@@ -84,11 +95,18 @@ class Geolocalizador
     private function procurar(string $morada, ?string $cp): array
     {
         try {
-            if ($morada !== '' && ($coord = $this->pedir(['q' => $morada.', Portugal'])) !== null) {
-                return [$coord, 'morada'];
+            // A morada como esta escrita; depois sem o que vem antes da rua
+            // (nome do edificio, "Z. I.", ...), que muitas vezes faz o
+            // Nominatim nao encontrar nada.
+            foreach (self::variantes($morada, $cp === null) as $texto) {
+                $coord = $this->pedir(['q' => $texto]);
+
+                if ($coord !== null && ! self::longeDoCodigoPostal($coord, $cp)) {
+                    return [$coord, 'morada'];
+                }
             }
 
-            if ($cp !== null && ($coord = $this->pedir(['postalcode' => $cp])) !== null) {
+            if ($cp !== null && ($coord = $this->pedir(['postalcode' => $cp])) !== null && ! self::longeDoCodigoPostal($coord, $cp)) {
                 return [$coord, 'codigo_postal'];
             }
         } catch (Throwable $e) {
@@ -128,6 +146,48 @@ class Geolocalizador
             || ($lat >= 36.9 && $lat <= 39.8 && $lng >= -31.4 && $lng <= -24.9);
 
         return $dentro ? [$lat, $lng] : null;
+    }
+
+    /** @return array<int, string> */
+    private static function variantes(string $morada, bool $semCodigoPostal = false): array
+    {
+        if ($morada === '') {
+            return [];
+        }
+
+        $comPais = fn (string $texto): string => preg_match('/portugal\s*$/iu', $texto) ? $texto : $texto.', Portugal';
+        $variantes = [$comPais($morada)];
+
+        // A partir da primeira parte que parece uma rua (R., Rua, Av., Praceta...).
+        if (preg_match('/\b(R\.|Rua|Av\.|Avenida|Al\.|Alameda|Pra[cç]a|Praceta|Largo|Travessa|Tv\.|Estrada|Est\.|Lugar|Parque|Quinta)\s.*$/iu', $morada, $m) && $m[0] !== $morada) {
+            $variantes[] = $comPais($m[0]);
+        }
+
+        // Sem codigo postal, ao menos a localidade (a ultima parte da morada,
+        // ex.: "... Vale do Alecrim - Palmela."): chega para ordenar a volta.
+        if ($semCodigoPostal && preg_match('/[,\-–]\s*([^,\-–\d]{3,})[.\s]*$/u', $morada, $m)) {
+            $variantes[] = $comPais(rtrim(trim($m[1]), '. '));
+        }
+
+        return array_values(array_unique($variantes));
+    }
+
+    /**
+     * Se o ponto fica a mais de 20 km do centro do codigo postal, a morada
+     * encontrada e outra com o mesmo nome (ex.: "Av. do Mediterraneo").
+     */
+    public static function longeDoCodigoPostal(array $coord, ?string $cp): bool
+    {
+        // So com codigos que estao na tabela: o "mais proximo" pode ser longe.
+        if (! preg_match('/(\d{4})/', (string) $cp, $m) || ($centro = config('codigos_postais.'.(int) $m[1])) === null) {
+            return false;
+        }
+
+        $dLat = deg2rad($coord[0] - $centro[0]);
+        $dLng = deg2rad($coord[1] - $centro[1]);
+        $h = sin($dLat / 2) ** 2 + cos(deg2rad($centro[0])) * cos(deg2rad($coord[0])) * sin($dLng / 2) ** 2;
+
+        return 2 * 6371 * asin(min(1, sqrt($h))) > (float) config('entregas.geocoder_distancia_maxima_km', 20);
     }
 
     private static function chave(string $morada, ?string $cp): string

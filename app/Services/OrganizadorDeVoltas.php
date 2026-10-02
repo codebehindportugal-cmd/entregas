@@ -25,6 +25,9 @@ class OrganizadorDeVoltas
 
     private const PENALIZACAO_ATRASO = 1000;
 
+    /** Fracao da penalizacao para atrasos em paragens que fecham a tarde. */
+    private const PESO_ATRASO_TARDE = 0.005;
+
     /** Mais cedo do que isto nao se sai. */
     private const SAIDA_MAIS_CEDO = 4 * 60;
 
@@ -415,17 +418,31 @@ class OrganizadorDeVoltas
             $viagem = $this->viagem($pos, $p['_coord']);
             $conducao += $viagem;
             $inicio = max($t + $viagem, $p['_abre']);
-            $atraso += max(0, $inicio - $p['_fecha']);
+            // Chegar tarde a uma entrega cedo (ate as 8h...) e muito grave; a
+            // uma que fecha a tarde pesa menos, para que uma paragem que nunca
+            // da para chegar a horas (longe, fim do dia) nao baralhe a volta
+            // toda so para ganhar uns minutos nessa.
+            $atraso += max(0, $inicio - $p['_fecha']) * ($p['_fecha'] <= self::LIMITE_CEDO ? 1 : self::PESO_ATRASO_TARDE);
             $somaHoras += $inicio;
             $t = $inicio + $this->servico();
             $pos = $p['_coord'];
+        }
+
+        // A volta acaba de volta a partida (o armazem): conta o caminho de
+        // regresso. Sem isto a volta comecava pela paragem mais perto da
+        // partida e acabava na mais longe, as vezes ao contrario do caminho
+        // natural (ex.: Lisboa a comecar em Moscavide e a acabar no centro).
+        if ($ordem !== [] && config('entregas.volta_regressa_a_partida', true)) {
+            $regresso = $this->viagem($pos, $this->origem());
+            $t += $regresso;
+            $conducao += $regresso;
         }
 
         // Um pouco de peso em entregar cedo: entre duas voltas parecidas, faz
         // primeiro os sitios com muitas entregas juntas e fica com folga no fim.
         // Os minutos ao volante contam a parte: com a saida fixa, uma volta que
         // anda mais e depois espera a porta acabava a mesma hora que a curta.
-        return $t + $conducao + $somaHoras * 0.1 + $atraso * self::PENALIZACAO_ATRASO;
+        return $t + $conducao + $somaHoras * 0.02 + $atraso * self::PENALIZACAO_ATRASO;
     }
 
     private function horas(Collection $ordem, int $saida): Collection

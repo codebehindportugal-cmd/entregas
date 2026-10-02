@@ -20,6 +20,7 @@ return [
     'avisos' => [
         'sincronizacao' => (bool) env('NTFY_AVISA_SYNC', true),
         'renovacoes'    => (bool) env('NTFY_AVISA_RENOVACOES', true),
+        'fim_subscricoes' => (bool) env('NTFY_AVISA_FIM_SUBSCRICOES', true),
     ],
 
 ];

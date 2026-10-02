@@ -21,6 +21,10 @@ return [
     // Onde fica o armazem (Caldas da Rainha), para organizar as voltas.
     'origem_coordenadas' => [39.4036, -9.1361],
 
+    // As voltas acabam onde comecaram (o armazem, ou a partida da zona): o
+    // caminho de regresso conta para escolher a ordem das paragens.
+    'volta_regressa_a_partida' => (bool) env('ENTREGAS_VOLTA_REGRESSA', true),
+
     // Horario das empresas sem horario definido: nao se entrega antes de
     // abrirem nem depois de fecharem. Quem tiver horario proprio escreve-o na
     // empresa (ex.: "ate as 8h", "9 e 11h", "ate 17:30").
