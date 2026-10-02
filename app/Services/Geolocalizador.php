@@ -72,13 +72,17 @@ class Geolocalizador
             return null;
         }
 
-        Localizacao::updateOrCreate(['chave' => $chave], [
+        // Um so INSERT ... ON DUPLICATE KEY UPDATE: com updateOrCreate, dois
+        // pedidos a procurar a mesma morada ao mesmo tempo (organizar a volta
+        // enquanto corre o entregas:geolocalizar) davam erro de chave repetida.
+        Localizacao::upsert([[
+            'chave' => $chave,
             'morada' => $morada ?: null,
             'cp' => $cp,
             'lat' => $coord[0] ?? null,
             'lng' => $coord[1] ?? null,
             'fonte' => $fonte,
-        ]);
+        ]], ['chave'], ['morada', 'cp', 'lat', 'lng', 'fonte', 'updated_at']);
 
         return $coord;
     }

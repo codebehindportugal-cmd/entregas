@@ -520,6 +520,21 @@ class ZonasEntregasTest extends TestCase
             ->assertDontSee('Cliente Acabada');
     }
 
+    public function test_codigo_postal_da_empresa_tem_de_ser_0000_000(): void
+    {
+        $corporate = $this->empresa('Correos Vila Real', '5000-105');
+
+        // O numero da porta colado ao codigo postal e recusado.
+        $this->actingAs($this->admin)->put(route('corporates.update', $corporate), ['cp_entrega' => '15000-105'] + $this->dadosDaEmpresa($corporate))
+            ->assertSessionHasErrors('cp_entrega');
+        $this->assertSame('5000-105', $corporate->fresh()->cp_entrega);
+
+        // Com espaco em vez de hifen fica 0000-000.
+        $this->actingAs($this->admin)->put(route('corporates.update', $corporate), ['cp_entrega' => ' 2495 405 '] + $this->dadosDaEmpresa($corporate))
+            ->assertSessionHasNoErrors();
+        $this->assertSame('2495-405', $corporate->fresh()->cp_entrega);
+    }
+
     private function dadosDaEmpresa(Corporate $corporate): array
     {
         return [

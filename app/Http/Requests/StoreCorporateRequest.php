@@ -6,6 +6,21 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCorporateRequest extends FormRequest
 {
+    /** "2495 405" ou " 2495-405 " ficam 2495-405. */
+    protected function prepareForValidation(): void
+    {
+        if (filled($this->input('cp_entrega'))) {
+            $this->merge(['cp_entrega' => preg_replace('/^\s*(\d{4})\s*[-\s]\s*(\d{3})\s*$/', '$1-$2', (string) $this->input('cp_entrega'))]);
+        }
+    }
+
+    public function messages(): array
+    {
+        return [
+            'cp_entrega.regex' => 'O codigo postal tem de ser 0000-000 (o numero da porta vai na morada).',
+        ];
+    }
+
     public function authorize(): bool
     {
         return $this->user()?->isAdmin() ?? false;
@@ -17,7 +32,9 @@ class StoreCorporateRequest extends FormRequest
             'empresa' => ['required', 'string', 'max:255'],
             'sucursal' => ['nullable', 'string', 'max:255'],
             'morada_entrega' => ['nullable', 'string', 'max:500'],
-            'cp_entrega' => ['nullable', 'string', 'max:15'],
+            // 0000-000: um "15000-105" (o numero da porta colado ao codigo)
+            // punha a entrega no sitio errado da volta.
+            'cp_entrega' => ['nullable', 'string', 'regex:/^\d{4}-\d{3}$/'],
             'cidade_entrega' => ['nullable', 'string', 'max:120'],
             'dias_entrega' => ['required', 'array', 'min:1'],
             'dias_entrega.*' => ['in:Segunda,Terca,Quarta,Quinta,Sexta'],
