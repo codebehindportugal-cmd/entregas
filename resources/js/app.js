@@ -18,12 +18,17 @@ const columnLabel = (cell, index) => {
     return text || `Coluna ${index + 1}`;
 };
 
+// Só as linhas/células desta tabela, nunca as de tabelas encaixadas dentro dela.
+const ownRows = (table) => Array.from(table.rows);
+const ownHeaderCells = (table) => (table.tHead ? Array.from(table.tHead.rows[0]?.cells ?? []) : []);
+const isNestedTable = (table) => Boolean(table.parentElement?.closest('table'));
+
 const applyTableLabels = (table) => {
-    const headerCells = Array.from(table.querySelectorAll('thead th'));
+    const headerCells = ownHeaderCells(table);
     const labels = headerCells.map(columnLabel);
 
-    table.querySelectorAll('tbody tr').forEach((row) => {
-        Array.from(row.children).forEach((cell, index) => {
+    Array.from(table.tBodies).flatMap((tbody) => Array.from(tbody.rows)).forEach((row) => {
+        Array.from(row.cells).forEach((cell, index) => {
             if (labels[index]) {
                 cell.dataset.columnLabel = labels[index];
             }
@@ -39,10 +44,11 @@ const setColumnVisibility = (table, checkboxes) => {
     checkboxes.forEach((checkbox, index) => {
         const visible = checkbox.checked || visibleColumns === 0;
 
-        table.querySelectorAll('tr').forEach((row) => {
-            const cell = row.children[index];
+        ownRows(table).forEach((row) => {
+            const cell = row.cells[index];
 
-            if (cell) {
+            // Linhas de detalhe com uma única célula (colspan) ficam sempre visíveis.
+            if (cell && row.cells.length > 1) {
                 cell.hidden = !visible;
             }
         });
@@ -50,7 +56,7 @@ const setColumnVisibility = (table, checkboxes) => {
 };
 
 const setupColumnPicker = (table, index) => {
-    const headerCells = Array.from(table.querySelectorAll('thead th'));
+    const headerCells = ownHeaderCells(table);
 
     if (headerCells.length < 3 || table.dataset.columnsReady === 'true') {
         return;
@@ -131,7 +137,10 @@ const setupColumnPicker = (table, index) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.overflow-x-auto table, .overflow-hidden > table').forEach((table, index) => {
+    const tables = Array.from(document.querySelectorAll('.overflow-x-auto table, .overflow-hidden > table'))
+        .filter((table) => !isNestedTable(table));
+
+    tables.forEach((table, index) => {
         applyTableLabels(table);
         setupColumnPicker(table, index);
     });
