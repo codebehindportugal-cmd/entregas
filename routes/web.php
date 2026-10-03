@@ -141,6 +141,8 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/pedidos-recebidos/{pedidoRecebido}/reabrir', [PedidosRecebidosController::class, 'reabrir'])->name('pedidos-recebidos.reabrir');
         Route::get('/definicoes-pedidos', [DefinicoesPedidosController::class, 'index'])->name('definicoes-pedidos.index');
         Route::put('/definicoes-pedidos', [DefinicoesPedidosController::class, 'update'])->name('definicoes-pedidos.update');
+        Route::post('/definicoes-pedidos/token', [DefinicoesPedidosController::class, 'gerarToken'])->name('definicoes-pedidos.token.store');
+        Route::delete('/definicoes-pedidos/token', [DefinicoesPedidosController::class, 'revogarToken'])->name('definicoes-pedidos.token.destroy');
         Route::get('/renovacoes', [RenovacaoController::class, 'index'])->name('renovacoes.index');
         Route::post('/renovacoes/{encomenda}', [RenovacaoController::class, 'store'])->name('renovacoes.store');
         Route::put('/renovacoes/{encomenda}/enviada', [RenovacaoController::class, 'marcarEnviada'])->name('renovacoes.enviada');

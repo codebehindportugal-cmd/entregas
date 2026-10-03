@@ -31,6 +31,8 @@ class DefinicoesPedidosController extends Controller
             'valores' => $valores,
             'definidos' => $definidos,
             'webhookUrl' => route('webhooks.whatsapp.receber'),
+            'tokenCriadoEm' => PedidosSettings::tokenCriadoEm(),
+            'tokenNovo' => session('token_novo'),
         ]);
     }
 
@@ -57,5 +59,19 @@ class DefinicoesPedidosController extends Controller
         PedidosSettings::guardar($data, $data['apagar'] ?? []);
 
         return redirect()->route('definicoes-pedidos.index')->with('status', 'Definicoes de pedidos guardadas.');
+    }
+
+    public function gerarToken(): RedirectResponse
+    {
+        return redirect()->route('definicoes-pedidos.index')
+            ->with('token_novo', PedidosSettings::gerarToken())
+            ->with('status', 'Token da caixa de pedidos gerado. Copia-o agora: nao volta a aparecer.');
+    }
+
+    public function revogarToken(): RedirectResponse
+    {
+        PedidosSettings::revogarToken();
+
+        return redirect()->route('definicoes-pedidos.index')->with('status', 'Token da caixa de pedidos apagado.');
     }
 }

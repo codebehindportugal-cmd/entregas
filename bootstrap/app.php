@@ -21,6 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Ingestao de faturas (/api/v1/faturas): o mesmo CLAUDE_API_TOKEN
             // dos endpoints /api/claude/*.
             'claude.api_token' => \App\Http\Middleware\ClaudeApiTokenMiddleware::class,
+            // Caixa de pedidos: as chaves de sempre ou o token proprio da caixa.
+            'pedidos.api_token' => \App\Http\Middleware\PedidosApiTokenMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

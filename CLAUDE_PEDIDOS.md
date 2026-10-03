@@ -8,7 +8,9 @@ preparadas na caixa de pedidos da gestao.hortadamaria.com.
 (Clientes -> Caixa de pedidos -> Confirmar).
 
 **Base:** `https://gestao.hortadamaria.com/api/v1`
-**Autenticacao:** `Authorization: Bearer <CLAUDE_API_TOKEN>` (o mesmo de `/encomendas`).
+**Autenticacao:** `Authorization: Bearer <token da caixa>` — o token `hmcp_...` gerado em
+Clientes -> Caixa de pedidos -> Definicoes. Esse token so abre as rotas `/pedidos-recebidos/*`
+(nao cria encomendas). As chaves de sempre (`CLAUDE_API_TOKEN`) tambem funcionam aqui.
 **Respostas:** `{ sucesso, dados, avisos, erros }`.
 
 ## Passos
@@ -16,10 +18,10 @@ preparadas na caixa de pedidos da gestao.hortadamaria.com.
 1. `GET /pedidos-recebidos/definicoes` — da as etiquetas do Gmail a usar
    (`gmail_etiqueta_entrada`, `gmail_etiqueta_processado`) e se o WhatsApp esta ligado.
    As etiquetas mudam-se no site (Clientes -> Definicoes de pedidos); usa sempre as que vierem daqui.
-2. `GET /produtos` — catalogo, uma vez.
+2. `GET /pedidos-recebidos/produtos` — catalogo, uma vez (mesma resposta do `/produtos`).
 3. **Emails:** no Gmail, procura `label:"<gmail_etiqueta_entrada>" -label:"<gmail_etiqueta_processado>"`.
    Para cada email (o mais recente da conversa, mais o que for preciso das anteriores):
-   - tira o telefone do texto ou da assinatura e confirma o cliente com `GET /clientes?telefone=`;
+   - tira o telefone do texto ou da assinatura e confirma o cliente com `GET /pedidos-recebidos/clientes?telefone=` (mesma resposta do `/clientes`);
      se o email nao trouxer telefone, deixa `cliente.telefone` vazio e poe o nome e o email
      (o pedido fica "Falta telefone" e o Andre poe-no a mao);
    - interpreta as linhas como na skill de encomendas (`unidade: null` se o cliente nao disse; nunca adivinhar);

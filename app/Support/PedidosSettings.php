@@ -162,6 +162,60 @@ class PedidosSettings
         Cache::forget(self::CACHE_KEY);
     }
 
+    public const CHAVE_TOKEN = 'token_caixa_hash';
+
+    public const PREFIXO_TOKEN = 'hmcp_';
+
+    /**
+     * Gera o token proprio do trabalho do fim do dia. So se guarda o hash: o
+     * token aparece uma vez no ecra e depois nunca mais. Gerar outro invalida o anterior.
+     */
+    public static function gerarToken(): string
+    {
+        $token = self::PREFIXO_TOKEN.\Illuminate\Support\Str::random(40);
+        self::guardarBruto([self::CHAVE_TOKEN => hash('sha256', $token), 'token_caixa_criado_em' => now()->toIso8601String()]);
+
+        return $token;
+    }
+
+    public static function revogarToken(): void
+    {
+        self::guardarBruto([self::CHAVE_TOKEN => null, 'token_caixa_criado_em' => null]);
+    }
+
+    public static function tokenValido(?string $token): bool
+    {
+        $hash = self::guardados()[self::CHAVE_TOKEN] ?? null;
+
+        return filled($token) && filled($hash) && str_starts_with($token, self::PREFIXO_TOKEN)
+            && hash_equals((string) $hash, hash('sha256', $token));
+    }
+
+    public static function tokenCriadoEm(): ?string
+    {
+        return filled(self::guardados()[self::CHAVE_TOKEN] ?? null) ? (self::guardados()['token_caixa_criado_em'] ?? null) : null;
+    }
+
+    private static function guardarBruto(array $valores): void
+    {
+        $atual = self::guardados();
+
+        foreach ($valores as $chave => $valor) {
+            if ($valor === null) {
+                unset($atual[$chave]);
+            } else {
+                $atual[$chave] = $valor;
+            }
+        }
+
+        Setting::query()->updateOrCreate(
+            ['key' => self::SETTING_KEY],
+            ['value' => json_encode($atual, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+        );
+
+        Cache::forget(self::CACHE_KEY);
+    }
+
     /** O que o Claude precisa de saber para o trabalho do fim do dia (sem segredos). */
     public static function publicas(): array
     {

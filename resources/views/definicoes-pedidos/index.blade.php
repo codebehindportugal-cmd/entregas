@@ -11,6 +11,39 @@
         <div class="mb-6 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">{{ $errors->first() }}</div>
     @endif
 
+    <div class="mb-6 rounded border border-emerald-900/10 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-[#14532d]">Token do trabalho do fim do dia</h2>
+        <p class="mb-4 mt-1 text-sm text-slate-500">O Claude usa este token para ler o catálogo e os clientes e deixar pedidos na caixa. Não cria encomendas nem faturas. Gerar outro invalida o anterior.</p>
+
+        @if($tokenNovo)
+            <div class="mb-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p class="font-semibold">Copia agora — não volta a aparecer:</p>
+                <code class="mt-1 block select-all break-all rounded bg-white px-2 py-1 font-mono text-slate-900">{{ $tokenNovo }}</code>
+            </div>
+        @endif
+
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-sm text-slate-600">
+                @if($tokenCriadoEm)
+                    Token ativo desde {{ \Illuminate\Support\Carbon::parse($tokenCriadoEm)->timezone(config('app.timezone'))->format('d/m/Y H:i') }}.
+                @else
+                    Sem token.
+                @endif
+            </span>
+            <form method="post" action="{{ route('definicoes-pedidos.token.store') }}" onsubmit="return {{ $tokenCriadoEm ? "confirm('Gerar outro token? O atual deixa de funcionar.')" : 'true' }};">
+                @csrf
+                <button class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">{{ $tokenCriadoEm ? 'Gerar outro' : 'Gerar token' }}</button>
+            </form>
+            @if($tokenCriadoEm)
+                <form method="post" action="{{ route('definicoes-pedidos.token.destroy') }}" onsubmit="return confirm('Apagar o token? O trabalho do fim do dia deixa de funcionar.');">
+                    @csrf
+                    @method('delete')
+                    <button class="rounded bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200">Apagar</button>
+                </form>
+            @endif
+        </div>
+    </div>
+
     <form method="post" action="{{ route('definicoes-pedidos.update') }}" autocomplete="off">
         @csrf
         @method('put')

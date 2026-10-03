@@ -58,16 +58,24 @@ Route::prefix('v1')->name('api.v1.')->middleware('claude.api_token')->group(func
     Route::post('/encomendas/validar', [EncomendaController::class, 'validar'])->name('encomendas.validar');
     Route::post('/encomendas', [EncomendaController::class, 'store'])->name('encomendas.store');
 
-    /*
-    |----------------------------------------------------------------------
-    | Caixa de pedidos (email e WhatsApp)
-    |----------------------------------------------------------------------
-    |
-    | O trabalho do fim do dia do Claude le os emails de encomenda, interpreta-os
-    | no formato do /encomendas/validar e deixa-os aqui. Nada daqui cria
-    | encomendas: so o botao Confirmar do backoffice o faz.
-    |
-    */
+});
+
+/*
+|--------------------------------------------------------------------------
+| Caixa de pedidos (email e WhatsApp)
+|--------------------------------------------------------------------------
+|
+| O trabalho do fim do dia do Claude le os emails de encomenda, interpreta-os
+| no formato do /encomendas/validar e deixa-os aqui. Nada daqui cria
+| encomendas: so o botao Confirmar do backoffice o faz.
+|
+| Aceita o token proprio da caixa (Definicoes de pedidos), que so abre estas
+| rotas, alem das chaves de sempre.
+|
+*/
+Route::prefix('v1')->name('api.v1.')->middleware('pedidos.api_token')->group(function (): void {
+    Route::get('/pedidos-recebidos/produtos', [EncomendaController::class, 'produtos'])->name('pedidos-recebidos.produtos');
+    Route::get('/pedidos-recebidos/clientes', [ClienteController::class, 'show'])->name('pedidos-recebidos.clientes');
     Route::get('/pedidos-recebidos/definicoes', [PedidoRecebidoController::class, 'definicoes'])->name('pedidos-recebidos.definicoes');
     Route::get('/pedidos-recebidos', [PedidoRecebidoController::class, 'index'])->name('pedidos-recebidos.index');
     Route::post('/pedidos-recebidos', [PedidoRecebidoController::class, 'store'])->name('pedidos-recebidos.store');

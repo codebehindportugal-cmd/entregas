@@ -258,4 +258,23 @@ class PedidosRecebidosTest extends TestCase
             'pedido' => $this->email()['pedido'],
         ], $this->comToken())->assertOk()->assertJsonPath('dados.estado', 'pronto');
     }
+
+    public function test_token_da_caixa_so_abre_a_caixa(): void
+    {
+        $this->ameixa();
+        $token = PedidosSettings::gerarToken();
+        $cabecalho = ['Authorization' => 'Bearer '.$token];
+
+        $this->getJson('/api/v1/pedidos-recebidos/produtos', $cabecalho)->assertOk();
+        $this->getJson('/api/v1/pedidos-recebidos/clientes?telefone=912345678', $cabecalho)->assertOk();
+        $this->postJson('/api/v1/pedidos-recebidos', $this->email(), $cabecalho)->assertCreated();
+
+        // Nao cria encomendas nem faturas.
+        $this->postJson('/api/v1/encomendas/validar', $this->email()['pedido'], $cabecalho)->assertUnauthorized();
+        $this->postJson('/api/v1/encomendas', ['token_confirmacao' => 'x', 'referencia_externa' => 'x', 'confirmado' => true], $cabecalho)->assertUnauthorized();
+
+        // Gerar outro invalida o anterior.
+        PedidosSettings::gerarToken();
+        $this->getJson('/api/v1/pedidos-recebidos', $cabecalho)->assertUnauthorized();
+    }
 }
