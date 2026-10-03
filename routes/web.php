@@ -20,6 +20,9 @@ use App\Http\Controllers\ListaCabazController;
 use App\Http\Controllers\ProdutoController;
 use App\Http\Controllers\TabelaPrecoController;
 use App\Http\Controllers\WebhookController;
+use App\Http\Controllers\WhatsAppWebhookController;
+use App\Http\Controllers\PedidosRecebidosController;
+use App\Http\Controllers\DefinicoesPedidosController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +41,12 @@ Route::get('/relatorios/download', function (Illuminate\Http\Request $request) {
 Route::post('/webhooks/woocommerce', [WebhookController::class, 'woocommerce'])
     ->withoutMiddleware([ValidateCsrfToken::class])
     ->name('webhooks.woocommerce');
+
+// WhatsApp Cloud API: as chaves estao em Clientes -> Definicoes de pedidos.
+Route::get('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'verificar'])->name('webhooks.whatsapp.verificar');
+Route::post('/webhooks/whatsapp', [WhatsAppWebhookController::class, 'receber'])
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->name('webhooks.whatsapp.receber');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/', [AuthController::class, 'create'])->name('login');
@@ -124,6 +133,14 @@ Route::middleware('auth')->group(function (): void {
         Route::put('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'updateItem'])->name('tabelas-precos.itens.update');
         Route::delete('/tabelas-precos/itens/{item}', [TabelaPrecoController::class, 'destroyItem'])->name('tabelas-precos.itens.destroy');
         Route::post('/tabelas-precos/{tabelaPreco}/clonar', [TabelaPrecoController::class, 'clonar'])->name('tabelas-precos.clonar');
+        Route::get('/pedidos-recebidos', [PedidosRecebidosController::class, 'index'])->name('pedidos-recebidos.index');
+        Route::get('/pedidos-recebidos/{pedidoRecebido}', [PedidosRecebidosController::class, 'show'])->name('pedidos-recebidos.show');
+        Route::put('/pedidos-recebidos/{pedidoRecebido}', [PedidosRecebidosController::class, 'update'])->name('pedidos-recebidos.update');
+        Route::post('/pedidos-recebidos/{pedidoRecebido}/confirmar', [PedidosRecebidosController::class, 'confirmar'])->name('pedidos-recebidos.confirmar');
+        Route::post('/pedidos-recebidos/{pedidoRecebido}/descartar', [PedidosRecebidosController::class, 'descartar'])->name('pedidos-recebidos.descartar');
+        Route::post('/pedidos-recebidos/{pedidoRecebido}/reabrir', [PedidosRecebidosController::class, 'reabrir'])->name('pedidos-recebidos.reabrir');
+        Route::get('/definicoes-pedidos', [DefinicoesPedidosController::class, 'index'])->name('definicoes-pedidos.index');
+        Route::put('/definicoes-pedidos', [DefinicoesPedidosController::class, 'update'])->name('definicoes-pedidos.update');
         Route::get('/renovacoes', [RenovacaoController::class, 'index'])->name('renovacoes.index');
         Route::post('/renovacoes/{encomenda}', [RenovacaoController::class, 'store'])->name('renovacoes.store');
         Route::put('/renovacoes/{encomenda}/enviada', [RenovacaoController::class, 'marcarEnviada'])->name('renovacoes.enviada');

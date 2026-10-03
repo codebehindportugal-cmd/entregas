@@ -4,6 +4,7 @@ use App\Http\Controllers\AiJobController;
 use App\Http\Controllers\Api\ClienteController;
 use App\Http\Controllers\Api\EncomendaController;
 use App\Http\Controllers\Api\FaturaController;
+use App\Http\Controllers\Api\PedidoRecebidoController;
 use App\Http\Controllers\ClaudeApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -56,4 +57,20 @@ Route::prefix('v1')->name('api.v1.')->middleware('claude.api_token')->group(func
     Route::get('/clientes', [ClienteController::class, 'show'])->name('clientes.show');
     Route::post('/encomendas/validar', [EncomendaController::class, 'validar'])->name('encomendas.validar');
     Route::post('/encomendas', [EncomendaController::class, 'store'])->name('encomendas.store');
+
+    /*
+    |----------------------------------------------------------------------
+    | Caixa de pedidos (email e WhatsApp)
+    |----------------------------------------------------------------------
+    |
+    | O trabalho do fim do dia do Claude le os emails de encomenda, interpreta-os
+    | no formato do /encomendas/validar e deixa-os aqui. Nada daqui cria
+    | encomendas: so o botao Confirmar do backoffice o faz.
+    |
+    */
+    Route::get('/pedidos-recebidos/definicoes', [PedidoRecebidoController::class, 'definicoes'])->name('pedidos-recebidos.definicoes');
+    Route::get('/pedidos-recebidos', [PedidoRecebidoController::class, 'index'])->name('pedidos-recebidos.index');
+    Route::post('/pedidos-recebidos', [PedidoRecebidoController::class, 'store'])->name('pedidos-recebidos.store');
+    Route::post('/pedidos-recebidos/lote', [PedidoRecebidoController::class, 'lote'])->name('pedidos-recebidos.lote');
+    Route::put('/pedidos-recebidos/{pedidoRecebido}/interpretacao', [PedidoRecebidoController::class, 'interpretacao'])->name('pedidos-recebidos.interpretacao');
 });
