@@ -31,6 +31,8 @@ O WooCommerce so conta linhas inteiras. Uma linha e "1 x Ameixa 500g", nunca
 1. **`GET /clientes?telefone=...`** para saber quem e o cliente. Os perfis B2C
    repetem-se (cada encomenda e um), por isso o cliente identifica-se sempre
    pelo telefone.
+   Se vier `notas_cliente`, ter as notas em conta ao interpretar a encomenda
+   (ex.: "nao gosta de kiwi") e mostra-las ao Andre.
 2. **Interpretar o texto do cliente** em linhas `{texto, quantidade, unidade}`.
    A unidade so vai preenchida se o cliente a tiver dito.
 3. **`POST /encomendas/validar`**. Se vier `sucesso: false` ou avisos de
@@ -106,6 +108,35 @@ mesma encomenda.
 Sem resultado: `encontrado: false` e `cliente: null`. Menos de 9 digitos: 422
 `TELEFONE_INVALIDO`. Se o telefone aparecer com varios nomes vem o aviso
 `CLIENTE_VARIOS_NOMES`.
+
+## Notas fixas do cliente
+
+Notas que ficam presas ao cliente (pelo telefone) e aparecem sempre que se faz
+uma encomenda dele: no ecra "Nova encomenda B2C" (ao usar o perfil), na ficha
+da encomenda, na preparacao dos cabazes e no `/encomendas/validar` (aviso
+`CLIENTE_TEM_NOTAS` e `dados.cliente.notas_cliente`). Nao sao copiadas para a
+encomenda — para uma nota so desta encomenda usa-se `notas` no `/validar`.
+
+`PUT /clientes/notas`
+
+```json
+{ "telefone": "912 345 678", "notas": "Nao gosta de kiwi. Deixar na portaria.", "modo": "substituir" }
+```
+
+- `modo`: `substituir` (por defeito) ou `acrescentar` (junta numa linha nova).
+- `notas` vazio ou `null` apaga as notas do cliente.
+- `nome` opcional; se faltar vem das encomendas do telefone.
+- Funciona tambem para quem ainda nao tem encomendas.
+
+```json
+{ "sucesso": true, "dados": { "telefone_normalizado": "912345678", "nome": "Joana Costa",
+  "notas_cliente": "Nao gosta de kiwi. Deixar na portaria.", "cliente_tem_encomendas": true },
+  "avisos": [], "erros": [] }
+```
+
+Na caixa de pedidos o mesmo endpoint esta em `PUT /pedidos-recebidos/clientes/notas`.
+
+So se mudam as notas de um cliente quando o Andre o pede.
 
 ## `POST /encomendas/validar`
 

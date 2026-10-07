@@ -207,6 +207,9 @@
                 </tr>
             </thead>
             <tbody>
+                @php
+                    $notasClientes = \App\Models\NotaCliente::porTelefones($b2cPreparacoes->pluck('order.billing_phone'));
+                @endphp
                 @forelse($b2cPreparacoes as $preparacao)
                     @php
                         $order = $preparacao['order'];
@@ -222,6 +225,7 @@
                         <td class="p-3">
                             <a href="{{ route('encomendas.show', $order) }}" class="font-semibold text-white hover:text-[#22C55E]">#{{ $order->woo_id }} {{ $order->billing_name ?: 'Sem nome' }}</a>
                             <p class="text-xs text-slate-400">{{ $order->billing_phone ?: $order->billing_email }}</p>
+                            <x-notas-cliente :notas="$notasClientes->get(\App\Services\ClientesB2c::normalizarTelefone($order->billing_phone))" compacto />
                         </td>
                         <td class="p-3 text-slate-300">
                             <p>{{ \Illuminate\Support\Carbon::parse($dataLinha)->format('d/m/Y') }}</p>

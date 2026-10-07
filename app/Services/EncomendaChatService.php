@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\NotaCliente;
 use App\Models\WooOrder;
 use App\Models\WooProduct;
 use Illuminate\Support\Arr;
@@ -313,9 +314,20 @@ class EncomendaChatService
             }
         }
 
+        $telefone = $this->primeiro($telefonePedido, $perfil['telefone'] ?? null);
+        $notasCliente = NotaCliente::textoDo($telefone);
+
+        if (filled($notasCliente)) {
+            $avisos[] = [
+                'codigo' => 'CLIENTE_TEM_NOTAS',
+                'linha' => null,
+                'mensagem' => 'Notas do cliente: '.$notasCliente,
+            ];
+        }
+
         return [
             'nome' => $this->primeiro($cliente['nome'] ?? null, $perfil['nome'] ?? null),
-            'telefone' => $this->primeiro($telefonePedido, $perfil['telefone'] ?? null),
+            'telefone' => $telefone,
             'email' => $this->primeiro($cliente['email'] ?? null, $perfil['email'] ?? null),
             'morada' => $this->primeiro($cliente['morada'] ?? null, $perfil['morada'] ?? null),
             'codigo_postal' => $this->primeiro($cliente['codigo_postal'] ?? null, $perfil['codigo_postal'] ?? null),
@@ -324,6 +336,7 @@ class EncomendaChatService
             'dia_entrega' => $perfil['dia_entrega'] ?? null,
             'perfil_woo_order_id' => $perfil['perfil_woo_order_id'] ?? null,
             'encomendas_anteriores' => $perfil['total_encomendas'] ?? 0,
+            'notas_cliente' => $notasCliente,
         ];
     }
 

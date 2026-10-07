@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\NotaCliente;
 use App\Models\WooOrder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -94,6 +95,8 @@ class ClientesB2c
             'cidade' => $morada['cidade'] ?? null,
             'idioma' => $this->primeiroPreenchido($encomendas, fn (WooOrder $o) => $o->customer_language),
             'dia_entrega' => $this->primeiroPreenchido($encomendas, fn (WooOrder $o) => $o->dia_entrega),
+            // Notas fixas do cliente (por telefone) — ler antes de fazer a encomenda.
+            'notas_cliente' => NotaCliente::textoDo($telefone),
             'nomes' => $this->nomesDistintos($encomendas),
             'total_encomendas' => $encomendas->count(),
             'encomendas' => $encomendas->map(fn (WooOrder $o): array => [

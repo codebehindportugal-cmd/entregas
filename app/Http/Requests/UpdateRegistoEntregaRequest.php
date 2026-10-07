@@ -12,6 +12,18 @@ class UpdateRegistoEntregaRequest extends FormRequest
         return auth()->check();
     }
 
+    /**
+     * Os botoes grandes do ecra da entrega ("Entregue", "Nao entregue",
+     * "Repor pendente") enviam o estado em "acao"; o "Guardar" mantem o
+     * estado que vem no campo escondido.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (in_array($this->input('acao'), ['pendente', 'entregue', 'falhou'], true)) {
+            $this->merge(['status' => $this->input('acao')]);
+        }
+    }
+
     public function rules(): array
     {
         return [

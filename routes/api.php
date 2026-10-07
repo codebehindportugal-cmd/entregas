@@ -55,6 +55,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('claude.api_token')->group(func
     Route::get('/produtos', [EncomendaController::class, 'produtos'])->name('produtos.index');
     // Os perfis B2C repetem-se; o cliente identifica-se pelo telefone.
     Route::get('/clientes', [ClienteController::class, 'show'])->name('clientes.show');
+    // Notas fixas do cliente (por telefone): aparecem ao criar encomendas e na preparacao.
+    Route::put('/clientes/notas', [ClienteController::class, 'notas'])->name('clientes.notas');
     Route::post('/encomendas/validar', [EncomendaController::class, 'validar'])->name('encomendas.validar');
     Route::post('/encomendas', [EncomendaController::class, 'store'])->name('encomendas.store');
 
@@ -76,6 +78,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('claude.api_token')->group(func
 Route::prefix('v1')->name('api.v1.')->middleware('pedidos.api_token')->group(function (): void {
     Route::get('/pedidos-recebidos/produtos', [EncomendaController::class, 'produtos'])->name('pedidos-recebidos.produtos');
     Route::get('/pedidos-recebidos/clientes', [ClienteController::class, 'show'])->name('pedidos-recebidos.clientes');
+    Route::put('/pedidos-recebidos/clientes/notas', [ClienteController::class, 'notas'])->name('pedidos-recebidos.clientes.notas');
     Route::get('/pedidos-recebidos/definicoes', [PedidoRecebidoController::class, 'definicoes'])->name('pedidos-recebidos.definicoes');
     Route::get('/pedidos-recebidos', [PedidoRecebidoController::class, 'index'])->name('pedidos-recebidos.index');
     Route::post('/pedidos-recebidos', [PedidoRecebidoController::class, 'store'])->name('pedidos-recebidos.store');

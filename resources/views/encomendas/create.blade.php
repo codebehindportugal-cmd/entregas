@@ -27,6 +27,7 @@
             @endif
         </div>
         @if($perfil)
+            <x-notas-cliente :notas="\App\Models\NotaCliente::textoDo($perfil->billing_phone)" class="mt-3" />
             <p class="mt-3 text-sm text-slate-400">A criar uma encomenda nova para {{ $perfil->billing_name ?: 'perfil sem nome' }}. Pode alterar os dados antes de enviar para o WooCommerce.</p>
         @endif
     </form>

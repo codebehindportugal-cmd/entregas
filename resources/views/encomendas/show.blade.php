@@ -40,6 +40,7 @@
             <a href="{{ route('encomendas.index') }}" class="rounded bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200">Voltar</a>
         </div>
     </x-page-title>
+    <x-notas-cliente :notas="\App\Models\NotaCliente::textoDo($encomenda->billing_phone)" class="mb-6" />
 
     <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-5">
         <h2 class="text-lg font-semibold text-white">Produtos da fatura (cabaz)</h2>

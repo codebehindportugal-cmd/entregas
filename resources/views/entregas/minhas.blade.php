@@ -21,10 +21,29 @@
             <a href="{{ route('mapa-volta', ['data' => $data]) }}" class="rounded bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white">Mapa</a>
         </div>
     </form>
+    @if($total > 0)
+        <div class="mb-6 rounded border border-white/10 bg-[#151E2D] p-4">
+            <div class="flex items-center justify-between text-sm">
+                <span class="font-semibold text-white">{{ $feitas }} de {{ $total }} feitas</span>
+                <span class="text-slate-400">faltam {{ $total - $feitas }}</span>
+            </div>
+            <div class="mt-2 h-2 overflow-hidden rounded bg-white/10">
+                <div class="h-full bg-[#22C55E]" style="width: {{ round($feitas / $total * 100) }}%"></div>
+            </div>
+            @if($proxima)
+                <a href="{{ route('minhas-entregas.show', $proxima) }}" class="mt-4 block rounded bg-[#22C55E] px-4 py-4 text-center text-lg font-bold text-[#0A0F1A]">
+                    {{ $feitas === 0 ? 'Começar volta' : 'Continuar volta' }} &rarr;
+                    <span class="block text-sm font-semibold">{{ $proxima->tipo === 'b2c' ? ($proxima->wooOrder?->billing_name ?: 'Cliente B2C') : trim(($proxima->corporate?->empresa ?? '').' '.($proxima->corporate?->sucursal ?? '')) }}</span>
+                </a>
+            @else
+                <p class="mt-4 rounded bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-200">Volta terminada.</p>
+            @endif
+        </div>
+    @endif
     <div class="grid gap-4">
 
         @forelse($registos as $registo)
-            <div class="rounded border border-white/10 bg-[#151E2D] p-4">
+            <div class="rounded border {{ $proxima && $registo->is($proxima) ? 'border-[#22C55E]' : 'border-white/10' }} bg-[#151E2D] p-4 {{ in_array($registo->status, ['entregue', 'falhou'], true) ? 'opacity-60' : '' }}">
                 <div class="grid gap-4 sm:grid-cols-[5rem_1fr_auto] sm:items-start">
                     <span class="inline-flex h-12 w-12 items-center justify-center rounded bg-[#3B82F6] text-lg font-semibold text-white">{{ $loop->iteration }}</span>
                     <div>
@@ -42,7 +61,7 @@
                             <p class="mt-2 text-sm text-slate-400">{{ $registo->corporate->moradaParaEntrega() ?: 'Morada por definir' }}</p>
                         @endif
                     </div>
-                    <span class="w-fit rounded px-3 py-1 text-xs font-semibold {{ $registo->status === 'entregue' ? 'bg-emerald-500/20 text-emerald-200' : ($registo->status === 'falhou' ? 'bg-red-500/20 text-red-200' : 'bg-[#F59E0B]/20 text-amber-200') }}">{{ $registo->status }}</span>
+                    <span class="w-fit rounded px-3 py-1 text-xs font-semibold {{ $registo->status === 'entregue' ? 'bg-emerald-500/20 text-emerald-200' : ($registo->status === 'falhou' ? 'bg-red-500/20 text-red-200' : 'bg-[#F59E0B]/20 text-amber-200') }}">{{ ['entregue' => 'Entregue', 'falhou' => 'Nao entregue'][$registo->status] ?? 'Por entregar' }}</span>
                 </div>
                 <div class="mt-4 grid gap-2 sm:grid-cols-3">
                     <a href="{{ route('minhas-entregas.show', $registo) }}" class="rounded bg-[#22C55E] px-4 py-2 text-center text-sm font-semibold text-[#0A0F1A]">Abrir entrega</a>

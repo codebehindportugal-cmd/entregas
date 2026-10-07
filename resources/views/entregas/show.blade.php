@@ -1,5 +1,37 @@
 <x-layouts.app title="Entrega">
-    <x-page-title title="{{ $registoEntrega->tipo === 'b2c' ? '#'.$registoEntrega->wooOrder->woo_id.' '.($registoEntrega->wooOrder->billing_name ?: 'Cliente B2C') : $registoEntrega->corporate->empresa }}" subtitle="{{ $registoEntrega->data_entrega->format('d/m/Y') }}" />
+    @php($listaUrl = route('minhas-entregas.index', ['data' => $registoEntrega->data_entrega->toDateString()]))
+    <div class="mb-4 flex items-center gap-2">
+        <a href="{{ $listaUrl }}" class="rounded bg-white/10 px-3 py-2 text-sm font-semibold text-slate-200">&larr; Lista</a>
+        @if($navegacao['posicao'])
+            <div class="flex-1 text-center">
+                <p class="text-sm font-semibold text-white">Paragem {{ $navegacao['posicao'] }} de {{ $navegacao['total'] }}</p>
+                <p class="text-xs text-slate-400">{{ $navegacao['feitas'] }} feitas &middot; faltam {{ $navegacao['total'] - $navegacao['feitas'] }}</p>
+            </div>
+            <div class="flex gap-2">
+                @if($navegacao['anterior'])
+                    <a href="{{ route('minhas-entregas.show', $navegacao['anterior']) }}" class="rounded bg-white/10 px-3 py-2 text-sm font-semibold text-slate-200" aria-label="Paragem anterior">&lsaquo;</a>
+                @endif
+                @if($navegacao['seguinte'])
+                    <a href="{{ route('minhas-entregas.show', $navegacao['seguinte']) }}" class="rounded bg-white/10 px-3 py-2 text-sm font-semibold text-slate-200" aria-label="Paragem seguinte">&rsaquo;</a>
+                @endif
+            </div>
+        @endif
+    </div>
+    @if($navegacao['total'] > 0)
+        <div class="mb-4 h-2 overflow-hidden rounded bg-white/10">
+            <div class="h-full bg-[#22C55E]" style="width: {{ round($navegacao['feitas'] / $navegacao['total'] * 100) }}%"></div>
+        </div>
+    @endif
+    <x-page-title title="{{ $registoEntrega->tipo === 'b2c' ? '#'.$registoEntrega->wooOrder->woo_id.' '.($registoEntrega->wooOrder->billing_name ?: 'Cliente B2C') : trim($registoEntrega->corporate->empresa.' '.($registoEntrega->corporate->sucursal ?? '')) }}" subtitle="{{ $registoEntrega->data_entrega->format('d/m/Y') }}" />
+    @php($estado = $registoEntrega->status ?: 'pendente')
+    <p class="mb-4">
+        <span class="rounded px-3 py-1 text-xs font-semibold {{ $estado === 'entregue' ? 'bg-emerald-500/20 text-emerald-200' : ($estado === 'falhou' ? 'bg-red-500/20 text-red-200' : 'bg-[#F59E0B]/20 text-amber-200') }}">
+            {{ ['pendente' => 'Por entregar', 'entregue' => 'Entregue', 'falhou' => 'Nao entregue'][$estado] ?? $estado }}
+        </span>
+        @if($estado === 'entregue' && $registoEntrega->hora_entrega)
+            <span class="ml-2 text-xs text-slate-400">as {{ $registoEntrega->hora_entrega->format('H:i') }}</span>
+        @endif
+    </p>
     <div class="mb-6 grid gap-4 lg:grid-cols-3">
         <div class="rounded border border-white/10 bg-[#151E2D] p-4">
             <p class="text-sm text-slate-400">{{ $registoEntrega->tipo === 'b2c' ? 'Cliente' : 'Responsavel' }}</p>
@@ -38,15 +70,10 @@
     <form method="post" enctype="multipart/form-data" action="{{ route('minhas-entregas.update', $registoEntrega) }}" class="rounded border border-white/10 bg-[#151E2D] p-5">
         @csrf
         @method('put')
-        <div class="grid gap-4 sm:grid-cols-3">
-            @foreach(['pendente' => 'Pendente', 'entregue' => 'Entregue', 'falhou' => 'Falhou'] as $value => $label)
-                <label class="rounded border border-white/10 bg-[#0A0F1A] px-3 py-3 text-sm text-slate-200">
-                    <input type="radio" name="status" value="{{ $value }}" @checked(old('status', $registoEntrega->status) === $value)> {{ $label }}
-                </label>
-            @endforeach
-        </div>
-        <label class="mt-5 block text-sm text-slate-300">Nota
-            <textarea name="nota" rows="4" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('nota', $registoEntrega->nota) }}</textarea>
+        {{-- "Guardar" mantem o estado atual; os botoes grandes mudam-no e seguem para a proxima paragem. --}}
+        <input type="hidden" name="status" value="{{ $estado }}">
+        <label class="block text-sm text-slate-300">Nota <span class="text-slate-500">(se nao entregou, escreva o motivo)</span>
+            <textarea name="nota" rows="2" class="mt-1 w-full rounded border border-white/10 bg-[#0A0F1A] px-3 py-2 text-white">{{ old('nota', $registoEntrega->nota) }}</textarea>
         </label>
         <div class="mt-5">
             <p class="text-sm text-slate-300">Fotos</p>
@@ -75,7 +102,16 @@
                 @endforeach
             </div>
         @endif
-        <button class="mt-6 w-full rounded bg-[#22C55E] px-4 py-3 font-semibold text-[#0A0F1A]">Guardar entrega</button>
+        <div class="mt-6 grid gap-3 sm:grid-cols-2">
+            <button name="acao" value="entregue" class="rounded bg-[#22C55E] px-4 py-4 text-lg font-bold text-[#0A0F1A]">&check; Entregue &rarr; seguinte</button>
+            <button name="acao" value="falhou" class="rounded bg-red-600 px-4 py-4 text-lg font-bold text-white">&times; Nao entregue &rarr; seguinte</button>
+        </div>
+        <div class="mt-3 flex flex-wrap justify-center gap-3 text-sm">
+            <button name="acao" value="guardar" class="rounded bg-white/10 px-4 py-2 font-semibold text-slate-200">Guardar sem avancar</button>
+            @if($estado !== 'pendente')
+                <button name="acao" value="pendente" class="rounded bg-white/10 px-4 py-2 font-semibold text-slate-200">Repor por entregar</button>
+            @endif
+        </div>
     </form>
     @if($registoEntrega->fotos)
         @foreach($registoEntrega->fotos as $index => $foto)

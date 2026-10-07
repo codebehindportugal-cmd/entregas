@@ -1114,12 +1114,52 @@ class EntregaController extends Controller
         $registos = $atribuicoes
             ->map(fn (AtribuicaoEntrega $atribuicao): RegistoEntrega => $this->registoPara($atribuicao, $data, (int) auth()->id()))
             ->values();
-        $registos = (new \Illuminate\Database\Eloquent\Collection($registos->all()))
-            ->load(['corporate', 'wooOrder'])
-            ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->where('status', $status)->values())
+        $registos = (new \Illuminate\Database\Eloquent\Collection($registos->all()))->load(['corporate', 'wooOrder']);
+
+        // Progresso da volta inteira (antes de filtrar por estado) e a
+        // primeira paragem ainda por fazer, para o botao "Continuar volta".
+        $total = $registos->count();
+        $feitas = $registos->whereIn('status', ['entregue', 'falhou'])->count();
+        $proxima = $registos->first(fn (RegistoEntrega $registo): bool => $this->estaPendente($registo));
+
+        $registos = $registos
+            ->when(in_array($status, ['pendente', 'entregue', 'falhou'], true), fn ($collection) => $collection->filter(
+                fn (RegistoEntrega $registo): bool => $status === 'pendente' ? $this->estaPendente($registo) : $registo->status === $status
+            )->values())
             ->values();
 
-        return view('entregas.minhas', compact('registos', 'q', 'status', 'data', 'dia'));
+        return view('entregas.minhas', compact('registos', 'q', 'status', 'data', 'dia', 'total', 'feitas', 'proxima'));
+    }
+
+    private function estaPendente(RegistoEntrega $registo): bool
+    {
+        return ! in_array($registo->status, ['entregue', 'falhou'], true);
+    }
+
+    /**
+     * Os registos da volta de quem faz esta entrega, pela ordem da volta.
+     *
+     * @return \Illuminate\Support\Collection<int, RegistoEntrega>
+     */
+    private function voltaDe(RegistoEntrega $registoEntrega, EntregasDoDia $entregasDoDia): \Illuminate\Support\Collection
+    {
+        $colaborador = $registoEntrega->user ?? auth()->user();
+        $data = $registoEntrega->data_entrega->copy()->startOfDay();
+
+        return $entregasDoDia->doColaborador($colaborador, $data)
+            ->map(fn (AtribuicaoEntrega $atribuicao): RegistoEntrega => $this->registoPara($atribuicao, $data->toDateString(), (int) $colaborador->id))
+            ->values();
+    }
+
+    /** A proxima paragem por fazer depois desta (ou, se nao houver, a primeira que ficou para tras). */
+    private function proximaPendente(\Illuminate\Support\Collection $volta, RegistoEntrega $atual): ?RegistoEntrega
+    {
+        $posicao = $volta->search(fn (RegistoEntrega $registo): bool => $registo->id === $atual->id);
+        $depois = $posicao === false ? $volta : $volta->slice($posicao + 1);
+        $antes = $posicao === false ? collect() : $volta->slice(0, $posicao);
+
+        return $depois->first(fn (RegistoEntrega $registo): bool => $this->estaPendente($registo))
+            ?? $antes->first(fn (RegistoEntrega $registo): bool => $this->estaPendente($registo));
     }
 
     /**
@@ -1156,16 +1196,26 @@ class EntregaController extends Controller
         return $registo;
     }
 
-    public function show(RegistoEntrega $registoEntrega): View
+    public function show(RegistoEntrega $registoEntrega, EntregasDoDia $entregasDoDia): View
     {
         abort_unless(auth()->user()->isAdmin() || $registoEntrega->user_id === auth()->id(), 403);
 
         $registoEntrega->load(['corporate', 'wooOrder', 'user']);
 
-        return view('entregas.show', compact('registoEntrega'));
+        $volta = $this->voltaDe($registoEntrega, $entregasDoDia);
+        $posicao = $volta->search(fn (RegistoEntrega $registo): bool => $registo->id === $registoEntrega->id);
+        $navegacao = [
+            'posicao' => $posicao === false ? null : $posicao + 1,
+            'total' => $volta->count(),
+            'feitas' => $volta->whereIn('status', ['entregue', 'falhou'])->count(),
+            'anterior' => $posicao === false || $posicao === 0 ? null : $volta[$posicao - 1],
+            'seguinte' => $posicao === false ? null : $volta->get($posicao + 1),
+        ];
+
+        return view('entregas.show', compact('registoEntrega', 'navegacao'));
     }
 
-    public function update(UpdateRegistoEntregaRequest $request, RegistoEntrega $registoEntrega): RedirectResponse
+    public function update(UpdateRegistoEntregaRequest $request, RegistoEntrega $registoEntrega, EntregasDoDia $entregasDoDia): RedirectResponse
     {
         abort_unless(auth()->user()->isAdmin() || $registoEntrega->user_id === auth()->id(), 403);
 
@@ -1195,12 +1245,36 @@ class EntregaController extends Controller
             }
         }
 
+        $status = $request->validated('status');
+        $jaEstavaEntregue = $registoEntrega->status === 'entregue' && $registoEntrega->hora_entrega !== null;
+
         $registoEntrega->update([
-            'status' => $request->validated('status'),
+            'status' => $status,
             'nota' => $request->validated('nota'),
-            'hora_entrega' => $request->validated('status') === 'entregue' ? now()->format('H:i:s') : null,
+            'hora_entrega' => $status === 'entregue'
+                ? ($jaEstavaEntregue ? $registoEntrega->hora_entrega->format('H:i:s') : now()->format('H:i:s'))
+                : null,
             'fotos' => $fotos,
         ]);
+
+        // Marcou entregue / nao entregue: segue logo para a proxima paragem
+        // por fazer, sem ter de voltar a lista.
+        if (in_array($request->input('acao'), ['entregue', 'falhou'], true)) {
+            $nome = $registoEntrega->tipo === 'b2c'
+                ? ($registoEntrega->wooOrder?->billing_name ?: 'Cliente B2C')
+                : trim(($registoEntrega->corporate?->empresa ?? '').' '.($registoEntrega->corporate?->sucursal ?? ''));
+            $feito = ($status === 'entregue' ? 'Entregue: ' : 'Nao entregue: ').$nome;
+
+            $proxima = $this->proximaPendente($this->voltaDe($registoEntrega->fresh(['user']), $entregasDoDia), $registoEntrega);
+
+            if ($proxima !== null) {
+                return redirect()->route('minhas-entregas.show', $proxima)->with('status', $feito.'. Proxima paragem.');
+            }
+
+            return redirect()
+                ->route('minhas-entregas.index', ['data' => $registoEntrega->data_entrega->toDateString()])
+                ->with('status', $feito.'. Volta terminada, nao ha mais entregas por fazer.');
+        }
 
         return redirect()->route('minhas-entregas.show', $registoEntrega)->with('status', 'Entrega atualizada.');
     }

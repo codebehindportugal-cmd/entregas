@@ -236,6 +236,48 @@ class ZonasEntregasTest extends TestCase
         $this->actingAs($this->joao)->get(route('minhas-entregas.index'))->assertSeeInOrder(['Segunda empresa', 'Primeira']);
     }
 
+    public function test_marcar_entregue_segue_para_a_proxima_paragem_por_fazer(): void
+    {
+        $a = $this->entrega('Paragem A', $this->norte);
+        $b = $this->entrega('Paragem B', $this->norte);
+        $c = $this->entrega('Paragem C', $this->norte);
+        $this->actingAs($this->admin)->put(route('entregas.ordem.update'), [
+            'zona_id' => $this->norte->id,
+            'ordens' => [$a->id => 1, $b->id => 2, $c->id => 3],
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->joao)->get(route('minhas-entregas.index'))
+            ->assertOk()->assertSee('0 de 3 feitas')->assertSee('Começar volta');
+
+        $registo = fn (AtribuicaoEntrega $atribuicao): RegistoEntrega => RegistoEntrega::where('corporate_id', $atribuicao->corporate_id)->firstOrFail();
+
+        $this->actingAs($this->joao)->get(route('minhas-entregas.show', $registo($a)))
+            ->assertOk()->assertSee('Paragem 1 de 3')->assertSee('Entregue');
+
+        // A: entregue -> vai para B
+        $this->actingAs($this->joao)->put(route('minhas-entregas.update', $registo($a)), ['status' => 'pendente', 'acao' => 'entregue'])
+            ->assertRedirect(route('minhas-entregas.show', $registo($b)));
+        $this->assertSame('entregue', $registo($a)->status);
+        $this->assertNotNull($registo($a)->hora_entrega);
+
+        // C antes de B: nao entregue -> volta a B, que ficou para tras
+        $this->actingAs($this->joao)->put(route('minhas-entregas.update', $registo($c)), ['status' => 'pendente', 'acao' => 'falhou', 'nota' => 'Fechado'])
+            ->assertRedirect(route('minhas-entregas.show', $registo($b)));
+        $this->assertSame('falhou', $registo($c)->status);
+        $this->assertSame('Fechado', $registo($c)->nota);
+
+        // B: a ultima -> volta terminada, regressa a lista
+        $this->actingAs($this->joao)->put(route('minhas-entregas.update', $registo($b)), ['status' => 'pendente', 'acao' => 'entregue'])
+            ->assertRedirect(route('minhas-entregas.index', ['data' => '2026-10-14']));
+
+        $this->actingAs($this->joao)->get(route('minhas-entregas.index'))->assertSee('3 de 3 feitas')->assertSee('Volta terminada');
+
+        // "Guardar sem avancar" mantem o estado e fica na mesma paragem
+        $this->actingAs($this->joao)->put(route('minhas-entregas.update', $registo($a)), ['status' => 'entregue', 'acao' => 'guardar', 'nota' => 'Na receção'])
+            ->assertRedirect(route('minhas-entregas.show', $registo($a)));
+        $this->assertSame('entregue', $registo($a)->status);
+    }
+
     public function test_entregas_novas_entram_sozinhas_na_zona_do_codigo_postal(): void
     {
         $porto = $this->empresa('No Porto', '4100-138');
